@@ -108,6 +108,12 @@ STYLE = """
    default yellow-on-black, which ignores the palette entirely. */
 mark{background:var(--mark);color:inherit;padding:.05em .15em;border-radius:3px}
 mark.off{background:none;padding:0}
+/* "see Fig. 4" jumps to the figure. Underlined rather than coloured-only, so
+   it is still visible to a reader who cannot separate the two colours. */
+a.xref{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{border-bottom-style:solid}
+img[id^="fig-"],img[id^="tab-"]{scroll-margin-top:24px}
+img[id]:target{outline:2px solid var(--accent);outline-offset:4px}
 /* Selection: the browser default is an opaque blue that swallows glyph colour,
    and across KaTeX's many small spans it reads as a broken band. A translucent
    tint keeps the text its own colour and blends the boxes into one wash. */
@@ -482,6 +488,103 @@ SCRIPT = """
 """
 
 
+# --------------------------------------------------------------------------
+# cross-references ("see Fig. 4", "Table V")
+# --------------------------------------------------------------------------
+
+_ASSET_IMG = re.compile(
+    r'<img\s+([^>]*?)src="([^"]*?(figure|table)-0*(\d+)\.[A-Za-z]+)"([^>]*?)>', re.I
+)
+_ALT = re.compile(r'alt="([^"]*)"', re.I)
+_ROMAN = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+# "Fig. 4", "Figure 4", "FIG. 4", "Table V", "TABLE 8" -- the label varies from
+# paper to paper, the shape does not.
+_XREF = re.compile(r"\b(Figs?\.|Figures?|FIGs?\.|Tables?|TABLES?)\s*(\d+|[IVXLCDM]+)\b")
+# Inside these, a link would either fight the element's own click or jump the
+# page out from under an open card.
+_CITED = re.compile(r"\[\s*\d+\s*,\s*$")
+_SKIP_OPEN = re.compile(r"<(details|a|mark|h[1-6])\b", re.I)
+_SKIP_CLOSE = re.compile(r"</(details|a|mark|h[1-6])\s*>", re.I)
+
+
+def roman_to_int(text: str):
+    total, prev = 0, 0
+    for char in reversed(text.upper()):
+        value = _ROMAN.get(char)
+        if value is None:
+            return None
+        total = total - value if value < prev else total + value
+        prev = max(prev, value)
+    return total or None
+
+
+def label_ids(body_html: str):
+    """Give every figure/table image an id, and map what the text may call it.
+
+    The number comes from the asset filename, which both conversions agree on;
+    the alt text supplies the paper's own label (Roman or Arabic) when it has
+    one, so "Table V" and "Table 5" both resolve without assuming they match.
+    """
+    targets = {}
+
+    def stamp(match):
+        head, src, kind, number, tail = match.groups()
+        kind = kind.lower()
+        num = int(number)
+        anchor = f"{'fig' if kind == 'figure' else 'tab'}-{num}"
+        targets[(kind, str(num))] = anchor
+        alt = _ALT.search(head + tail)
+        if alt:
+            token = alt.group(1).split()[-1].strip(".:") if alt.group(1).split() else ""
+            if token:
+                targets[(kind, token.upper())] = anchor
+                as_roman = roman_to_int(token)
+                if as_roman:
+                    targets[(kind, str(as_roman))] = anchor
+        if re.search(r'\bid="', head + tail):
+            return match.group(0)
+        return f'<img {head}id="{anchor}" src="{src}"{tail}>'
+
+    return _ASSET_IMG.sub(stamp, body_html), targets
+
+
+def linkify_xrefs(body_html: str, targets):
+    """Turn mentions into links, but only where the target actually exists."""
+    linked, unresolved = 0, {}
+
+    def repl(match):
+        nonlocal linked
+        word, number = match.group(1), match.group(2)
+        # "[13, Table V]" is a table inside reference 13, not one of ours.
+        if _CITED.search(match.string[: match.start()]):
+            return match.group(0)
+        kind = "figure" if word[0].lower() == "f" else "table"
+        key = (kind, number.upper() if not number.isdigit() else number)
+        anchor = targets.get(key)
+        if anchor is None and not number.isdigit():
+            as_roman = roman_to_int(number)
+            anchor = targets.get((kind, str(as_roman))) if as_roman else None
+        if anchor is None:
+            unresolved[f"{word} {number}"] = unresolved.get(f"{word} {number}", 0) + 1
+            return match.group(0)
+        linked += 1
+        return f'<a class="xref" href="#{anchor}">{match.group(0)}</a>'
+
+    out, depth = [], 0
+    for segment in re.split(r"(<[^>]+>)", body_html):
+        if segment.startswith("<"):
+            if _SKIP_OPEN.match(segment) and not segment.startswith("</"):
+                depth += 1
+            elif _SKIP_CLOSE.match(segment):
+                depth = max(0, depth - 1)
+            out.append(segment)
+        elif depth:
+            out.append(segment)
+        else:
+            out.append(_XREF.sub(repl, segment))
+    return "".join(out), linked, unresolved
+
+
 _CARD_OPEN = re.compile(r"<details([^>]*class=\"qcard\"[^>]*)>\s*<summary>(.*?)</summary>", re.S)
 _ATTR = re.compile(r'([\w-]+)="([^"]*)"')
 _MARK_RE = re.compile(r"<mark>(.*?)</mark>", re.S)
@@ -595,6 +698,11 @@ def build(work_root: Path, embed: bool = False) -> int:
 
     cards = paperkit.load_cards(notes)
     body_parts = [tag_marks(part, cards) for part in body_parts]
+    # One pass over the whole page: a section often points at a figure that
+    # lives in another section, so the target table must be complete first.
+    whole, targets = label_ids("".join(body_parts))
+    whole, xrefs, xref_missing = linkify_xrefs(whole, targets)
+    body_parts = [whole]
     counts = {"open": 0, "half": 0, "resolved": 0}
     for card in cards:
         counts[str(card["meta"].get("status", "open"))] = (
@@ -709,6 +817,10 @@ def build(work_root: Path, embed: bool = False) -> int:
     out.write_text(page, encoding="utf-8", newline="\n")
     size = out.stat().st_size / 1024
     print(f"index.html  {len(sources)} 個章節、{len(cards)} 則疑問、{size:,.0f} KB")
+    print(f"            圖表交叉引用 {xrefs} 處已可點擊")
+    if xref_missing:
+        listed = "、".join(f"{k}×{v}" for k, v in sorted(xref_missing.items())[:6])
+        print(f"  🟡 這些引用找不到對應的圖或表，維持純文字：{listed}")
     print(f"  {out}")
     if embed:
         print("  已內嵌圖片：這個檔案可以單獨寄給別人。")
