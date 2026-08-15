@@ -110,6 +110,7 @@ Algorithm 縮排，以及把正文切分成 `sections/` 並產生索引。
 | `/paper-annotations:setup <論文資料夾>` | 設定新論文，判定支援程度，首次建置 |
 | `/paper-annotations:build [路徑]` | 重新產生註記檢視與複習頁，回報所有警告 |
 | `/paper-annotations:review [路徑]` | 盤點還有哪裡沒懂 |
+| `/paper-annotations:digest [路徑] [模式]` | 把疑問與原文合成一份整理：回顧單、主題聚合、或前提盤點 |
 
 平常**不需要指令**：直接問論文問題，疑問會自動累積成卡片。
 

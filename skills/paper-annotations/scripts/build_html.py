@@ -101,6 +101,7 @@ STYLE = """
 /* The sentence a card is anchored to. Tinted, never the browser's
    default yellow-on-black, which ignores the palette entirely. */
 mark{background:var(--mark);color:inherit;padding:.05em .15em;border-radius:3px}
+mark.off{background:none;padding:0}
 /* Colour changes ease across; layout and motion are left alone. Scoped to the
    surfaces that actually carry a palette colour rather than "*", so a 30000px
    page does not repaint every node. Nested text inherits the animating value,
@@ -198,6 +199,9 @@ SCRIPT = """
   var filter=document.getElementById('statusf');
   var search=document.getElementById('q');
   var links=[].slice.call(document.querySelectorAll('a.qlink'));
+  // A highlight is its card's footprint in the text, so it follows the card:
+  // hide the card and the mark goes with it, leaving the sentence untouched.
+  var marks=[].slice.call(document.querySelectorAll('mark[data-id]'));
 
   var themeBtn=document.getElementById('theme');
   var modes=[['system','🌗 跟隨系統'],['light','☀️ 淺色'],['dark','🌙 深色']];
@@ -238,6 +242,9 @@ SCRIPT = """
       var id=a.getAttribute('href').replace('#card-','');
       a.classList.toggle('hidden', shown[id]===false);
     });
+    marks.forEach(function(k){
+      k.classList.toggle('off', shown[k.dataset.id]===false);
+    });
   }
   recall.addEventListener('click',function(){
     cards.forEach(function(c){ c.open=false; });
@@ -255,6 +262,36 @@ SCRIPT = """
 
 _CARD_OPEN = re.compile(r"<details([^>]*class=\"qcard\"[^>]*)>\s*<summary>(.*?)</summary>", re.S)
 _ATTR = re.compile(r'([\w-]+)="([^"]*)"')
+_MARK_RE = re.compile(r"<mark>(.*?)</mark>", re.S)
+
+
+def tag_marks(body_html: str, cards) -> str:
+    """Attach each highlight to the card that put it there.
+
+    The mark is written as plain ==…== in the Markdown so that view stays
+    portable; the id is joined back on here, by quote, so a filtered-out card
+    takes its highlight with it. An ambiguous match gets no id and simply stays
+    lit -- the harmless failure of the two.
+    """
+    quotes = []
+    for card in cards:
+        anchor = card["meta"].get("anchor") or {}
+        quote = paperkit.quote_text(anchor.get("quote"))
+        if quote:
+            quotes.append(
+                (quote, str(card["meta"].get("id")), str(card["meta"].get("origin") or "asked"))
+            )
+
+    def sub(match):
+        inner = paperkit.normalize(re.sub(r"<[^>]+>", "", match.group(1)))
+        if not inner:
+            return match.group(0)
+        hits = [(cid, origin) for quote, cid, origin in quotes if inner in quote or quote in inner]
+        if len(hits) != 1:
+            return match.group(0)
+        return f'<mark data-id="{hits[0][0]}" data-origin="{hits[0][1]}">{match.group(1)}</mark>'
+
+    return _MARK_RE.sub(sub, body_html)
 
 
 def collect_questions(body_html: str):
@@ -335,6 +372,7 @@ def build(work_root: Path, embed: bool = False) -> int:
         body_parts.append(f'<section class="chunk" id="{rel.stem}">{rendered}</section>')
 
     cards = paperkit.load_cards(notes)
+    body_parts = [tag_marks(part, cards) for part in body_parts]
     counts = {"open": 0, "half": 0, "resolved": 0}
     for card in cards:
         counts[str(card["meta"].get("status", "open"))] = (
