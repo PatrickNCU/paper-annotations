@@ -188,6 +188,8 @@ notes/marks/*.md ─────────────────────
 python serve.py <論文路徑>
 ```
 
+或直接 `/paper-annotations:serve`，它會在背景跑起來並把網址給你。
+
 複習頁上會多一顆「💾 存檔」：按下去就把畫記寫進 `notes/marks/`、重建頁面、重新整理。
 沒開 server 的時候那顆按鈕根本不會出現（它靠探測後端決定），其餘功能完全一樣。
 
@@ -255,6 +257,8 @@ python export_cards.py <論文路徑> --format anki --status resolved,half
 | `/paper-annotations:review [路徑]` | 盤點還有哪裡沒懂 |
 | `/paper-annotations:digest [路徑] [模式]` | 把疑問與原文合成一份整理：回顧單、主題聚合、或前提盤點 |
 | `/paper-annotations:export [路徑] [格式]` | 匯出卡片：Anki 匯入檔、CSV 或 JSON |
+| `/paper-annotations:serve [路徑]` | 開本機 server，複習頁上的畫記可以直接存檔 |
+| `/paper-annotations:marks [貼上畫記]` | 把「複製畫記」的內容存成 `notes/marks/` 並重建 |
 
 平常**不需要指令**：直接問論文問題，疑問會自動累積成卡片。
 
