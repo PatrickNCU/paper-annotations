@@ -681,6 +681,7 @@ SCRIPT = """
       m.at.set(n,m.nodes.length); m.offs.push(m.txt.length);
       m.nodes.push(n); m.txt+=n.nodeValue;
     }
+    m.zw=new RegExp(ZW).test(m.txt);
     hlMaps[sec.id]=m; return m;
   }
   function hlIndex(map,node,off){
@@ -719,6 +720,19 @@ SCRIPT = """
     while(i<a.length&&i<b.length&&a[a.length-1-i]===b[b.length-1-i]) i++;
     return i;
   }
+  // KaTeX seeds rendered formulas with zero-width breaks, and what gets handed
+  // over -- and so what ends up in notes/marks/ -- has them stripped out to be
+  // readable. The search therefore has to tolerate them turning up anywhere,
+  // including mid-token, which is exactly where KaTeX puts them. Only sections
+  // that actually contain one pay for the per-character form.
+  var ZW='[\\u200b-\\u200f\\ufeff]';
+  function hlEsc(s){ return s.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); }
+  function hlPattern(exact,zw){
+    var gap=zw?'(?:\\\\s|'+ZW+')+':'\\\\s+';
+    return hlNorm(exact).split(' ').map(function(tok){
+      return zw?tok.split('').map(hlEsc).join(ZW+'*'):hlEsc(tok);
+    }).join(gap);
+  }
   // Re-find a stored mark after reload. Whitespace-tolerant, exactly like the
   // Python side: the rendered text wraps differently from the Markdown. When
   // the sentence occurs more than once the neighbours decide which one.
@@ -726,10 +740,8 @@ SCRIPT = """
     var sec=document.getElementById(it.sec);
     if(!sec||!it.exact) return null;
     var map=hlMap(sec), re;
-    try{
-      re=new RegExp(hlNorm(it.exact).split(' ').map(function(t){
-        return t.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); }).join('\\\\s+'),'g');
-    }catch(e){ return null; }
+    try{ re=new RegExp(hlPattern(hlPlain(it.exact),map.zw),'g'); }
+    catch(e){ return null; }
     var hits=[],m;
     while((m=re.exec(map.txt))){
       hits.push(m);
@@ -742,8 +754,9 @@ SCRIPT = """
       var top=-1;
       hits.forEach(function(h){
         var end=h.index+h[0].length;
-        var score=hlTail(hlNorm(map.txt.slice(Math.max(0,h.index-60),h.index)),it.prefix)
-                 +hlHead(hlNorm(map.txt.slice(end,end+60)),it.suffix);
+        var score=hlTail(hlNorm(hlPlain(map.txt.slice(Math.max(0,h.index-60),h.index))),
+                         hlPlain(it.prefix))
+                 +hlHead(hlNorm(hlPlain(map.txt.slice(end,end+60))),hlPlain(it.suffix));
         if(score>top){ top=score; best=h; }
       });
     }
@@ -1313,13 +1326,19 @@ def collect_marks(notes, paper_root):
 
     Placement itself is left to the page: it resolves marks with the same
     quote-plus-neighbours search it uses for the ones drawn in the browser, so
-    there is one locator, not two that can disagree. What is worth doing here
-    is saying loudly when a quote no longer matches, which the page cannot do.
+    there is one locator, not two that can disagree.
+
+    Which is also why a quote that does not match here is a warning and not a
+    veto. A mark is made against the rendered text, and a rendered formula is
+    glyphs that never appear in the Markdown at all -- checking those against
+    the source and then dropping them threw away marks the page could place
+    perfectly well. The page reports what it could not find; this reports what
+    looks wrong. Neither gets to delete the reader's highlight.
     """
     problems = []
     marks = paperkit.load_marks(notes, problems)
     bad = [(path.name, message) for path, message in problems]
-    data, cache = [], {}
+    soft, data, cache = [], [], {}
 
     for mark in marks:
         anchor = mark["meta"].get("anchor") or {}
@@ -1338,11 +1357,9 @@ def collect_marks(notes, paper_root):
         # -1 means the quote is too short to count on its own; the page still
         # places it, using the neighbouring text to choose between occurrences
         if hits == 0:
-            bad.append((name, "引文在原文裡找不到，這條畫記不會出現"))
-            continue
-        if hits > 1:
-            bad.append((name, f"引文在原文裡出現 {hits} 次，無法確定要畫哪一處"))
-            continue
+            soft.append((name, "引文在原始 Markdown 裡找不到（含公式的畫記正常會這樣）"))
+        elif hits > 1:
+            soft.append((name, f"引文在原文裡出現 {hits} 次，頁面會用前後文挑一處"))
 
         data.append(
             {
@@ -1357,7 +1374,7 @@ def collect_marks(notes, paper_root):
             }
         )
 
-    return marks, data, bad
+    return marks, data, bad, soft
 
 
 def collect_questions(body_html: str):
@@ -1443,7 +1460,7 @@ def build(work_root: Path, embed: bool = False) -> int:
         )
 
     cards = paperkit.load_cards(notes)
-    marks, placed, mark_bad = collect_marks(notes, paper_root)
+    marks, placed, mark_bad, mark_soft = collect_marks(notes, paper_root)
     # "</" would end the script element early whatever it sits inside
     mark_json = json.dumps(placed, ensure_ascii=False).replace("</", "<\\/")
     body_parts = [tag_marks(part, cards) for part in body_parts]
@@ -1594,6 +1611,8 @@ def build(work_root: Path, embed: bool = False) -> int:
         print(f"            畫記 {len(marks)} 條：已定位 {len(placed)}、有註解 {noted}")
     for name, why in mark_bad:
         print(f"  🔴 畫記 {name}：{why}")
+    for name, why in mark_soft:
+        print(f"  🟡 畫記 {name}：{why}")
     if xref_missing:
         listed = "、".join(f"{k}×{v}" for k, v in sorted(xref_missing.items())[:6])
         print(f"  🟡 這些引用找不到對應的圖或表，維持純文字：{listed}")

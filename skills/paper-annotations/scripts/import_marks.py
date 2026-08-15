@@ -95,7 +95,7 @@ def main(argv) -> int:
                   paperkit.normalize(str(quote.get("exact") or ""))))
         used.add(str(mark["meta"].get("id")))
 
-    written, skipped, bad = 0, 0, []
+    written, skipped, bad, soft = 0, 0, [], []
     for rec in records:
         key = (rec["file"], paperkit.normalize(rec["exact"]))
         if key in seen:
@@ -103,10 +103,11 @@ def main(argv) -> int:
             continue
         if rec["color"] not in paperkit.VALID_COLOR:
             rec["color"] = "yellow"
-        # Checked here rather than left to the build: the quote came off the
-        # rendered page, and a formula renders as glyphs that do not appear in
-        # the Markdown at all. Better to say so now, next to the text, than to
-        # write a file that silently never shows up.
+        # A missing file is a real error -- nothing can place that. A quote that
+        # does not match the Markdown is not: it was made against the rendered
+        # page, where a formula is glyphs that never appear in the source. The
+        # page finds those perfectly well, because it searches the same rendered
+        # text the mark was drawn on. Write it, say so, let the page place it.
         source = paper_root / rec["file"]
         if not source.is_file():
             bad.append((rec["exact"][:40], f"原文裡沒有 {rec['file']}"))
@@ -114,11 +115,9 @@ def main(argv) -> int:
         lines = source.read_text(encoding="utf-8").splitlines()
         hits = paperkit.count_quote(lines, paperkit.normalize(rec["exact"]))
         if hits == 0:
-            bad.append((rec["exact"][:40], "引文在原文裡找不到（公式多半要改回原始寫法）"))
-            continue
-        if hits > 1:
-            bad.append((rec["exact"][:40], f"引文出現 {hits} 次，無法確定位置"))
-            continue
+            soft.append((rec["exact"][:40], "引文不在原始 Markdown 裡（含公式的畫記正常會這樣）"))
+        elif hits > 1:
+            soft.append((rec["exact"][:40], f"引文出現 {hits} 次，頁面會用前後文挑一處"))
 
         num = 1
         while f"{num:04d}" in used:
@@ -149,6 +148,8 @@ def main(argv) -> int:
     print(f"畫記匯入   新增 {written} 條、已存在 {skipped} 條、無法匯入 {len(bad)} 條")
     for quote, why in bad:
         print(f"  🔴 「{quote}…」{why}")
+    for quote, why in soft:
+        print(f"  🟡 「{quote}…」{why}")
     if written:
         print("  接著跑 build_annotated.py 與 build_html.py")
     return 0
