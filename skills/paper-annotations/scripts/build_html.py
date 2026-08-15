@@ -187,20 +187,34 @@ font-size:14px;color:var(--muted)}
 .fn-key{flex:0 0 auto;font-weight:600;color:var(--accent)}
 .fn-back{text-decoration:none;color:var(--accent)}
 sup.fn a{text-decoration:none;color:var(--accent)}
-.qcard{margin:18px 0;border:1px solid var(--line);border-left:4px solid var(--muted);
-border-radius:8px;background:var(--card);padding:10px 16px}
-.qcard[data-status=open]{border-left-color:var(--open)}
-.qcard[data-status=half]{border-left-color:var(--half)}
-.qcard[data-status=resolved]{border-left-color:var(--done)}
-.qcard>summary{cursor:pointer;font-weight:600;list-style:none;outline:none}
-.qcard>summary::-webkit-details-marker{display:none}
-.qcard>summary::before{content:"▸ ";color:var(--muted)}
-.qcard[open]>summary::before{content:"▾ "}
-.qcard[open]>summary{margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+/* Cards never sit in the flow: with enough of them the paper becomes
+   unreadable. They live in a panel opened from the highlighted sentence, so
+   the page stays a paper and a question is one click away. */
+.qcard{display:none}
 .qcard sub{font-size:11.5px;color:var(--muted);font-weight:400}
-.qcard.hidden{display:none}
-.qcard{scroll-margin-top:14px}
-.qcard:target{outline:2px solid var(--accent);outline-offset:3px}
+mark[data-id]{cursor:pointer}
+mark[data-id]:hover{box-shadow:inset 0 -2px 0 var(--accent)}
+mark.off{cursor:auto}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:40}
+#panel{position:fixed;z-index:41;left:50%;top:50%;transform:translate(-50%,-50%);
+width:min(760px,92vw);max-height:82vh;overflow:auto;background:var(--card);
+border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:12px;
+box-shadow:0 18px 50px var(--shadow);padding:20px 26px 24px}
+#panel[data-status=open]{border-left-color:var(--open)}
+#panel[data-status=half]{border-left-color:var(--half)}
+#panel[data-status=resolved]{border-left-color:var(--done)}
+.ptitle{font-weight:600;font-size:17px;line-height:1.6;padding-right:34px;
+margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line)}
+.pbar{display:flex;gap:8px;position:absolute;top:14px;right:16px}
+.pbar button{font:inherit;font-size:13px;padding:3px 9px;border:1px solid var(--line);
+border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.pbar button:hover{background:var(--line)}
+#sidetoggle{position:fixed;top:12px;left:12px;z-index:30;font:inherit;font-size:13px;
+padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+color:var(--fg);cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
+#sidetoggle:hover{background:var(--line)}
+body:not(.side-off) #sidetoggle{display:none}
+body.side-off #side{display:none}
 #qlist{margin-bottom:6px}
 /* #side a above is an ID selector and outranks a bare .qlink rule, so scope
    these to #qlist -- otherwise display:block wins and the dots collapse. */
@@ -228,7 +242,6 @@ border-right:none;border-bottom:1px solid var(--line)}
 SCRIPT = """
 (function(){
   var cards=[].slice.call(document.querySelectorAll('.qcard'));
-  var recall=document.getElementById('recall');
   var showAI=document.getElementById('showai');
   var filter=document.getElementById('statusf');
   var search=document.getElementById('q');
@@ -265,7 +278,8 @@ SCRIPT = """
     var shown={};
     cards.forEach(function(c){
       var ok=true;
-      if(want!=='all'&&c.dataset.status!==want) ok=false;
+      if(want==='none') ok=false;
+      else if(want!=='all'&&c.dataset.status!==want) ok=false;
       if(!ai&&c.dataset.origin==='suggested') ok=false;
       if(term&&c.textContent.toLowerCase().indexOf(term)<0) ok=false;
       c.classList.toggle('hidden',!ok);
@@ -279,15 +293,63 @@ SCRIPT = """
     marks.forEach(function(k){
       k.classList.toggle('off', shown[k.dataset.id]===false);
     });
+    if(current&&shown[current]===false) closeCard();
   }
-  recall.addEventListener('click',function(){
-    cards.forEach(function(c){ c.open=false; });
-  });
   showAI.addEventListener('click',function(){ showAI.classList.toggle('on'); apply(); });
   filter.addEventListener('change',apply);
   search.addEventListener('input',apply);
-  document.getElementById('expand').addEventListener('click',function(){
-    cards.forEach(function(c){ c.open=true; });
+
+  // The sidebar starts collapsed so the paper sits in the middle of the window.
+  var body=document.body;
+  document.getElementById('sidetoggle').addEventListener('click',function(){
+    body.classList.remove('side-off');
+  });
+  document.getElementById('sideclose').addEventListener('click',function(){
+    body.classList.add('side-off');
+  });
+
+  // A card opens over the paper and closes again -- it never pushes the text
+  // around, so the page reads as a paper however many questions pile up.
+  var panel=document.getElementById('panel');
+  var panelIn=document.getElementById('panel-in');
+  var ov=document.getElementById('ov');
+  var jump=document.getElementById('pjump');
+  var current=null;
+  function openCard(id){
+    var card=document.getElementById('card-'+id);
+    if(!card||card.classList.contains('hidden')) return;
+    var parts=[].slice.call(card.children), head='', rest='';
+    parts.forEach(function(n){
+      if(n.tagName==='SUMMARY') head=n.innerHTML; else rest+=n.outerHTML;
+    });
+    panelIn.innerHTML='<div class="ptitle">'+head+'</div>'+rest;
+    panel.dataset.status=card.dataset.status||'open';
+    current=id;
+    jump.hidden=!document.querySelector('mark[data-id="'+id+'"]');
+    panel.hidden=false; ov.hidden=false;
+    panel.scrollTop=0;
+    panel.focus();
+  }
+  function closeCard(){ panel.hidden=true; ov.hidden=true; current=null; }
+  document.getElementById('main').addEventListener('click',function(e){
+    var m=e.target.closest?e.target.closest('mark[data-id]'):null;
+    if(m&&!m.classList.contains('off')) openCard(m.dataset.id);
+  });
+  links.forEach(function(a){
+    a.addEventListener('click',function(e){
+      e.preventDefault();
+      openCard(a.getAttribute('href').replace('#card-',''));
+    });
+  });
+  jump.addEventListener('click',function(){
+    var m=current&&document.querySelector('mark[data-id="'+current+'"]');
+    closeCard();
+    if(m) m.scrollIntoView({block:'center'});
+  });
+  document.getElementById('pclose').addEventListener('click',closeCard);
+  ov.addEventListener('click',closeCard);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&!panel.hidden) closeCard();
   });
   // Formulas light up as a whole while selected -- see the .katex rules in the
   // stylesheet for why the browser's own painting is switched off there.
@@ -480,13 +542,13 @@ def build(work_root: Path, embed: bool = False) -> int:
 <style>{STYLE}</style>
 {katex_assets()}
 </head>
-<body>
+<body class="side-off">
+<button id="sidetoggle">☰ 目錄與疑問</button>
 <div id="layout">
 <nav id="side">
   <div class="controls">
     <button id="theme">🌗 跟隨系統</button>
-    <button id="recall">全部收合</button>
-    <button id="expand">全部展開</button>
+    <button id="sideclose">✕ 收合側欄</button>
   </div>
   <div class="controls">
     <select id="statusf">
@@ -494,6 +556,7 @@ def build(work_root: Path, embed: bool = False) -> int:
       <option value="open">未解決</option>
       <option value="half">半懂</option>
       <option value="resolved">已解決</option>
+      <option value="none">不顯示疑問</option>
     </select>
     <button id="showai" class="on">AI 提示卡</button>
   </div>
@@ -513,11 +576,16 @@ def build(work_root: Path, embed: bool = False) -> int:
 <div class="banner">
 本頁是<strong>衍生檔</strong>，由論文原文與 <code>notes/cards/</code> 合併產生，請勿直接編輯。
 摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
-疑問預設<strong>收合</strong>：你會先看到自己當初的問題，想過再展開答案。
+正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
+先自己想過再看解答。左上角可以打開目錄與疑問清單。
 </div>
 {''.join(body_parts)}
 </main>
 </div>
+<div id="ov" hidden></div>
+<aside id="panel" hidden tabindex="-1" role="dialog" aria-modal="true"><div class="pbar">
+<button id="pjump">跳到原文</button><button id="pclose">✕</button></div>
+<div id="panel-in"></div></aside>
 <script>{SCRIPT}</script>
 </body>
 </html>
