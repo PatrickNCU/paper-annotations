@@ -153,11 +153,18 @@ line-height:1.75;font-size:16.5px}
 /* The sidebar floats over the paper rather than sitting beside it: opening it
    used to reflow the text mid-sentence, which is the last thing you want while
    reading. Hovering the tab slides it in; the paper does not move at all. */
-#sidewrap{position:fixed;top:0;left:0;height:100vh;z-index:30}
+/* The drawer and its handle move as one piece, and the handle sits flush
+   against the drawer's edge. That contiguity is what makes hover stable: at
+   every point of the slide, the pointer that opened it is still over one of
+   the two. Hiding the handle on hover -- the obvious way to write this --
+   makes the drawer flicker open and shut, because the moment it disappears
+   the hover is lost and the drawer starts sliding back. */
+#sidewrap{position:fixed;top:0;left:0;height:100vh;z-index:30;
+transform:translateX(-310px)}
+#sidewrap:hover,body.side-pin #sidewrap{transform:none}
 #side{position:absolute;top:0;left:0;height:100vh;width:310px;overflow-y:auto;
 background:var(--sidebar);border-right:1px solid var(--line);padding:18px 16px;font-size:14px;
-transform:translateX(-100%);box-shadow:0 0 24px var(--shadow)}
-#sidewrap:hover #side,body.side-pin #side{transform:none}
+box-shadow:0 0 24px var(--shadow)}
 #main{max-width:900px;margin:0 auto;padding:28px 34px 120px}
 #side h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
 margin:20px 0 8px}
@@ -215,16 +222,18 @@ margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line)}
 .pbar button{font:inherit;font-size:13px;padding:3px 9px;border:1px solid var(--line);
 border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
 .pbar button:hover{background:var(--line)}
-#sidetoggle{position:absolute;top:12px;left:12px;font:inherit;font-size:13px;
-padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);
-color:var(--fg);cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
+/* nowrap matters: the handle is positioned against a zero-width wrapper, so
+   without it the label shrink-to-fits to one character per line. */
+#sidetoggle{position:absolute;top:12px;left:310px;white-space:nowrap;font:inherit;font-size:13px;
+padding:6px 11px;border:1px solid var(--line);border-left:none;
+border-radius:0 8px 8px 0;background:var(--card);
+color:var(--fg);cursor:pointer;box-shadow:2px 2px 8px var(--shadow)}
 #sidetoggle:hover{background:var(--line)}
-#sidewrap:hover #sidetoggle,body.side-pin #sidetoggle{opacity:0;pointer-events:none}
+/* open, the handle is just a grip: the label would only cover the paper */
+#sidewrap:hover .stxt,body.side-pin .stxt{display:none}
 /* Motion is the point here, but not for readers who asked for less of it. */
 @media(prefers-reduced-motion:no-preference){
-#side{transition:transform .22s ease}
-#sidetoggle{transition:opacity .18s ease}
-#note{transition:transform .22s ease}}
+#sidewrap,#note{transition:transform .22s ease}}
 
 /* Somewhere to draft a question while reading, instead of interrupting the
    paragraph to ask. Nothing is sent from here -- copy it into the chat. */
@@ -344,7 +353,9 @@ SCRIPT = """
     pin.classList.toggle('on',on);
     pin.textContent=on?'📌 已釘住':'📌 釘住';
   }
-  document.getElementById('sidetoggle').addEventListener('click',function(){ setPin(true); });
+  document.getElementById('sidetoggle').addEventListener('click',function(){
+    setPin(!body.classList.contains('side-pin'));
+  });
   pin.addEventListener('click',function(){ setPin(!body.classList.contains('side-pin')); });
 
   // Draft area. Nothing leaves the page from here -- the copy button is the
@@ -622,7 +633,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 <body>
 <div id="layout">
 <div id="sidewrap">
-<button id="sidetoggle">☰ 目錄與疑問</button>
+<button id="sidetoggle" title="目錄與疑問">☰<span class="stxt"> 目錄與疑問</span></button>
 <nav id="side">
   <div class="controls">
     <button id="theme">🌗 跟隨系統</button>
