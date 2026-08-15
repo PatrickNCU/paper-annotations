@@ -65,9 +65,9 @@
 ## 先把 PDF 轉成 Markdown
 
 這套工具吃的是 Markdown，不是 PDF。repo 裡附了一份轉檔規則文件：
-**[skills/paper-annotations/references/pdf2md_rules.md](skills/paper-annotations/references/pdf2md_rules.md)**（v1.3，923 行）。
+**[skills/paper-annotations/references/pdf2md_rules.md](skills/paper-annotations/references/pdf2md_rules.md)**（v1.4，948 行）。
 它是寫給 LLM 看的規格書，管到逐字保留、多欄閱讀順序、圖說對應、表格、公式、
-Algorithm 縮排，以及把正文切分成 `sections/` 並產生索引。
+Algorithm 縮排，把正文切分成 `sections/` 並產生索引，以及套件資料夾要叫什麼名字。
 
 用法是開 **ChatGPT 網頁版**，同時上傳這兩個檔案：
 

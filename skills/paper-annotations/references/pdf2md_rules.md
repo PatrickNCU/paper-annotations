@@ -1,6 +1,6 @@
 # PDF → Markdown 精確轉換規則
 
-版本：v1.3
+版本：v1.4
 
 ## 0. 使用方式
 
@@ -12,7 +12,7 @@
 
 可直接使用以下指令：
 
-> 請依照本文件處理上傳的 PDF。逐字保留原文，不得摘要、潤飾、改寫或改善文法。修復多欄閱讀順序、圖片與圖說對應、表格、公式、上下標、特殊符號及跨頁錯序。數學公式必須使用 VS Code Markdown Preview 可直接渲染的 `$...$` 與 `$$...$$`；Algorithm 縮排不得使用 `$\quad$` 或 `$\qquad$`；不得在 Abstract、Index Terms 等標籤前後加入會殘留顯示的 `**`。除完整的 `document.md` 外，必須依章節與語意將正文切分至 `sections/`，並產生 `INDEX.md`、`index.csv` 與 `AGENTS.md`，使 Agent 先讀索引、再只讀必要段落。最終輸出不得包含 `raw/`。Parser 原始輸出只可作為轉換期間的暫存資料，完成核對後必須從交付套件中排除。回傳 ZIP 前須完成內容、切分、索引、重組與 ZIP 完整性驗證，且不得包含修復腳本、快取、工作目錄或其他暫存文件。
+> 請依照本文件處理上傳的 PDF。逐字保留原文，不得摘要、潤飾、改寫或改善文法。修復多欄閱讀順序、圖片與圖說對應、表格、公式、上下標、特殊符號及跨頁錯序。數學公式必須使用 VS Code Markdown Preview 可直接渲染的 `$...$` 與 `$$...$$`；Algorithm 縮排不得使用 `$\quad$` 或 `$\qquad$`；不得在 Abstract、Index Terms 等標籤前後加入會殘留顯示的 `**`。除完整的 `document.md` 外，必須依章節與語意將正文切分至 `sections/`，並產生 `INDEX.md`、`index.csv` 與 `AGENTS.md`，使 Agent 先讀索引、再只讀必要段落。交付套件的根目錄與 ZIP 必須命名為 `<短名>_md`（短名取原始 PDF 檔名第一個底線之前的片段，例如 `RePlAce_md`），不得使用 `output` 這類通用名稱，且解壓後最上層只有這一個資料夾。最終輸出不得包含 `raw/`。Parser 原始輸出只可作為轉換期間的暫存資料，完成核對後必須從交付套件中排除。回傳 ZIP 前須完成內容、切分、索引、重組與 ZIP 完整性驗證，且不得包含修復腳本、快取、工作目錄或其他暫存文件。
 
 ---
 
@@ -122,8 +122,32 @@ abbreviated as ms-cuts
 
 ## 4. 最終輸出結構
 
+### 4.0 套件資料夾名稱
+
+套件根目錄必須命名為 `<短名>_md`，ZIP 檔名為 `<短名>_md.zip`。
+
+**短名的取法**：優先取原始 PDF 檔名中第一個底線之前的片段。
+
+| PDF 檔名 | 短名 | 套件資料夾 |
+|---|---|---|
+| `ePlace-MS_Electrostatics-Based_Placement_for_Mixed-Size_Circuits.pdf` | `ePlace-MS` | `ePlace-MS_md/` |
+| `RePlAce_Advancing_Solution_Quality_and_Routability_Validation.pdf` | `RePlAce` | `RePlAce_md/` |
+
+若第一個片段不是有意義的名稱（例如 `1-s2.0-...`、`paper`、`2015`、`preprint`），改用
+論文標題中的方法名稱或公認縮寫。短名只使用 `A-Z a-z 0-9 . -`，不使用空白、底線與中文。
+
+**不得使用通用名稱**：`output/`、`result/`、`converted/`、`md/`、`markdown/` 一律禁止。
+
+ZIP 解壓後最上層必須**只有這一個資料夾**——不要把檔案散在 ZIP 根目錄，也不要多包一層。
+
+理由有兩個。其一，多篇論文的套件常常並存於同一個工作區，通用名稱會撞名，也看不出
+內容是哪一篇。其二，下游工具靠 `_md` 結尾辨識「這是轉檔套件」而非一般資料夾——
+例如 paper-annotations 用它決定複習頁該產生在哪一層。
+
+### 4.1 目錄樹
+
 ```text
-output/
+<短名>_md/
 ├── AGENTS.md
 ├── INDEX.md
 ├── index.csv
@@ -147,7 +171,7 @@ output/
 └── README.md
 ```
 
-### 4.1 完整文件與檢索文件的角色
+### 4.2 完整文件與檢索文件的角色
 
 - `document.md`：完整、忠實且具正確閱讀順序的權威正文，供人工通讀、全文查核與切分失敗時回退使用。
 - `sections/*.md`：由 `document.md` 衍生的語意完整子檔案，供 Agent 選擇性讀取；不得摘要、改寫或省略正文。
@@ -158,7 +182,7 @@ output/
 
 `document.md` 與 `sections/` 必須同時保留：前者負責完整性，後者負責降低 Agent 的不必要 context 消耗。
 
-### 4.2 最終套件禁止包含 `raw/`
+### 4.3 最終套件禁止包含 `raw/`
 
 - Docling、Marker、PyMuPDF、pdftotext 或其他 parser 的原始輸出可在轉換與驗證期間使用。
 - 原始 parser 輸出不得放入最終交付 ZIP，也不得由 `document.md`、`INDEX.md` 或 `README.md` 連結。
@@ -168,7 +192,7 @@ output/
 
 此規則的目的，是避免重複文字、錯誤閱讀順序及未修復內容干擾 Codex，並減少 repository 體積與 context 消耗。
 
-### 4.3 ZIP 不得包含暫存文件
+### 4.4 ZIP 不得包含暫存文件
 
 不得包含：
 
@@ -503,6 +527,7 @@ Algorithm 優先轉成可搜尋的結構化 Markdown。若原版面對理解重�
 ### 11.1 結構
 
 - ZIP 可解壓縮且無 CRC error。
+- 套件根目錄名為 `<短名>_md`（見 4.0），且是 ZIP 最上層唯一的資料夾。
 - `AGENTS.md`、`INDEX.md`、`index.csv`、`document.md`、`sections/`、`images/`、`tables/`、`validation/`、`manifest.json`、`README.md` 均存在。
 - `INDEX.md` 與 `index.csv` 列出的所有 chunk 檔案均存在，且 `sections/` 中沒有未被索引的正式 chunk。
 - ZIP 中不存在 `raw/` 或 parser dump 目錄。
