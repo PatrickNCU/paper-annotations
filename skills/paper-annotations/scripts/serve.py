@@ -29,6 +29,7 @@ import json
 import os
 import re
 import secrets
+import socket
 import subprocess
 import sys
 import threading
@@ -85,7 +86,9 @@ class Handler(SimpleHTTPRequestHandler):
             if not self._same_origin():
                 self._json(403, {"error": "cross-origin"})
                 return
-            self._json(200, {"ok": True, "token": self.token})
+            # the paper is named so that a second run can tell "already serving
+            # this one" from "something else has the port" -- see main()
+            self._json(200, {"ok": True, "token": self.token, "paper": self.work.name})
             return
         if path == "/":
             self.send_response(302)
@@ -298,6 +301,32 @@ def write_launcher(work: Path, annotated: Path, port: int) -> Path:
     return path
 
 
+def taken(port: int) -> bool:
+    """Is anything already listening here?
+
+    Asked before binding rather than after failing to, because HTTPServer sets
+    SO_REUSEADDR and Windows takes that to mean a second socket may bind the
+    same address -- no error is raised, and the second server just sits there
+    while the first one keeps answering.
+    """
+    with socket.socket() as probe_socket:
+        probe_socket.settimeout(0.4)
+        return probe_socket.connect_ex(("127.0.0.1", port)) == 0
+
+
+def probe(port: int):
+    """Which paper, if any, the thing already on this port is serving."""
+    try:
+        import urllib.request
+
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/_pa/hello", timeout=2
+        ) as reply:
+            return json.loads(reply.read().decode("utf-8")).get("paper") or ""
+    except Exception:  # noqa: BLE001 - anything at all means "not one of ours"
+        return ""
+
+
 def flag(argv, name, fallback=None):
     prefix = f"--{name}="
     for arg in argv:
@@ -335,10 +364,28 @@ def main(argv) -> int:
     root = Path(os.path.commonpath([str(annotated), str(paper_root)]))
     Handler.index_url = "/" + (annotated / "index.html").relative_to(root).as_posix()
 
+    url = f"http://127.0.0.1:{port}/"
+    # Double-clicking the launcher twice is the common case, and "address
+    # already in use" tells the reader nothing. Ask whoever holds the port who
+    # they are before deciding what to say.
+    if taken(port):
+        holder = probe(port)
+        if holder == work.name:
+            print(f"複習頁       {url}")
+            print("             這篇已經在跑了，直接用這條網址就好")
+            if "--no-open" not in argv:
+                webbrowser.open(url)
+            return 0
+        if holder:
+            raise SystemExit(
+                f"port {port} 正在服務另一篇論文（{holder}）。\n"
+                f"請換一個，例如 --port {port + 1}"
+            )
+        raise SystemExit(f"port {port} 被其他程式佔用了，請換一個，例如 --port {port + 1}")
+
     server = ThreadingHTTPServer(
         ("127.0.0.1", port), partial(Handler, directory=str(root))
     )
-    url = f"http://127.0.0.1:{port}/"
     print(f"複習頁       {url}")
     print(f"             畫記會直接寫進 {notes / 'marks'}，並重建複習頁")
     print(f"             檔案根目錄 {root}（只有本機連得到）")
