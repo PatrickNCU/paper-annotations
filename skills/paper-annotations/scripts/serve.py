@@ -97,7 +97,8 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
-        if self.path.split("?")[0] != "/_pa/marks":
+        path = self.path.split("?")[0]
+        if path not in ("/_pa/marks", "/_pa/mark"):
             self._json(404, {"error": "unknown endpoint"})
             return
         if not self._same_origin():
@@ -105,6 +106,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.headers.get("X-PA-Token") != self.token:
             self._json(403, {"error": "bad token"})
+            return
+        if path == "/_pa/mark":
+            self._one_mark()
             return
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -147,6 +151,55 @@ class Handler(SimpleHTTPRequestHandler):
             "rebuilt": rebuilt,
             "log": log,
         })
+
+    def _body(self):
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None
+        if length <= 0 or length > MAX_BODY:
+            return None
+        try:
+            return json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return None
+
+    def _one_mark(self):
+        """Change or remove a mark that is already filed.
+
+        The id is looked up among the marks actually on disk and the path comes
+        from that record -- a path in the request would be a way to write, or
+        delete, anywhere on the machine.
+        """
+        payload = self._body()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "bad payload"})
+            return
+        wanted = str(payload.get("id") or "")
+        action = str(payload.get("action") or "")
+        if action not in ("update", "delete") or not wanted:
+            self._json(400, {"error": "bad action"})
+            return
+
+        with self.lock:
+            found = None
+            for mark in paperkit.load_marks(self.notes):
+                if str(mark["meta"].get("id")) == wanted:
+                    found = mark
+                    break
+            if found is None:
+                self._json(404, {"error": f"找不到畫記 {wanted}"})
+                return
+            if action == "delete":
+                found["path"].unlink()
+            else:
+                import_marks.save_mark(
+                    found,
+                    str(payload.get("color") or found["color"]),
+                    str(payload.get("note") or ""),
+                )
+            rebuilt, log = self._rebuild()
+        self._json(200, {"ok": True, "action": action, "rebuilt": rebuilt, "log": log})
 
     def _rebuild(self):
         """Only the HTML: marks never touch the annotated Markdown."""

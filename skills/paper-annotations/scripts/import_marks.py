@@ -134,6 +134,23 @@ def write_marks(paper_root: Path, notes: Path, records):
     return out
 
 
+def save_mark(mark, color: str, note: str) -> None:
+    """Rewrite one mark in place, keeping its anchor exactly as it was.
+
+    Only the two things the reader can change from the page -- colour and note.
+    The quote is what makes the mark findable, so it is never touched here.
+    """
+    meta = dict(mark["meta"])
+    if color in paperkit.VALID_COLOR:
+        meta["color"] = color
+    meta["updated"] = date.today().isoformat()
+    mark["path"].write_text(
+        "---\n" + miniyaml.dump(meta) + "\n---\n\n" + (note + "\n" if note else ""),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
 def main(argv) -> int:
     args = [a for a in argv[1:] if not a.startswith("--")]
     work = Path(args[0] if args else ".").resolve()

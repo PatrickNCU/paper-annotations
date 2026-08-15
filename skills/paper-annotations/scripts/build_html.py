@@ -660,6 +660,8 @@ SCRIPT = """
   // every mark the next time a card was added.
   var hlKey='pa-hl:'+(body.dataset.paper||document.title||'');
   var hlItems=[], hlOn=true, hlPick=-1, hlMaps={}, hlZone=null;
+  // set once the page knows whether serve.py is behind it
+  var paToken='', paMark=function(){};
 
   function hlNorm(s){ return (s||'').replace(/\\s+/g,' ').trim(); }
   function hlSec(node){
@@ -903,8 +905,12 @@ SCRIPT = """
   // and what you wanted to say about it are one object, not two.
   var hlNote=document.getElementById('hlnote');
   var hlPad=document.getElementById('hlnotepad');
+  // A mark on disk is editable only while something can write to disk. Without
+  // a server the page has no way to change the file, and pretending otherwise
+  // would leave the two disagreeing.
+  function hlWritable(it){ return it && (it.src!=='file' || !!paToken); }
   function hlEdit(i){
-    if(i<0||!hlItems[i]||hlItems[i].src==='file') return;
+    if(i<0||!hlItems[i]||!hlWritable(hlItems[i])) return;
     hlNote.dataset.i=String(i);
     hlPad.value=hlItems[i].note||'';
     hlNote.hidden=false;
@@ -976,7 +982,9 @@ SCRIPT = """
     document.getElementById('hlnoteok').addEventListener('click',function(){
       var i=parseInt(hlNote.dataset.i,10);
       if(!isNaN(i)&&hlItems[i]){
-        hlItems[i].note=hlPad.value.trim();
+        var it=hlItems[i];
+        it.note=hlPad.value.trim();
+        if(it.src==='file'){ hlEditClose(); paMark(it,'update'); return; }
         hlSave(); hlPaint(); hlStatus();
       }
       hlEditClose();
@@ -985,6 +993,8 @@ SCRIPT = """
     document.getElementById('hlnotedel').addEventListener('click',function(){
       var i=parseInt(hlNote.dataset.i,10);
       if(!isNaN(i)&&hlItems[i]){
+        var it=hlItems[i];
+        if(it.src==='file'){ hlEditClose(); paMark(it,'delete'); return; }
         hlItems.splice(i,1);
         hlSave(); hlPaint(); hlStatus();
       }
@@ -995,13 +1005,18 @@ SCRIPT = """
       btn.addEventListener('click',function(){
         var c=btn.dataset.c;
         // recolouring keeps the palette up, so a second try costs nothing
-        if(hlPick>=0){ hlItems[hlPick].color=c; hlSave(); hlPaint(); }
-        else hlAdd(c);
+        if(hlPick<0){ hlAdd(c); return; }
+        var it=hlItems[hlPick];
+        it.color=c;
+        if(it.src==='file'){ hlHide(); paMark(it,'update'); return; }
+        hlSave(); hlPaint();
       });
     });
     hlDel.addEventListener('mousedown',function(e){ e.preventDefault(); });
     hlDel.addEventListener('click',function(){
       if(hlPick<0) return;
+      var it=hlItems[hlPick];
+      if(it.src==='file'){ hlHide(); paMark(it,'delete'); return; }
       hlItems.splice(hlPick,1);
       hlSave(); hlPaint(); hlStatus(); hlHide();
     });
@@ -1030,7 +1045,10 @@ SCRIPT = """
           var it=hlItems[i];
           // a filed mark shows what it says; one still in the browser is
           // still yours to change
-          if(it.src==='file'){ hlHide(); if(it.note) hlShowNote(it); return; }
+          // filed and no server behind the page: it can only be read here
+          if(it.src==='file'&&!paToken){
+            hlHide(); if(it.note) hlShowNote(it); return;
+          }
           hlPick=i; hlDel.hidden=false;
           hlPlace(it.range.getBoundingClientRect());
           return;
@@ -1090,7 +1108,24 @@ SCRIPT = """
     // serve.py is running behind this page: the save button can then do the
     // whole handoff itself. Opened straight off disk the probe fails, the
     // button never appears, and 複製畫記 stays the way through.
-    var saveBtn=document.getElementById('hlsave'), paToken='';
+    var saveBtn=document.getElementById('hlsave');
+    // A filed mark has exactly one home, notes/marks/. Changing it from the
+    // page means rewriting that file, so the page asks the server to do it and
+    // then reloads onto the rebuilt result -- no second copy anywhere.
+    paMark=function(it,action){
+      if(!paToken||!it.id) return;
+      hlSay(action==='delete'?'刪除中…':'更新中…');
+      fetch('/_pa/mark',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-PA-Token':paToken},
+        body:JSON.stringify({id:it.id,action:action,
+          color:{'1':'yellow','2':'green','3':'blue','4':'red'}[it.color]||'yellow',
+          note:it.note||''})
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if(d.ok&&d.rebuilt){ location.reload(); return; }
+        hlSay('失敗：'+(d.error||'重建沒有成功'));
+      }).catch(function(){ hlSay('失敗，server 可能停了'); });
+    };
     fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
       .then(function(r){ return r.ok?r.json():null; })
       .then(function(d){ if(d&&d.token){ paToken=d.token; saveBtn.hidden=false; } })
