@@ -314,8 +314,18 @@ border-radius:0 8px 8px 0;background:var(--card);
 color:var(--fg);cursor:pointer;box-shadow:2px 2px 8px var(--shadow)}
 #sidetoggle:hover{background:var(--line)}
 /* open, the handle is just a grip: the label would only cover the paper.
-   side-settled, not side-open -- see the timing note above. */
-body.side-settled .stxt{display:none}
+   side-settled, not side-open -- see the timing note above.
+   It folds rather than vanishing. max-width is what can carry the transition:
+   the button is shrink-to-fit, so there is no width of its own to animate --
+   collapsing the label collapses the button with it. The natural width is
+   measured at load and written into --stxt-w, because a hard-coded number
+   would clip the label wherever the font renders it wider; the 999px fallback
+   is deliberately far past natural, so the one transition that runs at load
+   moves nothing on screen. */
+.stxt{display:inline-block;vertical-align:bottom;overflow:hidden;
+max-width:var(--stxt-w,999px)}
+body.side-settled .stxt{max-width:0}
+@media(prefers-reduced-motion:no-preference){.stxt{transition:max-width .14s ease}}
 /* Motion is the point here, but not for readers who asked for less of it. */
 @media(prefers-reduced-motion:no-preference){
 #sidewrap,#note{transition:transform .22s ease}}
@@ -455,6 +465,12 @@ SCRIPT = """
   var wrap=document.getElementById('sidewrap');
   var pin=document.getElementById('sidepin');
   var pinned=false, leaveTimer=0, slideTimer=0;
+  // the label's own width, so the fold starts from where it actually ends
+  var stxt=document.querySelector('#sidetoggle .stxt');
+  if(stxt){
+    document.documentElement.style.setProperty(
+      '--stxt-w',(Math.ceil(stxt.getBoundingClientRect().width)+1)+'px');
+  }
   // read the duration rather than repeating it: reduced-motion drops the rule
   // entirely, and 0s then falls out of this by itself
   function slideMs(){
@@ -1238,7 +1254,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 <body data-paper="{html.escape(paper_root.name)}">
 <div id="layout">
 <div id="sidewrap">
-<button id="sidetoggle" title="目錄與疑問">☰<span class="stxt"> 目錄與疑問</span></button>
+<button id="sidetoggle" title="目錄與疑問">☰<span class="stxt">&nbsp;目錄與疑問</span></button>
 <nav id="side">
   <div class="controls">
     <button id="theme">🌗 跟隨系統</button>
