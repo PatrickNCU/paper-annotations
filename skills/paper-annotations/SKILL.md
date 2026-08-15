@@ -22,6 +22,7 @@ python <scripts>/reanchor.py <work>                    # 原文重新轉檔／�
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
 python <scripts>/import_marks.py <work> --from <檔>   # 複習頁「複製畫記」的輸出
 python <scripts>/serve.py <work> [--port 8975]        # 複習頁的畫記可直接存檔
+python <scripts>/build_html.py <work> --embed-assets --to <檔>   # 寄給別人的單檔
 ```
 
 `export_cards.py` 是唯讀的，給想拿卡片去 Anki 排程或自己處理的人用；預設寫到

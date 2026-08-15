@@ -4,11 +4,14 @@ Reads what build_annotated.py already produced -- so question placement is
 decided in exactly one place and the two views can never disagree.
 
 Usage:
-    python build_html.py <paper_root> [--embed-assets]
+    python build_html.py <work> [--embed-assets] [--to <檔案>]
 
 --embed-assets inlines every image as a data: URI, producing one large file
 that can be sent to someone else as-is. Without it, images are referenced by
 relative path (much smaller and faster to open).
+
+--to writes somewhere other than annotated/index.html, which is what makes a
+shareable copy possible without disturbing the page being read.
 """
 
 from __future__ import annotations
@@ -1531,28 +1534,43 @@ def slugify(text: str, used: dict) -> str:
     return base if n == 0 else f"{base}-{n}"
 
 
-def embed_images(html_text: str, base_dir: Path) -> str:
-    """Inline every local image as a data: URI so one file travels alone."""
+def embed_images(html_text: str, base_dir: Path):
+    """Inline every local image as a data: URI so one file travels alone.
+
+    Returns (html, embedded, missing). The counts are the point: a file that
+    quietly kept half of its images as relative paths still looks right here,
+    and arrives at the other end full of holes.
+    """
+    done, missing = [], []
 
     def sub(match):
         src = match.group(1)
-        if src.startswith(("data:", "http:", "https:")):
+        # skip the script's own string concatenations, not just real URLs
+        if src.startswith(("data:", "http:", "https:")) or "'" in src:
             return match.group(0)
         path = (base_dir / src).resolve()
         if not path.is_file():
+            missing.append(src)
             return match.group(0)
         mime = mimetypes.guess_type(path.name)[0] or "image/png"
         data = base64.b64encode(path.read_bytes()).decode("ascii")
+        done.append(src)
         return f'src="data:{mime};base64,{data}"'
 
-    return re.sub(r'src="([^"]+)"', sub, html_text)
+    # (?<![-\w]) so this is src=, not the tail of data-src= -- the sections
+    # carry one of those, and matching it reported every chunk as a lost image
+    return re.sub(r'(?<![-\w])src="([^"]+)"', sub, html_text), len(done), missing
 
 
-def build(work_root: Path, embed: bool = False) -> int:
+def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     config, paper_root, notes, annotated = paperkit.load_workspace(work_root)
     if not annotated.is_dir():
         raise SystemExit(f"找不到註記檢視 {annotated}，請先執行 build_annotated.py")
-    out = annotated / "index.html"
+    # --to keeps a shareable copy out of the way of the page being read.
+    # Embedding into index.html would swap the working page for a much larger
+    # one, and the next ordinary build would quietly swap it back again.
+    out = Path(to).resolve() if to else annotated / "index.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
 
     sources = [Path(p) for p in (config.get("sources") or [])]
     body_parts, toc, used = [], [], {}
@@ -1724,12 +1742,15 @@ def build(work_root: Path, embed: bool = False) -> int:
 </html>
 """
 
+    inlined, lost = 0, []
     if embed:
-        page = embed_images(page, annotated)
+        # resolved against the file being written, not against annotated/:
+        # every src was rewritten relative to wherever this page is landing
+        page, inlined, lost = embed_images(page, out.parent)
 
     out.write_text(page, encoding="utf-8", newline="\n")
     size = out.stat().st_size / 1024
-    print(f"index.html  {len(sources)} 個章節、{len(cards)} 則疑問、{size:,.0f} KB")
+    print(f"{out.name}  {len(sources)} 個章節、{len(cards)} 則疑問、{size:,.0f} KB")
     print(f"            演算法區塊 {len(algos)} 個、圖表交叉引用 {xrefs} 處已可點擊")
     if marks:
         noted = sum(1 for mark in marks if mark["note"])
@@ -1743,7 +1764,10 @@ def build(work_root: Path, embed: bool = False) -> int:
         print(f"  🟡 這些引用找不到對應的圖或表，維持純文字：{listed}")
     print(f"  {out}")
     if embed:
-        print("  已內嵌圖片：這個檔案可以單獨寄給別人。")
+        print(f"  已內嵌 {inlined} 張圖片：這個檔案可以單獨寄給別人。")
+        if lost:
+            listed = "、".join(lost[:4])
+            print(f"  🔴 有 {len(lost)} 張圖片找不到檔案，收件人會看到破圖：{listed}")
     else:
         print("  圖片使用相對路徑；要單檔攜帶請加 --embed-assets。")
     if missing:
@@ -1753,7 +1777,19 @@ def build(work_root: Path, embed: bool = False) -> int:
 
 def main(argv):
     args = [a for a in argv[1:] if not a.startswith("--")]
-    return build(Path(args[0] if args else ".").resolve(), embed="--embed-assets" in argv)
+    to = ""
+    for i, arg in enumerate(argv):
+        if arg.startswith("--to="):
+            to = arg[len("--to="):]
+        elif arg == "--to" and i + 1 < len(argv):
+            to = argv[i + 1]
+    if to in args:
+        args.remove(to)
+    return build(
+        Path(args[0] if args else ".").resolve(),
+        embed="--embed-assets" in argv,
+        to=to,
+    )
 
 
 if __name__ == "__main__":
