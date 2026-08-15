@@ -89,27 +89,36 @@ STYLE = """
 :root{--bg:#fbfaf7;--fg:#22201d;--muted:#6d685f;--line:#e4dfd5;--card:#f5f2ea;
 --sidebar:#f2efe8;--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;
 --plate:#fff;--shadow:rgba(0,0,0,.05);--mark:#f7e3a9;
---sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;
+--sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;--algo:#eef1f6;
 --sel:rgba(138,79,36,.20)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
---sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
 --sel:rgba(224,167,106,.26)}}
 :root[data-theme="dark"]{
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
---sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
 --sel:rgba(224,167,106,.26)}
 *{box-sizing:border-box}
 /* The sentence a card is anchored to. Tinted, never the browser's
    default yellow-on-black, which ignores the palette entirely. */
 mark{background:var(--mark);color:inherit;padding:.05em .15em;border-radius:3px}
 mark.off{background:none;padding:0}
+/* Algorithm listings read as one unit rather than as loose numbered text. */
+.algo{margin:20px 0;padding:12px 18px 6px;border-radius:8px;background:var(--algo);
+border:1px solid var(--line);border-left:3px solid var(--accent);scroll-margin-top:24px}
+.algo-t{font-weight:600;margin-bottom:6px;padding-bottom:6px;
+border-bottom:1px dashed var(--line)}
+.algo ol{margin:6px 0 10px;padding-left:26px}
+.algo li{margin:1px 0;line-height:1.6}
+.algo p{margin:4px 0}
+.algo:target{outline:2px solid var(--accent);outline-offset:3px}
 /* "see Fig. 4" jumps to the figure. Underlined rather than coloured-only, so
-   it is still visible to a reader who cannot separate the two colours. */
+   it stays visible to a reader who cannot separate the two colours. */
 a.xref{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent)}
 a.xref:hover{border-bottom-style:solid}
 img[id^="fig-"],img[id^="tab-"]{scroll-margin-top:24px}
@@ -149,7 +158,7 @@ border-left:3px solid var(--line);background:var(--sec-answer)}
 @media(prefers-reduced-motion:no-preference){
 body,#side,#main,#side a,.controls button,.controls select,.controls input,
 .qcard,.qcard>summary,.banner,.meta,blockquote,pre,code,table,th,td,img,
-.footnotes,.fn-key,.dot,.qtext,a.qlink,mark,.csec,.csec-t{
+.footnotes,.fn-key,.dot,.qtext,a.qlink,mark,.csec,.csec-t,.algo,.algo-t{
 transition:background-color .3s ease,color .3s ease,border-color .3s ease,
 box-shadow .3s ease,outline-color .3s ease}}
 body{margin:0;background:var(--bg);color:var(--fg);
@@ -488,6 +497,42 @@ SCRIPT = """
 """
 
 
+# An algorithm is a title paragraph followed by its numbered steps. Both
+# conversions agree on that shape; only the title's emphasis differs.
+# The title is short and its steps follow immediately (an "Input:/Output:"
+# paragraph may sit between). Both bounds matter: prose that merely opens with
+# "Algorithm 1 describes the procedure..." must not match, because a rejected
+# match still consumes its span and would hide the next real listing.
+_ALGO = re.compile(
+    r"(<p>\s*(?:<strong>)?\s*Algorithm\s+(\d+)\b.{0,200}?</p>)"
+    r"((?:\s*<p>.{0,400}?</p>){0,2}\s*<ol>.*?</ol>)",
+    re.S | re.I,
+)
+_HEADING_TAG = re.compile(r"<h[1-6]\b", re.I)
+
+
+def wrap_algorithms(body_html: str):
+    """Box each listing. Anything that does not clearly end in its own list is
+    left alone -- swallowing the following paragraphs would be worse than a
+    plain-looking algorithm."""
+    found = {}
+
+    def wrap(match):
+        title, number, rest = match.group(1), match.group(2), match.group(3)
+        # a heading in between means the list belongs to something else
+        if _HEADING_TAG.search(rest) or re.search(r"Algorithm\s+\d", rest, re.I):
+            return match.group(0)
+        if len(rest) > 12000:
+            return match.group(0)
+        anchor = f"alg-{number}"
+        found[("algorithm", number)] = anchor
+        inner = re.sub(r"^<p>\s*|\s*</p>$", "", title)
+        inner = re.sub(r"^<strong>\s*|\s*</strong>$", "", inner.strip())
+        return f'<div class="algo" id="{anchor}"><div class="algo-t">{inner}</div>{rest}</div>'
+
+    return _ALGO.sub(wrap, body_html), found
+
+
 # --------------------------------------------------------------------------
 # cross-references ("see Fig. 4", "Table V")
 # --------------------------------------------------------------------------
@@ -499,7 +544,7 @@ _ALT = re.compile(r'alt="([^"]*)"', re.I)
 _ROMAN = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
 # "Fig. 4", "Figure 4", "FIG. 4", "Table V", "TABLE 8" -- the label varies from
 # paper to paper, the shape does not.
-_XREF = re.compile(r"\b(Figs?\.|Figures?|FIGs?\.|Tables?|TABLES?)\s*(\d+|[IVXLCDM]+)\b")
+_XREF = re.compile(r"\b(Figs?\.|Figures?|FIGs?\.|Tables?|TABLES?|Algorithms?|ALGORITHMS?)\s*(\d+|[IVXLCDM]+)\b")
 # Inside these, a link would either fight the element's own click or jump the
 # page out from under an open card.
 _CITED = re.compile(r"\[\s*\d+\s*,\s*$")
@@ -558,7 +603,8 @@ def linkify_xrefs(body_html: str, targets):
         # "[13, Table V]" is a table inside reference 13, not one of ours.
         if _CITED.search(match.string[: match.start()]):
             return match.group(0)
-        kind = "figure" if word[0].lower() == "f" else "table"
+        first = word[0].lower()
+        kind = "figure" if first == "f" else ("algorithm" if first == "a" else "table")
         key = (kind, number.upper() if not number.isdigit() else number)
         anchor = targets.get(key)
         if anchor is None and not number.isdigit():
@@ -700,7 +746,9 @@ def build(work_root: Path, embed: bool = False) -> int:
     body_parts = [tag_marks(part, cards) for part in body_parts]
     # One pass over the whole page: a section often points at a figure that
     # lives in another section, so the target table must be complete first.
-    whole, targets = label_ids("".join(body_parts))
+    whole, algos = wrap_algorithms("".join(body_parts))
+    whole, targets = label_ids(whole)
+    targets.update(algos)
     whole, xrefs, xref_missing = linkify_xrefs(whole, targets)
     body_parts = [whole]
     counts = {"open": 0, "half": 0, "resolved": 0}
@@ -817,7 +865,7 @@ def build(work_root: Path, embed: bool = False) -> int:
     out.write_text(page, encoding="utf-8", newline="\n")
     size = out.stat().st_size / 1024
     print(f"index.html  {len(sources)} 個章節、{len(cards)} 則疑問、{size:,.0f} KB")
-    print(f"            圖表交叉引用 {xrefs} 處已可點擊")
+    print(f"            演算法區塊 {len(algos)} 個、圖表交叉引用 {xrefs} 處已可點擊")
     if xref_missing:
         listed = "、".join(f"{k}×{v}" for k, v in sorted(xref_missing.items())[:6])
         print(f"  🟡 這些引用找不到對應的圖或表，維持純文字：{listed}")
