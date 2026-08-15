@@ -1091,7 +1091,7 @@ SCRIPT = """
     // whole handoff itself. Opened straight off disk the probe fails, the
     // button never appears, and 複製畫記 stays the way through.
     var saveBtn=document.getElementById('hlsave'), paToken='';
-    fetch('_pa/hello',{headers:{'Accept':'application/json'}})
+    fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
       .then(function(r){ return r.ok?r.json():null; })
       .then(function(d){ if(d&&d.token){ paToken=d.token; saveBtn.hidden=false; } })
       .catch(function(){});
@@ -1100,7 +1100,7 @@ SCRIPT = """
       if(!list.length){ hlSay('沒有還沒落檔的畫記'); return; }
       saveBtn.disabled=true;
       hlSay('存檔中…');
-      fetch('_pa/marks',{
+      fetch('/_pa/marks',{
         method:'POST',
         headers:{'Content-Type':'application/json','X-PA-Token':paToken},
         body:JSON.stringify({marks:list.map(function(it){

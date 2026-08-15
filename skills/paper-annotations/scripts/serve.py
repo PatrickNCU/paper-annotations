@@ -25,6 +25,7 @@ Safety, in the order it matters:
 from __future__ import annotations
 
 import json
+import os
 import secrets
 import subprocess
 import sys
@@ -52,9 +53,13 @@ class Handler(SimpleHTTPRequestHandler):
     notes = Path(".")
     lock = threading.Lock()
 
-    def log_message(self, fmt, *args):  # noqa: A003 - quieter than the default
-        if "_pa/" in (args[0] if args else ""):
-            sys.stderr.write("  %s\n" % (fmt % args))
+    # Quieter than the default, but str() first: log_error passes an HTTPStatus
+    # here, not a string, and testing it for membership raised inside the
+    # error handler -- which turned every missing file into a stack trace.
+    def log_message(self, fmt, *args):  # noqa: A003
+        line = fmt % args
+        if "_pa/" in line or " 4" in line or " 5" in line:
+            sys.stderr.write(f"  {line}\n")
 
     def _json(self, status: int, payload: dict):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -73,11 +78,21 @@ class Handler(SimpleHTTPRequestHandler):
         return origin in (f"http://{host}", f"https://{host}")
 
     def do_GET(self):
-        if self.path.split("?")[0] == "/_pa/hello":
+        path = self.path.split("?")[0]
+        if path == "/_pa/hello":
             if not self._same_origin():
                 self._json(403, {"error": "cross-origin"})
                 return
             self._json(200, {"ok": True, "token": self.token})
+            return
+        if path == "/":
+            self.send_response(302)
+            self.send_header("Location", self.index_url)
+            self.end_headers()
+            return
+        if path == "/favicon.ico":  # browsers always ask; there is not one
+            self.send_response(204)
+            self.end_headers()
             return
         super().do_GET()
 
@@ -135,9 +150,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _rebuild(self):
         """Only the HTML: marks never touch the annotated Markdown."""
+        # encoding spelled out: text=True decodes with the console codepage,
+        # which on a zh-TW Windows is cp950 and cannot read the build's UTF-8
+        # output at all -- the reader thread died and took the log with it.
         run = subprocess.run(
             [sys.executable, str(HERE / "build_html.py"), str(self.work)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         out = (run.stdout or "") + (run.stderr or "")
         sys.stderr.write(out)
@@ -168,13 +186,22 @@ def main(argv) -> int:
     Handler.work, Handler.paper_root, Handler.notes = work, paper_root, notes
     Handler.sources = {Path(p).as_posix() for p in (config.get("sources") or [])}
 
+    # The review page points at images that live in the package next door, so
+    # serving annotated/ alone gives a page with every figure missing. Root at
+    # the folder holding both and let the links resolve exactly as they do on
+    # disk; "/" redirects to wherever the page actually sits. The stdlib
+    # handler still refuses to walk above whatever root it is given.
+    root = Path(os.path.commonpath([str(annotated), str(paper_root)]))
+    Handler.index_url = "/" + (annotated / "index.html").relative_to(root).as_posix()
+
     server = ThreadingHTTPServer(
-        ("127.0.0.1", port), partial(Handler, directory=str(annotated))
+        ("127.0.0.1", port), partial(Handler, directory=str(root))
     )
     url = f"http://127.0.0.1:{port}/"
     print(f"複習頁       {url}")
     print(f"             畫記會直接寫進 {notes / 'marks'}，並重建複習頁")
-    print("             只接受本機連線；Ctrl+C 結束")
+    print(f"             檔案根目錄 {root}（只有本機連得到）")
+    print("             Ctrl+C 結束")
     if "--no-open" not in argv:
         webbrowser.open(url)
     try:
