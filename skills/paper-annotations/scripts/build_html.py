@@ -304,7 +304,7 @@ def embed_images(html_text: str, base_dir: Path) -> str:
 def build(work_root: Path, embed: bool = False) -> int:
     config, paper_root, notes, annotated = paperkit.load_workspace(work_root)
     if not annotated.is_dir():
-        raise SystemExit("找不到 annotated/，請先執行 build_annotated.py")
+        raise SystemExit(f"找不到註記檢視 {annotated}，請先執行 build_annotated.py")
     out = annotated / "index.html"
 
     sources = [Path(p) for p in (config.get("sources") or [])]

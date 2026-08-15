@@ -5,7 +5,7 @@ records a fingerprint so a later build can tell that the source was replaced.
 The result is a hint about what to try FIRST -- never a promise. See ADR 0001.
 
 Usage:
-    python probe.py <paper_root>
+    python probe.py <paper_root> [--out <notes_dir>] [--review <annotated_dir>]
 """
 
 from __future__ import annotations
@@ -156,27 +156,53 @@ def detect(paper_root: Path):
     }
 
 
+def flag_value(argv, name):
+    """--name <path> or --name=<path>; returns None when absent."""
+    prefix = f"--{name}="
+    for arg in argv:
+        if arg.startswith(prefix):
+            return arg[len(prefix) :]
+    if f"--{name}" in argv and argv.index(f"--{name}") + 1 < len(argv):
+        nxt = argv[argv.index(f"--{name}") + 1]
+        if not nxt.startswith("--"):
+            return nxt
+    return None
+
+
 def main(argv):
-    args = [a for a in argv[1:] if not a.startswith("--")]
+    flags = {"--out", "--review"}
+    rest = argv[1:]
+    args = []
+    skip = False
+    for arg in rest:
+        if skip:
+            skip = False
+            continue
+        if arg.startswith("--"):
+            skip = arg in flags and "=" not in arg
+            continue
+        args.append(arg)
     paper_root = Path(args[0] if args else ".").resolve()
-    # --out puts the notes (and the review page) anywhere; the paper stays put.
-    out_flag = [a for a in argv[1:] if a.startswith("--out=")]
-    if out_flag:
-        work_root = Path(out_flag[0].split("=", 1)[1]).resolve()
-    elif "--out" in argv and argv.index("--out") + 1 < len(argv):
-        work_root = Path(argv[argv.index("--out") + 1]).resolve()
-    else:
-        work_root = paper_root
+
+    # --out puts the notes anywhere; --review puts the page anywhere;
+    # the paper itself never moves.
+    out_dir = flag_value(rest, "out")
+    work_root = Path(out_dir).resolve() if out_dir else paper_root
+    review = flag_value(rest, "review")
+    annotated_root = (
+        Path(review).resolve() if review else paperkit.default_annotated(paper_root, work_root)
+    )
 
     config = detect(paper_root)
     config["paper_root"] = os.path.relpath(paper_root, work_root).replace("\\", "/")
+    config["annotated_root"] = os.path.relpath(annotated_root, work_root).replace("\\", "/")
 
     work_root.mkdir(parents=True, exist_ok=True)
     notes = work_root / "notes"
     notes.mkdir(exist_ok=True)
     (notes / "cards").mkdir(exist_ok=True)
-    out = notes / "paper.yml"
-    out.write_text(
+    out_path = notes / "paper.yml"
+    out_path.write_text(
         "# 由 probe.py 產生；可手改，但 build 仍會對實際內容重新驗證。\n"
         + miniyaml.dump(config)
         + "\n",
@@ -208,10 +234,21 @@ def main(argv):
             "讓筆記能精準掛在公式與圖表上，日後論文改版也比較不會對不上位置。"
             "轉檔較耗時，且模型與推理強度會顯著影響品質。"
         )
-    print(f"\n寫入 {out}")
+    print(f"\n寫入 {out_path}")
+    print(f"疑問卡放在   {notes}")
+    print(f"複習頁會產生在 {annotated_root / 'index.html'}")
     if work_root != paper_root:
-        print(f"筆記與複習頁會產生在 {work_root}")
-        print("之後的 build / reanchor 請傳這個路徑，不是論文路徑。")
+        print(f"之後的 build / reanchor 請傳 {work_root}，不是論文路徑。")
+
+    # Writing into a directory that already holds someone's own Markdown would
+    # look like we ate it; the build also prunes stale .md there.
+    if annotated_root.is_dir() and not (annotated_root / "AGENTS.md").is_file():
+        strays = [p.name for p in annotated_root.glob("*.md")]
+        if strays:
+            print(
+                f"\n🟡 {annotated_root} 裡已經有 Markdown（{'、'.join(strays[:3])}…），"
+                "這個資料夾會被複習頁的建置接管。想換一個位置就重跑 probe.py --review <路徑>。"
+            )
 
 
 if __name__ == "__main__":

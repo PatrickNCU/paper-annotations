@@ -27,6 +27,21 @@
 本機開發可以直接把 clone 下來的資料夾當 marketplace：
 `/plugin marketplace add <你的 clone 路徑>`
 
+## 產物放在哪
+
+```
+論文資料夾/
+  論文.pdf
+  論文_md/              ← 轉檔套件（原文唯讀）
+    sections/ INDEX.md images/
+    notes/              ← 你的疑問卡，唯一真實來源
+  annotated/index.html  ← 複習頁，跟套件同一層
+```
+
+疑問卡跟原文放在一起，整包搬走還是完整的；複習頁放在套件外面，不用在幾十個檔案裡
+翻。想換位置在 setup 時說一聲就好（`--out` 移動筆記、`--review` 移動複習頁），
+路徑會記進 `notes/paper.yml`，之後都不必再帶。
+
 ## 指令
 
 | 指令 | 用途 |

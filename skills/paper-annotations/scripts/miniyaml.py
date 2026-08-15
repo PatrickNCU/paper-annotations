@@ -63,6 +63,10 @@ def _parse_scalar(text: str):
                 body.replace("\\n", "\n").replace('\\"', '"').replace("\\\\", "\\")
             )
         return body
+    # dump() writes an empty mapping as {}; without this it came back as the
+    # string "{}" and every .items() on it blew up.
+    if text == "{}":
+        return {}
     if text.startswith("[") and text.endswith("]"):
         inner = text[1:-1].strip()
         if not inner:

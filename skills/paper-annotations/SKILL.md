@@ -15,18 +15,32 @@ description: 讀論文時把使用者的疑問就地註記回原文，累積成�
 （含 `sections/`、`INDEX.md` 的那一層，或單一 `.md` 所在目錄）。
 
 ```bash
-python <scripts>/probe.py <paper> [--out <筆記路徑>]   # 首次：判定 Tier、記錄原文指紋
+python <scripts>/probe.py <paper> [--out <筆記路徑>] [--review <複習頁路徑>]
 python <scripts>/build_annotated.py <work>             # 改卡片後：重建 Markdown 檢視與索引
 python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
 python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
 ```
 
-**`<work>` 是 `notes/` 所在的目錄**，不一定是論文目錄。預設兩者相同（產物寫進論文
-套件裡，整包可攜）；使用者若想把筆記放別處，`probe.py --out <路徑>` 指定一次即可，
-路徑會記進 `paper.yml`，之後的指令都從那裡讀，不需要再帶任何旗標。
+**`<work>` 是 `notes/` 所在的目錄**，不一定是論文目錄。預設版面：
+
+```
+論文資料夾/
+  論文.pdf
+  論文_md/              ← 轉檔套件（原文唯讀）
+    sections/ INDEX.md images/
+    notes/              ← 疑問卡，唯一真實來源
+  annotated/index.html  ← 複習頁，跟套件同一層
+```
+
+卡片留在套件裡（整包可攜），複習頁放在套件旁邊——套件裡有幾十個檔案，複習頁埋在
+裡面就等於找不到。`probe.py` 只在論文套件看起來是轉檔產物時（目錄名以 `_md` 結尾，
+或同層有 PDF）才往上放一層，否則仍放在 `<work>/annotated`。
+
+`--out` 移動筆記，`--review` 只移動複習頁；兩者都會記進 `paper.yml`，之後的指令
+不需要再帶旗標。給了 `--out` 就表示使用者自己決定了工作區位置，複習頁預設跟著筆記走。
 
 不要為了搬動產物而去改路徑或搬檔案：所有相對連結（圖片、卡片回連、索引跳轉）都是
-build 時依實際位置算出來的，手動搬移會全部斷掉。改位置就重跑一次 `probe.py --out`。
+build 時依實際位置算出來的，手動搬移會全部斷掉。改位置就重跑一次 `probe.py`。
 
 零依賴，只需要 Python 3.8+。所有檢查都在 Python 裡，不要改用 `grep`、`sed`——
 使用者可能在只有 PowerShell 的 Windows 上。
