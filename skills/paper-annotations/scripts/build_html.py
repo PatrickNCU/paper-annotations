@@ -239,7 +239,9 @@ color:var(--fg);cursor:pointer;box-shadow:2px 2px 8px var(--shadow)}
    paragraph to ask. Nothing is sent from here -- copy it into the chat. */
 #notewrap{position:fixed;top:0;right:0;height:100vh;z-index:29;pointer-events:none}
 #notewrap>*{pointer-events:auto}
-#notetab{position:absolute;top:12px;right:12px;font:inherit;font-size:13px;
+/* nowrap for the same reason as #sidetoggle: positioned against a zero-width
+   wrapper, the label otherwise collapses to one character per line. */
+#notetab{position:absolute;top:12px;right:12px;white-space:nowrap;font:inherit;font-size:13px;
 padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);
 color:var(--fg);cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
 #notetab:hover{background:var(--line)}
