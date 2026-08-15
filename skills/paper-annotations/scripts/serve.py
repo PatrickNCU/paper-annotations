@@ -6,6 +6,7 @@ that closes it: a local HTTP server that hands out the review page and accepts
 its highlights back, writing them into notes/marks/ and rebuilding the page.
 
     python serve.py <work> [--port 8975] [--no-open]
+    python serve.py <work> --launcher        # 只放一個點兩下就能開的啟動器
 
 Without it everything still works; highlights simply stay in the browser until
 they are copied out by hand. Nothing else about the page changes.
@@ -225,6 +226,51 @@ class Handler(SimpleHTTPRequestHandler):
         return run.returncode == 0, out.strip().splitlines()[:6]
 
 
+def write_launcher(work: Path, annotated: Path, port: int) -> Path:
+    """Drop a double-clickable launcher beside the review page.
+
+    The body is ASCII only, deliberately: cmd.exe parses a .cmd in the OEM
+    codepage, so UTF-8 text inside breaks the script itself rather than merely
+    printing badly. The filename is free to be Chinese -- that goes through the
+    filesystem, not the parser.
+    """
+    home = annotated.parent
+    try:
+        target = work.relative_to(home).as_posix().replace("/", os.sep)
+    except ValueError:
+        target = str(work)
+    tag = "".join(c for c in work.name if c.isascii() and (c.isalnum() or c in "-_")) or "paper"
+    script = str(HERE / "serve.py")
+
+    if os.name == "nt":
+        path = home / "開啟複習頁.cmd"
+        body = (
+            "@echo off\n"
+            "rem ASCII only: cmd.exe parses this file in the OEM codepage.\n"
+            "chcp 65001 >nul\n"
+            'cd /d "%~dp0"\n'
+            f"title {tag} review page\n"
+            "echo Close this window to stop the server.\n"
+            "echo.\n"
+            f'python "{script}" "{target}" --port {port}\n'
+            "echo.\n"
+            "echo Server stopped.\n"
+            "pause\n"
+        )
+    else:
+        path = home / "開啟複習頁.command"
+        body = (
+            "#!/bin/sh\n"
+            '# Close this window to stop the server.\n'
+            'cd "$(dirname "$0")" || exit 1\n'
+            f'exec python3 "{script}" "{target}" --port {port}\n'
+        )
+    path.write_text(body, encoding="ascii", newline="\r\n" if os.name == "nt" else "\n")
+    if os.name != "nt":
+        path.chmod(0o755)
+    return path
+
+
 def flag(argv, name, fallback=None):
     prefix = f"--{name}="
     for arg in argv:
@@ -245,6 +291,11 @@ def main(argv) -> int:
         raise SystemExit(f"找不到 {annotated / 'index.html'}，請先執行 build_html.py")
 
     port = int(flag(argv, "port", "8975"))
+    if "--launcher" in argv:
+        print(f"啟動器       {write_launcher(work, annotated, port)}")
+        print("             點兩下就會起 server 並開複習頁")
+        return 0
+
     Handler.token = secrets.token_urlsafe(24)
     Handler.work, Handler.paper_root, Handler.notes = work, paper_root, notes
     Handler.sources = {Path(p).as_posix() for p in (config.get("sources") or [])}
