@@ -765,6 +765,12 @@ SCRIPT = """
     // pointer. The timeout lets the selection settle first.
     document.addEventListener('mouseup',function(e){
       if(hlBar.contains(e.target)) return;
+      // Off means off: a live selection must not raise the palette either.
+      // And a click on the page furniture is not a reading gesture -- it does
+      // not always clear the selection, which would put the palette straight
+      // back over the paper the moment the reader reached for a button.
+      var chrome=e.target.closest&&e.target.closest('#sidewrap,#notewrap,#panel,#ov');
+      if(!hlOn||chrome){ hlHide(); return; }
       setTimeout(function(){
         if(!panel.hidden){ hlHide(); return; }
         var sel=window.getSelection();
