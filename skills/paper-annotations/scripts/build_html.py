@@ -1087,6 +1087,40 @@ SCRIPT = """
       hlBtn.classList.toggle('on',hlOn);
       hlHide(); tipHide(); hlPaint(); hlStatus();
     });
+    // serve.py is running behind this page: the save button can then do the
+    // whole handoff itself. Opened straight off disk the probe fails, the
+    // button never appears, and 複製畫記 stays the way through.
+    var saveBtn=document.getElementById('hlsave'), paToken='';
+    fetch('_pa/hello',{headers:{'Accept':'application/json'}})
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(d){ if(d&&d.token){ paToken=d.token; saveBtn.hidden=false; } })
+      .catch(function(){});
+    saveBtn.addEventListener('click',function(){
+      var list=hlLocal();
+      if(!list.length){ hlSay('沒有還沒落檔的畫記'); return; }
+      saveBtn.disabled=true;
+      hlSay('存檔中…');
+      fetch('_pa/marks',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-PA-Token':paToken},
+        body:JSON.stringify({marks:list.map(function(it){
+          return {file:it.file||'',color:{'1':'yellow','2':'green','3':'blue','4':'red'}[it.color]||'yellow',
+                  exact:hlPlain(it.exact),prefix:hlPlain(it.prefix),
+                  suffix:hlPlain(it.suffix),note:it.note||''};
+        })})
+      }).then(function(r){ return r.json(); }).then(function(d){
+        saveBtn.disabled=false;
+        if(d.error){ hlSay('存檔失敗：'+d.error); return; }
+        if(d.bad&&d.bad.length){ hlSay('存了 '+d.written+' 條，'+d.bad.length+' 條有問題'); }
+        // reload rather than patch the page: the rebuild already produced the
+        // page with these marks filed, and that is the one worth looking at
+        if(d.written&&d.rebuilt){ location.reload(); return; }
+        if(!d.written) hlSay('這些畫記已經存過了');
+      }).catch(function(){
+        saveBtn.disabled=false;
+        hlSay('存檔失敗，server 可能停了');
+      });
+    });
     document.getElementById('hlcopy').addEventListener('click',function(){
       if(!hlItems.length){ hlSay('還沒有畫記'); return; }
       copyText(hlReport(),function(){ hlSay('已複製 '+hlItems.length+' 條'); },
@@ -1535,6 +1569,7 @@ def build(work_root: Path, embed: bool = False) -> int:
   <h2>螢光筆</h2>
   <div class="controls">
     <button id="hlon" class="on">🖍 顯示畫記</button>
+    <button id="hlsave" hidden>💾 存檔</button>
     <button id="hlcopy">複製畫記</button>
     <button id="hlclear">清空</button>
   </div>

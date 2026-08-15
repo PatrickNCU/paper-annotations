@@ -65,6 +65,75 @@ def slug(text: str) -> str:
     return out[:48].strip("-") or "mark"
 
 
+def write_marks(paper_root: Path, notes: Path, records):
+    """Write records into notes/marks/, skipping ones already there.
+
+    Shared with serve.py, so the save button and the command line cannot drift
+    apart. A mark is identified by its file plus its quote, which is what makes
+    a repeat run write nothing.
+    """
+    marks_dir = notes / "marks"
+    seen, used = set(), set()
+    for mark in paperkit.load_marks(notes):
+        anchor = mark["meta"].get("anchor") or {}
+        quote = anchor.get("quote") or {}
+        seen.add((str(anchor.get("file") or ""),
+                  paperkit.normalize(str(quote.get("exact") or ""))))
+        used.add(str(mark["meta"].get("id")))
+
+    out = {"written": 0, "skipped": 0, "bad": [], "soft": [], "files": []}
+    for rec in records:
+        key = (rec["file"], paperkit.normalize(rec["exact"]))
+        if key in seen:
+            out["skipped"] += 1
+            continue
+        if rec["color"] not in paperkit.VALID_COLOR:
+            rec["color"] = "yellow"
+        # A missing file is a real error -- nothing can place that. A quote that
+        # does not match the Markdown is not: it was made against the rendered
+        # page, where a formula is glyphs that never appear in the source. The
+        # page finds those perfectly well, because it searches the same rendered
+        # text the mark was drawn on. Write it, say so, let the page place it.
+        source = paper_root / rec["file"]
+        if not source.is_file():
+            out["bad"].append((rec["exact"][:40], f"原文裡沒有 {rec['file']}"))
+            continue
+        lines = source.read_text(encoding="utf-8").splitlines()
+        hits = paperkit.count_quote(lines, paperkit.normalize(rec["exact"]))
+        if hits == 0:
+            out["soft"].append((rec["exact"][:40], "引文不在原始 Markdown 裡（含公式的畫記正常會這樣）"))
+        elif hits > 1:
+            out["soft"].append((rec["exact"][:40], f"引文出現 {hits} 次，頁面會用前後文挑一處"))
+
+        num = 1
+        while f"{num:04d}" in used:
+            num += 1
+        mid = f"{num:04d}"
+        used.add(mid)
+
+        meta = {
+            "id": mid,
+            "created": date.today().isoformat(),
+            "color": rec["color"],
+            "anchor": {
+                "file": rec["file"],
+                "quote": {k: rec[k] + "\n" for k in ("prefix", "exact", "suffix") if rec[k]},
+            },
+        }
+        marks_dir.mkdir(parents=True, exist_ok=True)
+        path = marks_dir / f"{mid}-{slug(rec['exact'])}.md"
+        path.write_text(
+            "---\n" + miniyaml.dump(meta) + "\n---\n\n"
+            + (rec["note"] + "\n" if rec["note"] else ""),
+            encoding="utf-8",
+            newline="\n",
+        )
+        seen.add(key)
+        out["written"] += 1
+        out["files"].append(path.name)
+    return out
+
+
 def main(argv) -> int:
     args = [a for a in argv[1:] if not a.startswith("--")]
     work = Path(args[0] if args else ".").resolve()
@@ -85,72 +154,18 @@ def main(argv) -> int:
         print("讀不到任何畫記。請確認貼進來的是複習頁「複製畫記」的完整輸出。")
         return 1
 
-    marks_dir = notes / "marks"
-    existing = paperkit.load_marks(notes)
-    seen, used = set(), set()
-    for mark in existing:
-        anchor = mark["meta"].get("anchor") or {}
-        quote = anchor.get("quote") or {}
-        seen.add((str(anchor.get("file") or ""),
-                  paperkit.normalize(str(quote.get("exact") or ""))))
-        used.add(str(mark["meta"].get("id")))
-
-    written, skipped, bad, soft = 0, 0, [], []
-    for rec in records:
-        key = (rec["file"], paperkit.normalize(rec["exact"]))
-        if key in seen:
-            skipped += 1
-            continue
-        if rec["color"] not in paperkit.VALID_COLOR:
-            rec["color"] = "yellow"
-        # A missing file is a real error -- nothing can place that. A quote that
-        # does not match the Markdown is not: it was made against the rendered
-        # page, where a formula is glyphs that never appear in the source. The
-        # page finds those perfectly well, because it searches the same rendered
-        # text the mark was drawn on. Write it, say so, let the page place it.
-        source = paper_root / rec["file"]
-        if not source.is_file():
-            bad.append((rec["exact"][:40], f"原文裡沒有 {rec['file']}"))
-            continue
-        lines = source.read_text(encoding="utf-8").splitlines()
-        hits = paperkit.count_quote(lines, paperkit.normalize(rec["exact"]))
-        if hits == 0:
-            soft.append((rec["exact"][:40], "引文不在原始 Markdown 裡（含公式的畫記正常會這樣）"))
-        elif hits > 1:
-            soft.append((rec["exact"][:40], f"引文出現 {hits} 次，頁面會用前後文挑一處"))
-
-        num = 1
-        while f"{num:04d}" in used:
-            num += 1
-        mid = f"{num:04d}"
-        used.add(mid)
-
-        meta = {
-            "id": mid,
-            "created": date.today().isoformat(),
-            "color": rec["color"],
-            "anchor": {
-                "file": rec["file"],
-                "quote": {k: rec[k] + "\n" for k in ("prefix", "exact", "suffix") if rec[k]},
-            },
-        }
-        marks_dir.mkdir(parents=True, exist_ok=True)
-        path = marks_dir / f"{mid}-{slug(rec['exact'])}.md"
-        path.write_text(
-            "---\n" + miniyaml.dump(meta) + "\n---\n\n" + (rec["note"] + "\n" if rec["note"] else ""),
-            encoding="utf-8",
-            newline="\n",
-        )
-        seen.add(key)
-        written += 1
-        print(f"  + {path.name}")
-
-    print(f"畫記匯入   新增 {written} 條、已存在 {skipped} 條、無法匯入 {len(bad)} 條")
-    for quote, why in bad:
+    result = write_marks(paper_root, notes, records)
+    for name in result["files"]:
+        print(f"  + {name}")
+    print(
+        f"畫記匯入   新增 {result['written']} 條、已存在 {result['skipped']} 條、"
+        f"無法匯入 {len(result['bad'])} 條"
+    )
+    for quote, why in result["bad"]:
         print(f"  🔴 「{quote}…」{why}")
-    for quote, why in soft:
+    for quote, why in result["soft"]:
         print(f"  🟡 「{quote}…」{why}")
-    if written:
+    if result["written"]:
         print("  接著跑 build_annotated.py 與 build_html.py")
     return 0
 

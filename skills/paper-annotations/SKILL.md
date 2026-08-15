@@ -21,6 +21,7 @@ python <scripts>/build_html.py <work>                  # 接著：重建複習�
 python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
 python <scripts>/import_marks.py <work> --from <檔>   # 複習頁「複製畫記」的輸出
+python <scripts>/serve.py <work> [--port 8975]        # 複習頁的畫記可直接存檔
 ```
 
 `export_cards.py` 是唯讀的，給想拿卡片去 Anki 排程或自己處理的人用；預設寫到
@@ -137,8 +138,11 @@ build 到提醒消失為止——壞引文平常看不出來，會一路潛伏�
 
 ## 畫記（螢光筆）
 
-複習頁上可以直接畫螢光筆並寫註解，但那些只活在瀏覽器裡。使用者按「複製畫記」把內容
-貼給你的時候，**把整段存成檔案再交給 `import_marks.py`**，不要自己逐條轉寫：
+複習頁上可以直接畫螢光筆並寫註解。**使用者跑 `serve.py` 時他自己按「存檔」就寫進
+`notes/marks/` 並重建，不需要你介入**；他問怎麼免去複製貼上，就介紹這支。
+
+沒有跑 server 時，畫記只活在瀏覽器裡。使用者按「複製畫記」把內容貼給你的時候，
+**把整段存成檔案再交給 `import_marks.py`**，不要自己逐條轉寫：
 
 ```bash
 python <scripts>/import_marks.py <work> --from <剛存下來的檔>
