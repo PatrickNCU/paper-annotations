@@ -216,12 +216,22 @@ box-shadow:0 18px 50px var(--shadow);padding:20px 26px 24px}
 #panel[data-status=open]{border-left-color:var(--open)}
 #panel[data-status=half]{border-left-color:var(--half)}
 #panel[data-status=resolved]{border-left-color:var(--done)}
-.ptitle{font-weight:600;font-size:17px;line-height:1.6;padding-right:34px;
+/* The reserved strip has to match the button bar, or the question runs under
+   it -- which is exactly the text the reader is meant to be reading first. */
+.ptitle{font-weight:600;font-size:17px;line-height:1.6;padding-right:82px;
 margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line)}
 .pbar{display:flex;gap:8px;position:absolute;top:14px;right:16px}
-.pbar button{font:inherit;font-size:13px;padding:3px 9px;border:1px solid var(--line);
+.pbar button{position:relative;width:30px;height:30px;padding:0;font:inherit;font-size:14px;
+display:grid;place-items:center;border:1px solid var(--line);
 border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
 .pbar button:hover{background:var(--line)}
+/* Icons alone are ambiguous; the label arrives on hover instead of taking up
+   room next to the question. */
+.pbar button::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;
+white-space:nowrap;font-size:12px;font-weight:400;padding:3px 8px;border-radius:6px;
+background:var(--fg);color:var(--bg);opacity:0;pointer-events:none}
+.pbar button:hover::after{opacity:1}
+@media(prefers-reduced-motion:no-preference){.pbar button::after{transition:opacity .15s ease}}
 /* nowrap matters: the handle is positioned against a zero-width wrapper, so
    without it the label shrink-to-fits to one character per line. */
 #sidetoggle{position:absolute;top:12px;left:310px;white-space:nowrap;font:inherit;font-size:13px;
@@ -685,7 +695,8 @@ def build(work_root: Path, embed: bool = False) -> int:
 </div>
 <div id="ov" hidden></div>
 <aside id="panel" hidden tabindex="-1" role="dialog" aria-modal="true"><div class="pbar">
-<button id="pjump">跳到原文</button><button id="pclose">✕</button></div>
+<button id="pjump" data-tip="跳到原文" aria-label="跳到原文">⤴</button>
+<button id="pclose" data-tip="關閉" aria-label="關閉">✕</button></div>
 <div id="panel-in"></div></aside>
 <script>{SCRIPT}</script>
 </body>
