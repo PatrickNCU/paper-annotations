@@ -1,0 +1,124 @@
+---
+name: paper-annotations
+description: 讀論文時把使用者的疑問就地註記回原文，累積成可複習的筆記與單頁 HTML。使用時機：使用者問論文內容、要求記下疑問、要更新或複習既有的論文筆記、手上有 PDF 或 Markdown 論文要開始讀。
+---
+
+# 論文疑問註記
+
+使用者讀論文時卡住的地方，做成**疑問卡**掛回原文對應位置，供日後複習。
+
+原文唯讀。卡片是唯一真實來源，`annotated/` 與 `notes/QUESTIONS.md` 都可重新生成。
+
+## 指令
+
+`<scripts>` 代表本 skill 的 `scripts/` 目錄；`<paper>` 是論文 Markdown 套件的根目錄
+（含 `sections/`、`INDEX.md` 的那一層，或單一 `.md` 所在目錄）。
+
+```bash
+python <scripts>/probe.py <paper> [--out <筆記路徑>]   # 首次：判定 Tier、記錄原文指紋
+python <scripts>/build_annotated.py <work>             # 改卡片後：重建 Markdown 檢視與索引
+python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
+python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
+```
+
+**`<work>` 是 `notes/` 所在的目錄**，不一定是論文目錄。預設兩者相同（產物寫進論文
+套件裡，整包可攜）；使用者若想把筆記放別處，`probe.py --out <路徑>` 指定一次即可，
+路徑會記進 `paper.yml`，之後的指令都從那裡讀，不需要再帶任何旗標。
+
+不要為了搬動產物而去改路徑或搬檔案：所有相對連結（圖片、卡片回連、索引跳轉）都是
+build 時依實際位置算出來的，手動搬移會全部斷掉。改位置就重跑一次 `probe.py --out`。
+
+零依賴，只需要 Python 3.8+。所有檢查都在 Python 裡，不要改用 `grep`、`sed`——
+使用者可能在只有 PowerShell 的 Windows 上。
+
+## 何時動作
+
+- 使用者問了關於論文內容的問題 → 回答，然後起草一張卡
+- 使用者說「重建 / 更新筆記」→ build
+- 使用者換了一版原文轉檔 → reanchor，再 build
+
+## 閱讀回合的流程
+
+1. **首次接觸一份論文**：跑 `probe.py`，把 Tier 告訴使用者。只有 PDF 時它會印出
+   轉檔指引；Tier B/C 時說明升到 Tier A 能多拿到什麼、要花多少時間，讓他自己決定。
+   細節見 [references/tiers.md](references/tiers.md)。
+2. **回答問題**：遵守論文套件根目錄自己的 `AGENTS.md` 閱讀政策（通常是先讀
+   `INDEX.md`、只讀 1–3 個 chunk）。
+3. **起草卡片**：見下一節。
+4. **回合結尾**：列出本回合新增的卡片標題，讓使用者當場否決。他不表態就是保留。
+5. **執行 build**（先 `build_annotated.py` 再 `build_html.py`），把警告回報給使用者。
+
+完成條件：本回合每個被回答的問題都有一張卡，且 build 回報「找不到位置」為 0、
+沒有「🟡 引文提醒」（或已逐項向使用者說明原因）。
+
+## 卡片格式
+
+檔名 `notes/cards/NNNN-slug.md`，`NNNN` 是未使用過的流水號。**不要帶章節前綴**——
+原文重新切分後前綴會變成誤導。
+
+```yaml
+---
+id: "0007"
+created: 2026-08-15
+updated: 2026-08-15
+status: open | half | resolved      # half = 半懂
+origin: asked | suggested           # suggested = 你主動標的疑點，非使用者提問
+tags: [density, poisson]
+anchor:
+  file: sections/S400-iv-a-density-function.md
+  heading: ["IV. DENSITY FUNCTION ANALYSIS", "A. Density Function"]
+  ref: eq:7                         # 選填：eq:N / fig:N / table:N
+  quote:                            # 必填
+    prefix: |-
+      前文約 20 字
+    exact: |-
+      原文中獨一無二的一段字
+    suffix: |-
+      後文約 20 字
+---
+
+## 問題
+## 卡點
+## 解答
+## 一句話直覺
+```
+
+`anchor` 只描述「要找什麼」，實際位置每次 build 都對原文重新解析，順序是
+`ref` → `heading` → `quote` → 找不到位置。原理見
+[references/anchoring.md](references/anchoring.md)。
+
+## 卡片撰寫
+
+**`## 問題` 就是卡片收合時顯示的那一行**，也是使用者複習時唯一看得到的東西。
+寫成看完就能開始嘗試回答的完整問題，不要寫成只有當下才看得懂的簡稱。
+
+**`## 卡點` 最重要**：寫下使用者當初缺哪個前提、誤解了什麼，不是重複問題。
+沒有它，三個月後他會看不懂自己在問什麼。
+
+**`## 一句話直覺`**：讓複習時不必重讀整段解答。
+
+**引文唯一性**：`anchor.quote.exact` 必須在該檔案中只出現一次。build 每次都會檢查，
+包括那些靠 `ref` 或 `heading` 已經掛好的卡。看到「🟡 引文提醒」就當場修掉，重新
+build 到提醒消失為止——壞引文平常看不出來，會一路潛伏到使用者重新轉檔那天才爆炸。
+
+**狀態**由使用者的反應決定：他說懂了 → `resolved`；還有疑慮 → `half`；沒解決 →
+`open`。拿不準時用 `half`，那是最值得回頭看的一檔。
+
+**`origin: suggested`** 留給你主動看出、使用者沒問但很可能踩到的坑。這種卡放行，
+但要標清楚；複習介面可以一鍵把它們隱藏。
+
+**卡片是筆記，不是論文**。解說中凡是論文沒明講、由你補上的推論，在卡片裡直說是
+補充。使用者三個月後不會記得哪句是作者的、哪句是你的。
+
+## 邊界
+
+- 原文只讀不寫。有話要說就寫成卡片。
+- `annotated/`（含 `index.html`）與 `notes/QUESTIONS.md` 由 build 產生。要改內容
+  改 `notes/cards/` 後重建。
+- 使用者的複習介面是 `annotated/index.html`；Markdown 版是給你和 git 用的。
+
+## 沒有 Python 時
+
+依同一套規則手工合併：從原文整份重建（不要增量插入舊的 `annotated/`），並在
+`QUESTIONS.md` 標 `built_by: agent`。手工合併不保證冪等，這個標記是給使用者的
+風險揭露。不要另寫一套實作。

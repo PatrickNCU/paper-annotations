@@ -1,0 +1,22 @@
+{
+  "name": "patrickncu",
+  "owner": {
+    "name": "PatrickNCU",
+    "url": "https://github.com/PatrickNCU"
+  },
+  "description": "PatrickNCU 的 Claude Code plugin。",
+  "plugins": [
+    {
+      "name": "paper-annotations",
+      "source": "./",
+      "description": "讀論文時把疑問就地註記回原文，產生可複習的單頁 HTML。",
+      "category": "research",
+      "keywords": [
+        "paper",
+        "reading",
+        "annotation",
+        "review"
+      ]
+    }
+  ]
+}
