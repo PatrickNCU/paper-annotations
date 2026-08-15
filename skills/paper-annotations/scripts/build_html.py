@@ -115,6 +115,13 @@ mark.off{background:none;padding:0}
 ::-moz-selection{background:var(--sel);color:inherit;text-shadow:none}
 /* A rendered formula is taken whole rather than half-caught mid-symbol. */
 .katex{user-select:all;-webkit-user-select:all}
+/* Inside a formula the browser paints one selection box per span -- for a
+   single sentence that measured 72 boxes at 8 different heights, which is the
+   ragged, patchy band you see. Those are switched off; script.js lights the
+   whole formula instead, one flat block per line. */
+.katex ::selection{background:transparent}
+.katex::selection{background:transparent}
+.katex.sel .katex-base{background:var(--sel);border-radius:3px}
 /* KaTeX emits the formula twice -- hidden MathML for screen readers, spans for
    sight -- and selecting it copied both, so every pasted formula came out
    doubled. The MathML stays for assistive tech; it just is not selectable. */
@@ -282,6 +289,32 @@ SCRIPT = """
   document.getElementById('expand').addEventListener('click',function(){
     cards.forEach(function(c){ c.open=true; });
   });
+  // Formulas light up as a whole while selected -- see the .katex rules in the
+  // stylesheet for why the browser's own painting is switched off there.
+  var lit=[],pending=0;
+  function relight(){
+    pending=0;
+    while(lit.length) lit.pop().classList.remove('sel');
+    var s=window.getSelection();
+    if(!s||s.isCollapsed||!s.rangeCount) return;
+    var scope=s.getRangeAt(0).commonAncestorContainer;
+    if(scope.nodeType===3) scope=scope.parentNode;
+    if(!scope||!scope.querySelectorAll) return;
+    // a selection sitting entirely inside one formula has no .katex below it
+    var own=scope.closest?scope.closest('.katex'):null;
+    if(own){ own.classList.add('sel'); lit.push(own); }
+    var found=scope.querySelectorAll('.katex');
+    for(var i=0;i<found.length;i++){
+      if(s.containsNode(found[i],true)){ found[i].classList.add('sel'); lit.push(found[i]); }
+    }
+  }
+  // setTimeout rather than requestAnimationFrame: rAF is suspended while the
+  // page is not being painted, which would leave the class stale.
+  document.addEventListener('selectionchange',function(){
+    if(pending) return;
+    pending=setTimeout(relight,0);
+  });
+
   apply();
 })();
 """
