@@ -306,12 +306,32 @@ Index Terms—Floorplanning, Feedthrough, Components Placement
 
 Caption 只可出現一次。預設將 caption 放在 Markdown，圖片本體不包含 caption。
 
-建議命名：
+命名：
 
 ```text
 figure-01.png
 figure-02.png
 ```
+
+**必須使用行內語法插入圖片**，不得使用參考式（reference-style）：
+
+```markdown
+![Fig. 1](../images/figure-01.png)
+```
+
+不得輸出：
+
+```markdown
+![Figure 1][figure-01]
+
+[figure-01]: ../images/figure-01.png
+```
+
+兩種都是合法 Markdown，但同一批論文混用兩種寫法，下游工具就得各支援一套；而且定義行
+離圖片很遠，依章節切分時容易被拆到別的檔案，圖就此消失。
+
+路徑一律相對於該檔案自己的位置：`sections/*.md` 用 `../images/…`，`document.md` 用
+`images/…`。表格圖片同此規則。
 
 ---
 

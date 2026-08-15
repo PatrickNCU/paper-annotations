@@ -166,7 +166,7 @@ def build(work_root: Path, allow_drift: bool = False):
         src = paper_root / rel
         if not src.is_file():
             continue
-        lines = src.read_text(encoding="utf-8").splitlines()
+        lines = paperkit.normalize_ref_links(src.read_text(encoding="utf-8").splitlines())
         dst = annotated_root / rel
 
         insertions = []

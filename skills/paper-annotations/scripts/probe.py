@@ -94,7 +94,14 @@ def detect(paper_root: Path):
         print(f"請改用原文所在的資料夾，通常是它的上一層：{paper_root.parent}")
         raise SystemExit(1)
 
-    texts = {rel: (paper_root / rel).read_text(encoding="utf-8") for rel in sources}
+    # normalised first, so a package that writes ![alt][label] is not reported
+    # as having no figures
+    texts = {
+        rel: "\n".join(
+            paperkit.normalize_ref_links((paper_root / rel).read_text(encoding="utf-8").splitlines())
+        )
+        for rel in sources
+    }
     joined = "\n".join(texts.values())
 
     caps = {
