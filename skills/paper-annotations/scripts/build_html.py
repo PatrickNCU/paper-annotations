@@ -116,6 +116,11 @@ border-bottom:1px dashed var(--line)}
 .algo ol{margin:6px 0 10px;padding-left:26px}
 .algo li{margin:1px 0;line-height:1.6}
 .algo p{margin:4px 0}
+/* Lettered sub-items keep the paper's own labels, so the list itself carries
+   no markers. */
+ol.sublist{list-style:none;padding-left:22px;margin:4px 0}
+ol.sublist>li{margin:2px 0}
+.li-key{color:var(--muted);margin-right:5px}
 .algo:target{outline:2px solid var(--accent);outline-offset:3px}
 /* "see Fig. 4" jumps to the figure. Underlined rather than coloured-only, so
    it stays visible to a reader who cannot separate the two colours. */

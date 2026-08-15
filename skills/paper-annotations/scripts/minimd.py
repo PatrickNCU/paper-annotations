@@ -95,8 +95,37 @@ def _inline(text: str) -> str:
 _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 _ULI = re.compile(r"^\s*[-*+]\s+(.*)$")
 _OLI = re.compile(r"^\s*(\d+)\.\s+(.*)$")
+# "   a. rationale of its dc removal" -- a lettered sub-item under a numbered
+# one. Papers use these constantly for enumerating contributions.
+_SUBI = re.compile(r"^\s+([a-z]{1,3}|[ivx]{1,4})[.)]\s+(.*)$")
 _FOOTDEF = re.compile(r"^\[\^([\w-]+)\]:\s*(.*)$")
 _TABLE_SEP = re.compile(r"^\s*\|?[\s:|-]+\|[\s:|-]*$")
+
+
+def _indented_under(lines, i: int):
+    """Consume the indented lines belonging to the list item just read.
+
+    Returns (continuation text, nested list html, next index). Sub-item labels
+    are printed as written rather than left to the browser: an <ol> would
+    renumber "a., b., c." into "1., 2., 3." and quietly rewrite the paper.
+    """
+    subs, tail = [], []
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip() or not line[:1].isspace():
+            break
+        match = _SUBI.match(line)
+        if match:
+            subs.append(
+                f'<li><span class="li-key">{match.group(1)}.</span> {_inline(match.group(2))}</li>'
+            )
+        elif subs:  # a wrapped sub-item continues the one above it
+            subs[-1] = subs[-1][: -len("</li>")] + " " + _inline(line.strip()) + "</li>"
+        else:
+            tail.append(_inline(line.strip()))
+        i += 1
+    nested = f'<ol class="sublist">{"".join(subs)}</ol>' if subs else ""
+    return (" " + " ".join(tail) if tail else ""), nested, i
 
 
 def _cells(row: str):
@@ -198,8 +227,9 @@ def render(md: str, heading_hook=None) -> tuple:
                 m2 = _OLI.match(lines[i])
                 if not m2:
                     break
-                items.append(f"<li>{_inline(m2.group(2))}</li>")
                 i += 1
+                tail, nested, i = _indented_under(lines, i)
+                items.append(f"<li>{_inline(m2.group(2))}{tail}{nested}</li>")
             attr = f' start="{start}"' if start != "1" else ""
             out.append(f"<ol{attr}>" + "".join(items) + "</ol>")
             continue
@@ -212,8 +242,9 @@ def render(md: str, heading_hook=None) -> tuple:
                 m2 = _ULI.match(lines[i])
                 if not m2:
                     break
-                items.append(f"<li>{_inline(m2.group(1))}</li>")
                 i += 1
+                tail, nested, i = _indented_under(lines, i)
+                items.append(f"<li>{_inline(m2.group(1))}{tail}{nested}</li>")
             out.append("<ul>" + "".join(items) + "</ul>")
             continue
 
