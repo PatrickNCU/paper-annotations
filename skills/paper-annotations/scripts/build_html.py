@@ -88,20 +88,47 @@ STYLE = """
    (unless the reader forced light) or by an explicit data-theme="dark". */
 :root{--bg:#fbfaf7;--fg:#22201d;--muted:#6d685f;--line:#e4dfd5;--card:#f5f2ea;
 --sidebar:#f2efe8;--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;
---plate:#fff;--shadow:rgba(0,0,0,.05);--mark:#f7e3a9}
+--plate:#fff;--shadow:rgba(0,0,0,.05);--mark:#f7e3a9;
+--sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;
+--sel:rgba(138,79,36,.20)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
---plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f}}
+--plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;
+--sel:rgba(224,167,106,.26)}}
 :root[data-theme="dark"]{
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
---plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f}
+--plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;
+--sel:rgba(224,167,106,.26)}
 *{box-sizing:border-box}
 /* The sentence a card is anchored to. Tinted, never the browser's
    default yellow-on-black, which ignores the palette entirely. */
 mark{background:var(--mark);color:inherit;padding:.05em .15em;border-radius:3px}
 mark.off{background:none;padding:0}
+/* Selection: the browser default is an opaque blue that swallows glyph colour,
+   and across KaTeX's many small spans it reads as a broken band. A translucent
+   tint keeps the text its own colour and blends the boxes into one wash. */
+::selection{background:var(--sel);color:inherit;text-shadow:none}
+::-moz-selection{background:var(--sel);color:inherit;text-shadow:none}
+/* A rendered formula is taken whole rather than half-caught mid-symbol. */
+.katex{user-select:all;-webkit-user-select:all}
+/* KaTeX emits the formula twice -- hidden MathML for screen readers, spans for
+   sight -- and selecting it copied both, so every pasted formula came out
+   doubled. The MathML stays for assistive tech; it just is not selectable. */
+.katex-mathml{user-select:none;-webkit-user-select:none}
+/* The three parts of an opened card, each its own block. */
+.csec{margin:12px 0;padding:10px 14px 2px;border-radius:8px;
+border-left:3px solid var(--line);background:var(--sec-answer)}
+.csec-t{display:block;margin-bottom:2px;font-size:.82em;letter-spacing:.04em;color:var(--muted)}
+.csec p:last-child{margin-bottom:10px}
+.csec-stuck{background:var(--sec-stuck);border-left-color:var(--half)}
+.csec-stuck .csec-t{color:var(--half)}
+.csec-answer{background:var(--sec-answer);border-left-color:var(--line)}
+.csec-key{background:var(--sec-key);border-left-color:var(--done)}
+.csec-key .csec-t{color:var(--done)}
 /* Colour changes ease across; layout and motion are left alone. Scoped to the
    surfaces that actually carry a palette colour rather than "*", so a 30000px
    page does not repaint every node. Nested text inherits the animating value,
@@ -109,7 +136,7 @@ mark.off{background:none;padding:0}
 @media(prefers-reduced-motion:no-preference){
 body,#side,#main,#side a,.controls button,.controls select,.controls input,
 .qcard,.qcard>summary,.banner,.meta,blockquote,pre,code,table,th,td,img,
-.footnotes,.fn-key,.dot,.qtext,a.qlink,mark{
+.footnotes,.fn-key,.dot,.qtext,a.qlink,mark,.csec,.csec-t{
 transition:background-color .3s ease,color .3s ease,border-color .3s ease,
 box-shadow .3s ease,outline-color .3s ease}}
 body{margin:0;background:var(--bg);color:var(--fg);

@@ -84,10 +84,21 @@ def render_card(card, dst_path: Path) -> str:
 
     # The question is not repeated in the body -- the summary already carries it
     # in full, whether the card is collapsed or open.
-    for key, prefix in (("卡點", "**卡點**："), ("解答", "**解答**\n\n"), ("一句話直覺", "**一句話直覺**：")):
+    #
+    # Each part gets its own block so an opened card can be read at a glance:
+    # where you were stuck, what the answer was, and the one line that brings it
+    # back. Run together as bold-prefixed paragraphs they all looked alike.
+    for key, kind in (("卡點", "stuck"), ("解答", "answer"), ("一句話直覺", "key")):
         value = (sections.get(key) or "").strip()
         if value:
-            parts += [prefix + value, ""]
+            parts += [
+                f'<div class="csec csec-{kind}"><b class="csec-t">{key}</b>',
+                "",
+                value,
+                "",
+                "</div>",
+                "",
+            ]
 
     meta_bits = [f"狀態 {label}"]
     if meta.get("origin") == "suggested":
