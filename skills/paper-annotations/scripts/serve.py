@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -241,9 +242,27 @@ def write_launcher(work: Path, annotated: Path, port: int) -> Path:
         target = str(work)
     tag = "".join(c for c in work.name if c.isascii() and (c.isalnum() or c in "-_")) or "paper"
     script = str(HERE / "serve.py")
+    # Installed as a plugin, this file sits under .../<plugin>/<version>/…, and
+    # that version directory changes every time the plugin is updated -- a
+    # launcher naming it would break on the next release. Look the newest one
+    # up at run time instead, and keep today's path only as the fallback.
+    versioned = ""
+    if re.fullmatch(r"\d+(\.\d+)*", HERE.parents[2].name):
+        versioned = str(HERE.parents[3])
 
     if os.name == "nt":
         path = home / "開啟複習頁.cmd"
+        # backslashes throughout: "for /d" will not glob a mixed-separator path
+        win = script.replace("/", "\\")
+        find = ""
+        if versioned:
+            find = (
+                'set "PA="\n'
+                f'for /d %%d in ("{versioned.replace("/", chr(92))}\\*") do set '
+                '"PA=%%d\\skills\\paper-annotations\\scripts\\serve.py"\n'
+                f'if not exist "%PA%" set "PA={win}"\n'
+            )
+        run = "%PA%" if versioned else win
         body = (
             "@echo off\n"
             "rem ASCII only: cmd.exe parses this file in the OEM codepage.\n"
@@ -252,7 +271,8 @@ def write_launcher(work: Path, annotated: Path, port: int) -> Path:
             f"title {tag} review page\n"
             "echo Close this window to stop the server.\n"
             "echo.\n"
-            f'python "{script}" "{target}" --port {port}\n'
+            + find
+            + f'python "{run}" "{target}" --port {port}\n'
             "echo.\n"
             "echo Server stopped.\n"
             "pause\n"
@@ -261,9 +281,16 @@ def write_launcher(work: Path, annotated: Path, port: int) -> Path:
         path = home / "開啟複習頁.command"
         body = (
             "#!/bin/sh\n"
-            '# Close this window to stop the server.\n'
+            "# Close this window to stop the server.\n"
             'cd "$(dirname "$0")" || exit 1\n'
-            f'exec python3 "{script}" "{target}" --port {port}\n'
+            + (
+                f'PA="$(ls -d "{versioned}"/*/skills/paper-annotations/scripts/serve.py'
+                ' 2>/dev/null | sort -V | tail -1)"\n'
+                f'[ -f "$PA" ] || PA="{script}"\n'
+                f'exec python3 "$PA" "{target}" --port {port}\n'
+                if versioned
+                else f'exec python3 "{script}" "{target}" --port {port}\n'
+            )
         )
     path.write_text(body, encoding="ascii", newline="\r\n" if os.name == "nt" else "\n")
     if os.name != "nt":
