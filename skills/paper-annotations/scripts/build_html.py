@@ -351,6 +351,17 @@ body.side-settled .stxt{max-width:0}
 @media(prefers-reduced-motion:no-preference){
 #sidewrap,#note{transition:transform .22s ease}}
 
+/* Parked in the corner rather than in the drawer: it is a setting, used once a
+   session, and the drawer is for the paper's own furniture. It sits outside
+   #sidewrap on purpose -- a transformed ancestor makes position:fixed resolve
+   against that ancestor instead of the viewport, and it would ride out with
+   the drawer. Below #notewrap in the stack, so the draft drawer covers it. */
+#theme{position:fixed;right:16px;bottom:16px;z-index:28;font:inherit;font-size:13px;
+padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+color:var(--fg);cursor:pointer;box-shadow:0 2px 10px var(--shadow)}
+#theme:hover{background:var(--line)}
+@media(max-width:900px){#theme{right:10px;bottom:10px}}
+
 /* Somewhere to draft a question while reading, instead of interrupting the
    paragraph to ask. Nothing is sent from here -- copy it into the chat. */
 #notewrap{position:fixed;top:0;right:0;height:100vh;z-index:29;pointer-events:none}
@@ -484,7 +495,6 @@ SCRIPT = """
   // slide is over -- see the stylesheet for why that is the whole ballgame.
   var body=document.body;
   var wrap=document.getElementById('sidewrap');
-  var pin=document.getElementById('sidepin');
   var pinned=false, leaveTimer=0, slideTimer=0;
   // the label's own width, so the fold starts from where it actually ends
   var stxt=document.querySelector('#sidetoggle .stxt');
@@ -532,7 +542,6 @@ SCRIPT = """
     if(pinned){ closeSide(); return; }
     pinned=true; openSide();
   });
-  pin.addEventListener('click',closeSide);
 
   // Draft area. Nothing leaves the page from here -- the copy button is the
   // whole point: read the paragraph, write the question, paste it into chat.
@@ -1496,10 +1505,6 @@ def build(work_root: Path, embed: bool = False) -> int:
 <button id="sidetoggle" title="目錄與疑問">☰<span class="stxt">&nbsp;目錄與疑問</span></button>
 <nav id="side">
   <div class="controls">
-    <button id="theme">🌗 跟隨系統</button>
-    <button id="sidepin">✕ 收起目錄</button>
-  </div>
-  <div class="controls">
     <select id="statusf">
       <option value="all">全部狀態</option>
       <option value="open">未解決</option>
@@ -1541,6 +1546,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 {''.join(body_parts)}
 </main>
 </div>
+<button id="theme">🌗 跟隨系統</button>
 <div id="notewrap">
 <button id="notetab">✎ 提問草稿</button>
 <section id="note">
