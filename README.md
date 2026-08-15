@@ -27,6 +27,33 @@
 本機開發可以直接把 clone 下來的資料夾當 marketplace：
 `/plugin marketplace add <你的 clone 路徑>`
 
+## 先把 PDF 轉成 Markdown
+
+這套工具吃的是 Markdown，不是 PDF。repo 裡附了一份轉檔規則文件：
+**[skills/paper-annotations/references/pdf2md_rules.md](skills/paper-annotations/references/pdf2md_rules.md)**（v1.3，923 行）。
+它是寫給 LLM 看的規格書，管到逐字保留、多欄閱讀順序、圖說對應、表格、公式、
+Algorithm 縮排，以及把正文切分成 `sections/` 並產生索引。
+
+用法是開 **ChatGPT 網頁版**，同時上傳這兩個檔案：
+
+1. `pdf2md_rules.md`
+2. 你的論文 PDF
+
+然後貼上規則文件 §0 裡的那段指令（開頭是「請依照本文件處理上傳的 PDF」），
+把回傳的 ZIP 解壓到論文資料夾即可。
+
+為什麼是 ChatGPT 網頁版而不是現成的 pdf2md 工具：聊天額度限制幾乎可忽略，而且
+AI 轉檔可以做更積極的篩選——頁碼、頁首頁尾這類版面雜訊會被丟掉，不會混進正文。
+
+兩個要有心理準備的地方：
+
+- **很花時間。** 一篇 IEEE 期刊論文通常要多次來回。
+- **模型與推理強度顯著影響結果。** 實測 GPT-5.6 Sol＋高推理較佳。
+
+想用自己的工具轉也可以，只要 Markdown 有章節標題就能用——只是疑問沒辦法精準掛在
+公式或圖表上，論文改版時比較容易對不上位置。轉完跑 `/paper-annotations:setup`，
+它會告訴你這份轉檔支援到什麼程度。
+
 ## 產物放在哪
 
 ```
