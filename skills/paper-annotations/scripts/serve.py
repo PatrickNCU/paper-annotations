@@ -177,6 +177,16 @@ class Handler(SimpleHTTPRequestHandler):
             return
         wanted = str(payload.get("id") or "")
         action = str(payload.get("action") or "")
+        if action == "clear":
+            with self.lock:
+                gone = 0
+                for mark in paperkit.load_marks(self.notes):
+                    mark["path"].unlink()
+                    gone += 1
+                rebuilt, log = self._rebuild()
+            self._json(200, {"ok": True, "action": "clear", "deleted": gone,
+                             "rebuilt": rebuilt, "log": log})
+            return
         if action not in ("update", "delete") or not wanted:
             self._json(400, {"error": "bad action"})
             return

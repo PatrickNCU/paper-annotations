@@ -1161,12 +1161,44 @@ SCRIPT = """
       copyText(hlReport(),function(){ hlSay('已複製 '+hlItems.length+' 條'); },
                function(){ hlSay('複製失敗'); });
     });
+    // Clearing has to mean what it says. Wiping only the browser layer looked
+    // like it worked and then everything came back on reload, because the
+    // filed marks were still on disk -- so say which of the two is happening,
+    // with the number, before doing it.
     document.getElementById('hlclear').addEventListener('click',function(){
-      if(!hlItems.length) return;
-      if(!window.confirm('清空全部 '+hlItems.length+' 條畫記？這個動作無法復原。')) return;
-      hlItems=[];
+      var total=hlItems.length;
+      if(!total) return;
+      var local=hlLocal().length, filed=total-local;
+      if(filed&&!paToken&&!local){
+        hlSay('已落檔的 '+filed+' 條要改檔案，或開 serve.py 後再清');
+        return;
+      }
+      var wipeFiles=filed>0&&!!paToken;
+      var msg;
+      if(wipeFiles){
+        msg='清空全部 '+total+' 條畫記？其中 '+filed
+           +' 條會連 notes/marks/ 裡的檔案一起刪掉，無法復原。';
+      } else if(filed){
+        msg='這裡只能清掉還沒落檔的 '+local+' 條；已落檔的 '+filed
+           +' 條會留著（要改檔案，或開 serve.py 後再清一次）。要繼續嗎？';
+      } else {
+        msg='清空全部 '+total+' 條畫記？這個動作無法復原。';
+      }
+      if(!window.confirm(msg)) return;
       try{ localStorage.removeItem(hlKey); }catch(e){}
-      hlPaint(); hlStatus(); hlHide();
+      // the filed ones stay on screen unless their files are actually going
+      hlItems=wipeFiles?[]:hlItems.filter(function(it){ return it.src==='file'; });
+      hlPaint(); hlStatus(); hlHide(); tipHide();
+      if(wipeFiles){
+        hlSay('刪除中…');
+        fetch('/_pa/mark',{method:'POST',
+          headers:{'Content-Type':'application/json','X-PA-Token':paToken},
+          body:JSON.stringify({action:'clear'})
+        }).then(function(r){ return r.json(); }).then(function(d){
+          if(d.ok&&d.rebuilt){ location.reload(); return; }
+          hlSay('刪除失敗：'+(d.error||'重建沒有成功'));
+        }).catch(function(){ hlSay('刪除失敗，server 可能停了'); });
+      }
     });
   } else {
     hlBtn.disabled=true;
