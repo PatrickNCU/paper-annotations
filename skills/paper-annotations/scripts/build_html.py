@@ -508,6 +508,7 @@ SCRIPT = """
   ov.addEventListener('click',closeCard);
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape') return;
+    if(hlBar&&!hlBar.hidden){ hlHide(); return; }
     if(!panel.hidden){ closeCard(); return; }
     if(body.classList.contains('note-on')&&document.activeElement!==pad){
       body.classList.remove('note-on');
@@ -554,7 +555,7 @@ SCRIPT = """
   // page moves and gets rebuilt constantly, and either of those would drop
   // every mark the next time a card was added.
   var hlKey='pa-hl:'+(body.dataset.paper||document.title||'');
-  var hlItems=[], hlOn=true, hlPick=-1, hlMaps={};
+  var hlItems=[], hlOn=true, hlPick=-1, hlMaps={}, hlZone=null;
 
   function hlNorm(s){ return (s||'').replace(/\\s+/g,' ').trim(); }
   function hlSec(node){
@@ -680,7 +681,7 @@ SCRIPT = """
     clearTimeout(hlTimer);
     hlTimer=setTimeout(hlStatus,2200);
   }
-  function hlHide(){ hlBar.hidden=true; hlPick=-1; }
+  function hlHide(){ hlBar.hidden=true; hlPick=-1; hlZone=null; }
   function hlPlace(rect){
     hlBar.hidden=false;
     var w=hlBar.offsetWidth, h=hlBar.offsetHeight;
@@ -688,6 +689,12 @@ SCRIPT = """
     var y=rect.top-h-8;
     if(y<6) y=rect.bottom+8;
     hlBar.style.left=x+'px'; hlBar.style.top=y+'px';
+    // Where the pointer may wander before the palette is taken to be finished
+    // with: the text it belongs to, the palette itself, and room to travel
+    // between the two.
+    var box=hlBar.getBoundingClientRect();
+    hlZone={l:Math.min(rect.left,box.left)-60, r:Math.max(rect.right,box.right)+60,
+            t:Math.min(rect.top,box.top)-60, b:Math.max(rect.bottom,box.bottom)+60};
   }
   function hlAdd(color){
     var sel=window.getSelection();
@@ -710,8 +717,14 @@ SCRIPT = """
     if(!it.range){ hlSay('這段定位不到，請換個選取範圍'); return; }
     hlItems.push(it);
     if(!hlOn){ hlOn=true; hlBtn.classList.add('on'); }
-    hlSave(); hlPaint(); hlStatus(); hlHide();
+    hlSave(); hlPaint(); hlStatus();
     sel.removeAllRanges();
+    // The palette stays, now aimed at what was just drawn: the moment you most
+    // often want it back is straight after, to change the colour or undo. It
+    // clears itself once the pointer leaves.
+    hlPick=hlItems.length-1;
+    hlDel.hidden=false;
+    hlPlace(it.range.getBoundingClientRect());
   }
   function hlAt(x,y){
     var r=null;
@@ -751,7 +764,8 @@ SCRIPT = """
       btn.addEventListener('mousedown',function(e){ e.preventDefault(); });
       btn.addEventListener('click',function(){
         var c=btn.dataset.c;
-        if(hlPick>=0){ hlItems[hlPick].color=c; hlSave(); hlPaint(); hlHide(); }
+        // recolouring keeps the palette up, so a second try costs nothing
+        if(hlPick>=0){ hlItems[hlPick].color=c; hlSave(); hlPaint(); }
         else hlAdd(c);
       });
     });
@@ -794,7 +808,28 @@ SCRIPT = """
       var sel=window.getSelection();
       if(hlPick<0&&(!sel||sel.isCollapsed)) hlHide();
     });
+    // Raised from a click on a mark, or straight after drawing one, there is no
+    // selection to collapse and nothing above would ever take it down again --
+    // it just sat over the paper. Walking away dismisses it. While text is
+    // still selected it stays put: the reader is mid-decision.
+    document.addEventListener('mousemove',function(e){
+      if(hlBar.hidden||!hlZone) return;
+      var sel=window.getSelection();
+      if(sel&&!sel.isCollapsed) return;
+      if(e.clientX<hlZone.l||e.clientX>hlZone.r||
+         e.clientY<hlZone.t||e.clientY>hlZone.b) hlHide();
+    });
+    // The palette is placed in viewport coordinates, so once the text has
+    // scrolled it is pointing at nothing. Three listeners rather than one:
+    // scroll alone is fired during the rendering steps and does not always
+    // arrive, so the input that caused the scroll is watched as well.
     window.addEventListener('scroll',hlHide,true);
+    document.addEventListener('wheel',hlHide,{passive:true});
+    document.addEventListener('touchmove',hlHide,{passive:true});
+    var SCROLLKEY=/^(Page|Arrow|Home|End| )/;
+    document.addEventListener('keydown',function(e){
+      if(!hlBar.hidden&&SCROLLKEY.test(e.key)) hlHide();
+    });
     hlBtn.addEventListener('click',function(){
       hlOn=!hlOn;
       hlBtn.classList.toggle('on',hlOn);
