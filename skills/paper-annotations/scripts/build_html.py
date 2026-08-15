@@ -90,19 +90,22 @@ STYLE = """
 --sidebar:#f2efe8;--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;
 --plate:#fff;--shadow:rgba(0,0,0,.05);--mark:#f7e3a9;
 --sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;--algo:#eef1f6;
---sel:rgba(138,79,36,.20)}
+--sel:rgba(138,79,36,.20);
+--hl1:rgba(244,201,63,.45);--hl2:rgba(96,190,136,.36);--hl3:rgba(114,164,235,.34)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
 --sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
---sel:rgba(224,167,106,.26)}}
+--sel:rgba(224,167,106,.26);
+--hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34)}}
 :root[data-theme="dark"]{
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
 --sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
---sel:rgba(224,167,106,.26)}
+--sel:rgba(224,167,106,.26);
+--hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34)}
 *{box-sizing:border-box}
 /* The sentence a card is anchored to. Tinted, never the browser's
    default yellow-on-black, which ignores the palette entirely. */
@@ -146,6 +149,37 @@ img[id]:target{outline:2px solid var(--accent);outline-offset:4px}
    sight -- and selecting it copied both, so every pasted formula came out
    doubled. The MathML stays for assistive tech; it just is not selectable. */
 .katex-mathml{user-select:none;-webkit-user-select:none}
+/* The reader's own highlighter. Painted through the Custom Highlight API
+   rather than by wrapping the text: a dragged selection crosses element
+   boundaries, overlaps the cards' own <mark>s and cuts into KaTeX subtrees,
+   and none of those survive being wrapped in a tag. Painting ranges leaves the
+   DOM untouched, so the mark-to-card join, the xref links and the rendered
+   formulas all keep working. */
+/* Literal colours rather than the --hl* tokens: a highlight pseudo-element
+   inherits through its own chain, and how far custom properties reach into it
+   is not uniform across browsers. The tokens still drive the palette buttons,
+   where normal inheritance applies -- these two sets must stay in step. */
+::highlight(pa-hl1){background-color:rgba(244,201,63,.45)}
+::highlight(pa-hl2){background-color:rgba(96,190,136,.36)}
+::highlight(pa-hl3){background-color:rgba(114,164,235,.34)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) *::highlight(pa-hl1){
+background-color:rgba(212,166,44,.34)}
+:root:not([data-theme="light"]) *::highlight(pa-hl2){background-color:rgba(70,168,118,.30)}
+:root:not([data-theme="light"]) *::highlight(pa-hl3){background-color:rgba(96,144,212,.34)}}
+:root[data-theme="dark"] *::highlight(pa-hl1){background-color:rgba(212,166,44,.34)}
+:root[data-theme="dark"] *::highlight(pa-hl2){background-color:rgba(70,168,118,.30)}
+:root[data-theme="dark"] *::highlight(pa-hl3){background-color:rgba(96,144,212,.34)}
+#hlbar{position:fixed;z-index:45;display:flex;gap:5px;padding:5px;
+background:var(--card);border:1px solid var(--line);border-radius:8px;
+box-shadow:0 4px 14px var(--shadow)}
+#hlbar button{width:24px;height:24px;padding:0;font:inherit;font-size:12px;
+display:grid;place-items:center;border:1px solid var(--line);border-radius:5px;
+background:var(--bg);color:var(--fg);cursor:pointer}
+#hlbar button:hover{border-color:var(--accent)}
+#hlbar [data-c="1"]{background:var(--hl1)}
+#hlbar [data-c="2"]{background:var(--hl2)}
+#hlbar [data-c="3"]{background:var(--hl3)}
+#hlstat{font-size:12.5px;color:var(--muted);padding:2px 6px;line-height:1.55}
 /* The three parts of an opened card, each its own block. */
 .csec{margin:12px 0;padding:10px 14px 2px;border-radius:8px;
 border-left:3px solid var(--line);background:var(--sec-answer)}
@@ -349,6 +383,23 @@ SCRIPT = """
     setMode(modes[(i+1)%modes.length][0]);
   });
 
+  // file:// often refuses the async clipboard, so the old way stays as backup.
+  function copyText(text,ok,fail){
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ ok&&ok(); },manual);
+    } else { manual(); }
+    function manual(){
+      var t=document.createElement('textarea');
+      t.value=text; t.setAttribute('readonly','');
+      t.style.cssText='position:fixed;top:-1000px;left:0;opacity:0';
+      document.body.appendChild(t); t.select();
+      var good=false;
+      try{ good=document.execCommand('copy'); }catch(e){}
+      document.body.removeChild(t);
+      if(good){ ok&&ok(); } else { fail&&fail(); }
+    }
+  }
+
   function apply(){
     var want=filter.value, ai=showAI.classList.contains('on');
     var term=(search.value||'').toLowerCase();
@@ -408,16 +459,7 @@ SCRIPT = """
   });
   document.getElementById('ncopy').addEventListener('click',function(){
     if(!pad.value){ say('還沒有內容'); return; }
-    var done=function(){ say('已複製'); };
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(pad.value).then(done,fallback);
-    } else { fallback(); }
-    // file:// often refuses the async clipboard, so keep the old way around
-    function fallback(){
-      pad.select();
-      try{ document.execCommand('copy'); done(); }catch(e){ say('複製失敗，請手動選取'); }
-      pad.setSelectionRange(pad.value.length,pad.value.length);
-    }
+    copyText(pad.value,function(){ say('已複製'); },function(){ say('複製失敗，請手動選取'); });
   });
   document.getElementById('nclear').addEventListener('click',function(){
     if(!pad.value) return;
@@ -496,6 +538,299 @@ SCRIPT = """
     if(pending) return;
     pending=setTimeout(relight,0);
   });
+
+  // ---- Highlighter -------------------------------------------------------
+  // The reader's own marks, kept in the browser. This page is opened from
+  // file:// with nothing behind it, so it cannot write into notes/; what it can
+  // do is hold them and hand them back on request (「複製畫記」) for the agent
+  // to file properly. They are a working layer, like the draft drawer -- the
+  // cards remain the only thing the build treats as truth.
+  var HL_OK=!!(window.CSS&&window.CSS.highlights&&window.Highlight&&window.Map);
+  var hlBtn=document.getElementById('hlon');
+  var hlBar=document.getElementById('hlbar');
+  var hlStat=document.getElementById('hlstat');
+  var hlDel=document.getElementById('hldel');
+  // Keyed by the paper, not by the file's path or a digest of its text: the
+  // page moves and gets rebuilt constantly, and either of those would drop
+  // every mark the next time a card was added.
+  var hlKey='pa-hl:'+(body.dataset.paper||document.title||'');
+  var hlItems=[], hlOn=true, hlPick=-1, hlMaps={};
+
+  function hlNorm(s){ return (s||'').replace(/\\s+/g,' ').trim(); }
+  function hlSec(node){
+    var el=node&&node.nodeType===3?node.parentElement:node;
+    return el&&el.closest?el.closest('#main .chunk'):null;
+  }
+  // Text index over one section. The MathML twin is skipped for the same
+  // reason it is unselectable: it repeats every formula, and counting it would
+  // put every offset after a formula in the wrong place.
+  function hlMap(sec){
+    if(hlMaps[sec.id]) return hlMaps[sec.id];
+    var walk=document.createTreeWalker(sec,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
+      var p=n.parentElement;
+      if(!p||!n.nodeValue) return NodeFilter.FILTER_REJECT;
+      return p.closest('.katex-mathml,.qcard')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
+    }});
+    var m={txt:'',nodes:[],offs:[],at:new Map()},n;
+    while((n=walk.nextNode())){
+      m.at.set(n,m.nodes.length); m.offs.push(m.txt.length);
+      m.nodes.push(n); m.txt+=n.nodeValue;
+    }
+    hlMaps[sec.id]=m; return m;
+  }
+  function hlIndex(map,node,off){
+    var i=map.at.get(node);
+    if(i!==undefined) return map.offs[i]+off;
+    // An element boundary: formulas select whole, so a selection edge often
+    // lands beside a .katex rather than inside text. Take the first mapped
+    // node at or after the boundary.
+    var b=document.createRange();
+    try{ b.setStart(node,off); }catch(e){ return 0; }
+    b.collapse(true);
+    var lo=0,hi=map.nodes.length;
+    while(lo<hi){
+      var mid=(lo+hi)>>1, cmp;
+      try{ cmp=b.comparePoint(map.nodes[mid],0); }catch(e){ cmp=0; }
+      if(cmp>=0) hi=mid; else lo=mid+1;
+    }
+    return lo<map.nodes.length?map.offs[lo]:map.txt.length;
+  }
+  function hlPos(map,idx){
+    var lo=0,hi=map.nodes.length-1,i=0;
+    while(lo<=hi){
+      var mid=(lo+hi)>>1;
+      if(map.offs[mid]<=idx){ i=mid; lo=mid+1; } else hi=mid-1; }
+    var node=map.nodes[i];
+    return {node:node,off:Math.max(0,Math.min(idx-map.offs[i],node.nodeValue.length))};
+  }
+  function hlRange(map,a,b){
+    var s=hlPos(map,a), e=hlPos(map,b), r=document.createRange();
+    try{ r.setStart(s.node,s.off); r.setEnd(e.node,e.off); }catch(err){ return null; }
+    return r;
+  }
+  function hlHead(a,b){ var i=0; while(i<a.length&&i<b.length&&a[i]===b[i]) i++; return i; }
+  function hlTail(a,b){
+    var i=0;
+    while(i<a.length&&i<b.length&&a[a.length-1-i]===b[b.length-1-i]) i++;
+    return i;
+  }
+  // Re-find a stored mark after reload. Whitespace-tolerant, exactly like the
+  // Python side: the rendered text wraps differently from the Markdown. When
+  // the sentence occurs more than once the neighbours decide which one.
+  function hlLocate(it){
+    var sec=document.getElementById(it.sec);
+    if(!sec||!it.exact) return null;
+    var map=hlMap(sec), re;
+    try{
+      re=new RegExp(hlNorm(it.exact).split(' ').map(function(t){
+        return t.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); }).join('\\\\s+'),'g');
+    }catch(e){ return null; }
+    var hits=[],m;
+    while((m=re.exec(map.txt))){
+      hits.push(m);
+      if(re.lastIndex<=m.index) re.lastIndex=m.index+1;
+      if(hits.length>80) break;
+    }
+    if(!hits.length) return null;
+    var best=hits[0];
+    if(hits.length>1){
+      var top=-1;
+      hits.forEach(function(h){
+        var end=h.index+h[0].length;
+        var score=hlTail(hlNorm(map.txt.slice(Math.max(0,h.index-60),h.index)),it.prefix)
+                 +hlHead(hlNorm(map.txt.slice(end,end+60)),it.suffix);
+        if(score>top){ top=score; best=h; }
+      });
+    }
+    return hlRange(map,best.index,best.index+best[0].length);
+  }
+  function hlPaint(){
+    if(!HL_OK) return;
+    ['1','2','3'].forEach(function(c){ CSS.highlights.delete('pa-hl'+c); });
+    if(!hlOn) return;
+    var by={};
+    hlItems.forEach(function(it){
+      if(it.range) (by[it.color]=by[it.color]||[]).push(it.range); });
+    Object.keys(by).forEach(function(c){
+      var h=new Highlight();
+      by[c].forEach(function(r){ h.add(r); });
+      CSS.highlights.set('pa-hl'+c,h);
+    });
+  }
+  function hlSave(){
+    try{
+      localStorage.setItem(hlKey,JSON.stringify(hlItems.map(function(it){
+        return {s:it.sec,e:it.exact,p:it.prefix,x:it.suffix,c:it.color}; })));
+    }catch(e){}
+  }
+  // Marks that no longer resolve are kept, not dropped: they still carry the
+  // sentence, and 「複製畫記」 lists them so nothing disappears silently.
+  function hlStatus(){
+    if(!HL_OK){ hlStat.textContent='這個瀏覽器不支援畫記（需要較新版 Chrome／Edge／Safari／Firefox）'; return; }
+    var lost=0;
+    hlItems.forEach(function(it){ if(!it.range) lost++; });
+    var msg=hlItems.length?(hlItems.length+' 條畫記'):'選取正文就能畫記，存在瀏覽器本機';
+    if(lost) msg+='；'+lost+' 條找不到原文（複製時仍會列出）';
+    if(hlItems.length&&!hlOn) msg+='（已隱藏）';
+    hlStat.textContent=msg;
+  }
+  var hlTimer=0;
+  function hlSay(msg){
+    hlStat.textContent=msg;
+    clearTimeout(hlTimer);
+    hlTimer=setTimeout(hlStatus,2200);
+  }
+  function hlHide(){ hlBar.hidden=true; hlPick=-1; }
+  function hlPlace(rect){
+    hlBar.hidden=false;
+    var w=hlBar.offsetWidth, h=hlBar.offsetHeight;
+    var x=Math.min(Math.max(6,rect.left+rect.width/2-w/2),window.innerWidth-w-6);
+    var y=rect.top-h-8;
+    if(y<6) y=rect.bottom+8;
+    hlBar.style.left=x+'px'; hlBar.style.top=y+'px';
+  }
+  function hlAdd(color){
+    var sel=window.getSelection();
+    if(!sel||sel.isCollapsed||!sel.rangeCount) return;
+    var r=sel.getRangeAt(0), sec=hlSec(r.startContainer);
+    if(!sec){ hlSay('只能在正文裡畫記'); return; }
+    if(hlSec(r.endContainer)!==sec){ hlSay('畫記不能跨章節，請分兩次'); return; }
+    var map=hlMap(sec);
+    var a=hlIndex(map,r.startContainer,r.startOffset);
+    var b=hlIndex(map,r.endContainer,r.endOffset);
+    if(b<a){ var t=a; a=b; b=t; }
+    while(a<b&&/\\s/.test(map.txt.charAt(a))) a++;
+    while(b>a&&/\\s/.test(map.txt.charAt(b-1))) b--;
+    var exact=hlNorm(map.txt.slice(a,b));
+    if(exact.length<2){ hlSay('選取太短'); return; }
+    var it={sec:sec.id,exact:exact,color:color,
+      prefix:hlNorm(map.txt.slice(Math.max(0,a-48),a)),
+      suffix:hlNorm(map.txt.slice(b,b+48))};
+    it.range=hlRange(map,a,b);
+    if(!it.range){ hlSay('這段定位不到，請換個選取範圍'); return; }
+    hlItems.push(it);
+    if(!hlOn){ hlOn=true; hlBtn.classList.add('on'); }
+    hlSave(); hlPaint(); hlStatus(); hlHide();
+    sel.removeAllRanges();
+  }
+  function hlAt(x,y){
+    var r=null;
+    if(document.caretRangeFromPoint) r=document.caretRangeFromPoint(x,y);
+    else if(document.caretPositionFromPoint){
+      var p=document.caretPositionFromPoint(x,y);
+      if(p){ r=document.createRange(); r.setStart(p.offsetNode,p.offset); }
+    }
+    if(!r) return -1;
+    for(var i=hlItems.length-1;i>=0;i--){
+      if(!hlItems[i].range) continue;
+      try{
+        if(hlItems[i].range.comparePoint(r.startContainer,r.startOffset)===0) return i;
+      }catch(e){}
+    }
+    return -1;
+  }
+  // KaTeX seeds rendered formulas with zero-width breaks. They have to stay in
+  // what is stored -- \\s does not match them, so stripping them would stop the
+  // mark being found again -- but they are noise in the handed-over text.
+  function hlPlain(s){ return (s||'').replace(/[\\u200b-\\u200f\\ufeff]/g,''); }
+  function hlReport(){
+    var names={'1':'黃','2':'綠','3':'藍'};
+    var out=['螢光筆畫記 '+hlItems.length+' 條 — '+document.title.replace(' — 疑問註記',''),
+             '（複習頁本機保存的畫記，貼回對話就能請 agent 依這些段落整理或建卡）',''];
+    hlItems.forEach(function(it,i){
+      out.push((i+1)+'. ['+it.sec+'] '+(names[it.color]||it.color)
+        +(it.range?'':' ⚠️ 目前定位不到'));
+      out.push('   「'+hlPlain(it.exact)+'」');
+      out.push('   前後文：…'+hlPlain(it.prefix)+' ⟦…⟧ '+hlPlain(it.suffix)+'…');
+    });
+    return out.join('\\n');
+  }
+
+  if(HL_OK){
+    [].slice.call(hlBar.querySelectorAll('[data-c]')).forEach(function(btn){
+      btn.addEventListener('mousedown',function(e){ e.preventDefault(); });
+      btn.addEventListener('click',function(){
+        var c=btn.dataset.c;
+        if(hlPick>=0){ hlItems[hlPick].color=c; hlSave(); hlPaint(); hlHide(); }
+        else hlAdd(c);
+      });
+    });
+    hlDel.addEventListener('mousedown',function(e){ e.preventDefault(); });
+    hlDel.addEventListener('click',function(){
+      if(hlPick<0) return;
+      hlItems.splice(hlPick,1);
+      hlSave(); hlPaint(); hlStatus(); hlHide();
+    });
+    // mouseup, not selectionchange: during a drag the bar would chase the
+    // pointer. The timeout lets the selection settle first.
+    document.addEventListener('mouseup',function(e){
+      if(hlBar.contains(e.target)) return;
+      setTimeout(function(){
+        if(!panel.hidden){ hlHide(); return; }
+        var sel=window.getSelection();
+        if(sel&&!sel.isCollapsed&&sel.rangeCount&&hlSec(sel.getRangeAt(0).startContainer)){
+          hlPick=-1; hlDel.hidden=true;
+          hlPlace(sel.getRangeAt(0).getBoundingClientRect());
+          return;
+        }
+        // clicking a mark opens its card -- that gesture stays as it was
+        var onCard=e.target.closest&&e.target.closest('mark[data-id]');
+        var i=onCard?-1:hlAt(e.clientX,e.clientY);
+        if(i>=0&&hlOn){
+          hlPick=i; hlDel.hidden=false;
+          hlPlace(hlItems[i].range.getBoundingClientRect());
+          return;
+        }
+        hlHide();
+      },0);
+    });
+    document.addEventListener('selectionchange',function(){
+      var sel=window.getSelection();
+      if(hlPick<0&&(!sel||sel.isCollapsed)) hlHide();
+    });
+    window.addEventListener('scroll',hlHide,true);
+    hlBtn.addEventListener('click',function(){
+      hlOn=!hlOn;
+      hlBtn.classList.toggle('on',hlOn);
+      hlHide(); hlPaint(); hlStatus();
+    });
+    document.getElementById('hlcopy').addEventListener('click',function(){
+      if(!hlItems.length){ hlSay('還沒有畫記'); return; }
+      copyText(hlReport(),function(){ hlSay('已複製 '+hlItems.length+' 條'); },
+               function(){ hlSay('複製失敗'); });
+    });
+    document.getElementById('hlclear').addEventListener('click',function(){
+      if(!hlItems.length) return;
+      if(!window.confirm('清空全部 '+hlItems.length+' 條畫記？這個動作無法復原。')) return;
+      hlItems=[];
+      try{ localStorage.removeItem(hlKey); }catch(e){}
+      hlPaint(); hlStatus(); hlHide();
+    });
+  } else {
+    hlBtn.disabled=true;
+    document.getElementById('hlcopy').disabled=true;
+    document.getElementById('hlclear').disabled=true;
+  }
+  // After KaTeX: it rewrites every formula into a subtree, and a range built
+  // before that points at nodes which no longer exist. Its listener is
+  // registered in <head>, so ours runs second.
+  function hlInit(){
+    if(HL_OK){
+      var raw=null;
+      try{ raw=localStorage.getItem(hlKey); }catch(e){}
+      var data=[];
+      if(raw){ try{ data=JSON.parse(raw)||[]; }catch(e){ data=[]; } }
+      hlItems=data.map(function(d){
+        var it={sec:d.s,exact:d.e,prefix:d.p||'',suffix:d.x||'',color:d.c||'1'};
+        it.range=hlLocate(it);
+        return it;
+      });
+      hlPaint();
+    }
+    hlStatus();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',hlInit);
+  else setTimeout(hlInit,0);
 
   apply();
 })();
@@ -803,7 +1138,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 <style>{STYLE}</style>
 {katex_assets()}
 </head>
-<body>
+<body data-paper="{html.escape(paper_root.name)}">
 <div id="layout">
 <div id="sidewrap">
 <button id="sidetoggle" title="目錄與疑問">☰<span class="stxt"> 目錄與疑問</span></button>
@@ -823,6 +1158,13 @@ def build(work_root: Path, embed: bool = False) -> int:
     <button id="showai" class="on">AI 提示卡</button>
   </div>
   <div class="controls"><input id="q" type="search" placeholder="搜尋疑問內容…"></div>
+  <h2>螢光筆</h2>
+  <div class="controls">
+    <button id="hlon" class="on">🖍 顯示畫記</button>
+    <button id="hlcopy">複製畫記</button>
+    <button id="hlclear">清空</button>
+  </div>
+  <div id="hlstat"></div>
   <h2>疑問（{len(questions)}）</h2>
   <div id="qlist">{qlist}</div>
   <h2>目錄</h2>
@@ -841,6 +1183,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
 正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
 先自己想過再看解答。滑鼠移到左上角會滑出目錄與疑問清單，右上角有提問草稿區。
+選取正文會浮出<strong>螢光筆</strong>，畫記存在這台瀏覽器裡，要留下來請用側欄的「複製畫記」貼回對話。
 </div>
 {''.join(body_parts)}
 </main>
@@ -853,6 +1196,12 @@ def build(work_root: Path, embed: bool = False) -> int:
   <div class="nbar"><button id="ncopy">複製</button><button id="nclear">清空</button>
   <button id="noteclose">✕ 收起</button><span id="nstat"></span></div>
 </section>
+</div>
+<div id="hlbar" hidden>
+<button data-c="1" title="黃色畫記" aria-label="黃色畫記"></button>
+<button data-c="2" title="綠色畫記" aria-label="綠色畫記"></button>
+<button data-c="3" title="藍色畫記" aria-label="藍色畫記"></button>
+<button id="hldel" title="清除這條畫記" aria-label="清除這條畫記" hidden>✕</button>
 </div>
 <div id="ov" hidden></div>
 <aside id="panel" hidden tabindex="-1" role="dialog" aria-modal="true"><div class="pbar">
