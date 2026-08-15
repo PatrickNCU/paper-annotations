@@ -136,12 +136,17 @@ Algorithm 縮排，以及把正文切分成 `sections/` 並產生索引。
 
 ## 匯出
 
+`/paper-annotations:export`，或直接跑：
+
 ```bash
-python export_cards.py <論文路徑> --format anki --status resolved
+python export_cards.py <論文路徑> --format anki --status resolved,half
 ```
 
 `## 問題` → Front，`## 解答` → Back，卡點、直覺與原文引文進 Extra；`$…$` 會轉成 Anki
-的 MathJax 寫法。也支援 `--format csv` 與 `json`。匯出是唯讀的。
+的 MathJax 寫法（`\(…\)`），匯進去就會渲染。也支援 `--format csv` 與 `json`。
+
+預設不匯出 `open` 的卡——還沒有解答的問題，做成問答卡背面是空的。匯出是唯讀的，
+卡片本身不會被改動。
 
 ## 指令
 
@@ -151,6 +156,7 @@ python export_cards.py <論文路徑> --format anki --status resolved
 | `/paper-annotations:build [路徑]` | 重新產生註記檢視與複習頁，回報所有警告 |
 | `/paper-annotations:review [路徑]` | 盤點還有哪裡沒懂 |
 | `/paper-annotations:digest [路徑] [模式]` | 把疑問與原文合成一份整理：回顧單、主題聚合、或前提盤點 |
+| `/paper-annotations:export [路徑] [格式]` | 匯出卡片：Anki 匯入檔、CSV 或 JSON |
 
 平常**不需要指令**：直接問論文問題，疑問會自動累積成卡片。
 
