@@ -220,16 +220,16 @@ line-height:1.75;font-size:16.5px}
 #layout{display:block}
 /* The sidebar floats over the paper rather than sitting beside it: opening it
    used to reflow the text mid-sentence, which is the last thing you want while
-   reading. Hovering the tab slides it in; the paper does not move at all. */
-/* The drawer and its handle move as one piece, and the handle sits flush
-   against the drawer's edge. That contiguity is what makes hover stable: at
-   every point of the slide, the pointer that opened it is still over one of
-   the two. Hiding the handle on hover -- the obvious way to write this --
-   makes the drawer flicker open and shut, because the moment it disappears
-   the hover is lost and the drawer starts sliding back. */
+   reading. The handle opens it on click, and it stays until clicked again.
+   It used to open on hover, which could not be made to hold still: the handle
+   drops its label the moment it is hovered, shrinking 103px to 34px with no
+   transition, while the drawer is still 0.22s away from covering the gap. A
+   pointer anywhere in that 69px band -- which is the label, the part you aim
+   at -- lost the hover it had just gained, and the drawer chattered. Hover
+   cannot drive a state that moves the thing being hovered. */
 #sidewrap{position:fixed;top:0;left:0;height:100vh;z-index:30;
 transform:translateX(-310px)}
-#sidewrap:hover,body.side-pin #sidewrap{transform:none}
+body.side-open #sidewrap{transform:none}
 #side{position:absolute;top:0;left:0;height:100vh;width:310px;overflow-y:auto;
 background:var(--sidebar);border-right:1px solid var(--line);padding:18px 16px;font-size:14px;
 box-shadow:0 0 24px var(--shadow)}
@@ -307,8 +307,9 @@ padding:6px 11px;border:1px solid var(--line);border-left:none;
 border-radius:0 8px 8px 0;background:var(--card);
 color:var(--fg);cursor:pointer;box-shadow:2px 2px 8px var(--shadow)}
 #sidetoggle:hover{background:var(--line)}
-/* open, the handle is just a grip: the label would only cover the paper */
-#sidewrap:hover .stxt,body.side-pin .stxt{display:none}
+/* open, the handle is just a grip: the label would only cover the paper.
+   Safe to collapse now that nothing about the state depends on the pointer. */
+body.side-open .stxt{display:none}
 /* Motion is the point here, but not for readers who asked for less of it. */
 @media(prefers-reduced-motion:no-preference){
 #sidewrap,#note{transition:transform .22s ease}}
@@ -441,19 +442,19 @@ SCRIPT = """
   filter.addEventListener('change',apply);
   search.addEventListener('input',apply);
 
-  // Hover opens the sidebar (CSS); the pin is for touch, where there is no
-  // hover, and for anyone who wants it to stay put.
+  // The handle opens and closes the sidebar. One state, one gesture, and the
+  // same behaviour on touch -- where there was never any hover to lose.
   var body=document.body;
   var pin=document.getElementById('sidepin');
-  function setPin(on){
-    body.classList.toggle('side-pin',on);
-    pin.classList.toggle('on',on);
-    pin.textContent=on?'📌 已釘住':'📌 釘住';
+  function setSide(on){
+    body.classList.toggle('side-open',on);
+    // the in-drawer button is only reachable while open, so it only ever closes
+    pin.textContent='✕ 收起目錄';
   }
   document.getElementById('sidetoggle').addEventListener('click',function(){
-    setPin(!body.classList.contains('side-pin'));
+    setSide(!body.classList.contains('side-open'));
   });
-  pin.addEventListener('click',function(){ setPin(!body.classList.contains('side-pin')); });
+  pin.addEventListener('click',function(){ setSide(false); });
 
   // Draft area. Nothing leaves the page from here -- the copy button is the
   // whole point: read the paragraph, write the question, paste it into chat.
@@ -1200,7 +1201,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 <nav id="side">
   <div class="controls">
     <button id="theme">🌗 跟隨系統</button>
-    <button id="sidepin">📌 釘住</button>
+    <button id="sidepin">✕ 收起目錄</button>
   </div>
   <div class="controls">
     <select id="statusf">
@@ -1237,7 +1238,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 本頁是<strong>衍生檔</strong>，由論文原文與 <code>notes/cards/</code> 合併產生，請勿直接編輯。
 摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
 正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
-先自己想過再看解答。滑鼠移到左上角會滑出目錄與疑問清單，右上角有提問草稿區。
+先自己想過再看解答。點左上角的 <strong>☰</strong> 會滑出目錄與疑問清單，右上角有提問草稿區。
 選取正文會浮出<strong>螢光筆</strong>，畫記存在這台瀏覽器裡，要留下來請用側欄的「複製畫記」貼回對話。
 </div>
 {''.join(body_parts)}
