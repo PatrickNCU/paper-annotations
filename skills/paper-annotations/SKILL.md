@@ -20,6 +20,7 @@ python <scripts>/build_annotated.py <work>             # 改卡片後：重建 M
 python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
 python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
+python <scripts>/import_marks.py <work> --from <檔>   # 複習頁「複製畫記」的輸出
 ```
 
 `export_cards.py` 是唯讀的，給想拿卡片去 Anki 排程或自己處理的人用；預設寫到
@@ -137,31 +138,40 @@ build 到提醒消失為止——壞引文平常看不出來，會一路潛伏�
 ## 畫記（螢光筆）
 
 複習頁上可以直接畫螢光筆並寫註解，但那些只活在瀏覽器裡。使用者按「複製畫記」把內容
-貼給你的時候，**逐條寫成檔案**，一條一個檔 `notes/marks/NNNN-slug.md`：
+貼給你的時候，**把整段存成檔案再交給 `import_marks.py`**，不要自己逐條轉寫：
+
+```bash
+python <scripts>/import_marks.py <work> --from <剛存下來的檔>
+```
+
+它會配流水號、寫成下面的格式、跳過已經存在的畫記（重跑安全），並且逐條檢查引文是否
+在原文中唯一——對不上的當場報出來，不會寫出一個永遠不會顯示的檔案。之後照常 build。
+
+只有在 `import_marks.py` 報「引文在原文裡找不到」時才需要手動處理：多半是那段含公式，
+複製到的是 KaTeX 的渲染字（例如 `x1,…,xn`），跟原文的 `$x_1,\ldots,x_n$` 不同。到
+`anchor.file` 找出真正的原文字串，改掉貼上來那份的 `exact:` 再匯入一次。
+
+檔案格式（`notes/marks/NNNN-slug.md`）：
 
 ```yaml
 ---
 id: "0003"
 created: 2026-08-16
 color: yellow | green | blue | red
-tags: [density]                     # 選填
+tags: [density]          # 選填
 anchor:
-  file: sections/S210-....md        # 貼過來的 file:
+  file: sections/S210-....md
   quote:
-    prefix: |-                      # 貼過來的 prefix:
-    exact: |-                       # 貼過來的 exact:
-    suffix: |-                      # 貼過來的 suffix:
+    prefix: |-
+    exact: |-
+    suffix: |-
 ---
 
-貼過來的 note:，沒有 note 就整段留空
+註解內文，沒有就整段留空
 ```
 
-**引文要對得上原文**：貼過來的 `exact` 是從渲染後的頁面取的，一般跟原文一致，但公式
-那段會是 KaTeX 的渲染字（例如 `x1,…,xn`），與原文的 `$x_1,\ldots,x_n$` 不同。這種
-就到 `anchor.file` 裡找出真正的原文字串再寫進去，否則 build 會報「引文在原文裡找不到」。
-
-寫完跑一次 build。定位得到的畫記會回到頁面上；使用者重新整理後，瀏覽器裡那份會自動
-消失，同一段不會被畫兩次。build 逐條檢查引文是否唯一，找不到或出現多次都會報出來。
+定位得到的畫記會回到頁面上；使用者重新整理後，瀏覽器裡那份會自動消失，同一段不會被
+畫兩次。build 也會再檢查一次引文並回報。
 
 **畫記不是卡片**：沒有 status、不進疑問清單、不算進「疑問 N 則」。使用者只是把一段
 標起來加一句話，就用畫記；他提出的是一個需要回答的問題，才建卡。

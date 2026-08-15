@@ -202,6 +202,13 @@ background:var(--bg);color:var(--fg);cursor:pointer}
 #hlbar [data-c="3"]{background:var(--hl3)}
 #hlbar [data-c="4"]{background:var(--hl4)}
 #hlstat{font-size:12.5px;color:var(--muted);padding:2px 6px;line-height:1.55}
+/* A Custom Highlight is paint, not an element, so there is no title attribute
+   and no :hover to hang a tooltip on -- it is hit-tested by hand. Never takes
+   the pointer, or moving onto it would count as leaving the text underneath. */
+#hltip{position:fixed;z-index:44;max-width:min(340px,80vw);max-height:40vh;overflow:hidden;
+padding:8px 11px;font-size:13px;line-height:1.6;white-space:pre-wrap;
+background:var(--fg);color:var(--bg);border-radius:8px;
+box-shadow:0 6px 20px var(--shadow);pointer-events:none}
 #hlnote{position:fixed;z-index:46;width:min(340px,88vw);display:flex;flex-direction:column;
 gap:8px;padding:12px 14px;background:var(--card);border:1px solid var(--line);
 border-radius:10px;box-shadow:0 10px 30px var(--shadow)}
@@ -905,6 +912,37 @@ SCRIPT = """
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
+  // Hovering a noted mark shows what it says. Rect arithmetic first and only
+  // then caret work: this runs off mousemove, and a highlight that spans three
+  // lines has three boxes, not one.
+  var hlTip=document.getElementById('hltip');
+  var tipAt=-1, tipTimer=0, tipLast=0;
+  function tipHide(){ clearTimeout(tipTimer); hlTip.hidden=true; tipAt=-1; }
+  function tipFind(x,y){
+    for(var i=hlItems.length-1;i>=0;i--){
+      var it=hlItems[i];
+      if(!it.note||!it.range) continue;
+      var boxes=it.range.getClientRects();
+      for(var j=0;j<boxes.length;j++){
+        var r=boxes[j];
+        if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return i;
+      }
+    }
+    return -1;
+  }
+  function tipShow(i,x,y){
+    if(!hlItems[i]) return;
+    hlTip.textContent=hlItems[i].note;
+    hlTip.hidden=false;
+    var w=hlTip.offsetWidth, h=hlTip.offsetHeight;
+    var left=Math.min(x+14,window.innerWidth-w-8);
+    var top=y+18;
+    if(top+h>window.innerHeight-8) top=Math.max(8,y-h-12);
+    hlTip.style.left=Math.max(8,left)+'px';
+    hlTip.style.top=top+'px';
+    tipAt=i;
+  }
+
   if(HL_OK){
     document.getElementById('hlnotebtn').addEventListener('mousedown',function(e){
       e.preventDefault();
@@ -993,13 +1031,31 @@ SCRIPT = """
       if(e.clientX<hlZone.l||e.clientX>hlZone.r||
          e.clientY<hlZone.t||e.clientY>hlZone.b) hlHide();
     });
+    document.addEventListener('mousemove',function(e){
+      // anything the reader has deliberately opened outranks a tooltip
+      if(!hlOn||!panel.hidden||!hlNote.hidden||!hlBar.hidden){ tipHide(); return; }
+      var now=Date.now();
+      if(now-tipLast<60) return;
+      tipLast=now;
+      var i=tipFind(e.clientX,e.clientY);
+      if(i<0){ tipHide(); return; }
+      // both halves matter: the index on its own goes stale the moment
+      // anything hides the tooltip without clearing it, and hovering the
+      // same mark again would then do nothing at all
+      if(i===tipAt&&!hlTip.hidden) return;
+      clearTimeout(tipTimer);
+      var x=e.clientX, y=e.clientY;
+      // a short wait, so sweeping the pointer across the page stays quiet
+      tipTimer=setTimeout(function(){ tipShow(i,x,y); },120);
+    });
     // The palette is placed in viewport coordinates, so once the text has
     // scrolled it is pointing at nothing. Three listeners rather than one:
     // scroll alone is fired during the rendering steps and does not always
     // arrive, so the input that caused the scroll is watched as well.
-    window.addEventListener('scroll',hlHide,true);
-    document.addEventListener('wheel',hlHide,{passive:true});
-    document.addEventListener('touchmove',hlHide,{passive:true});
+    function hlDrop(){ hlHide(); tipHide(); }
+    window.addEventListener('scroll',hlDrop,true);
+    document.addEventListener('wheel',hlDrop,{passive:true});
+    document.addEventListener('touchmove',hlDrop,{passive:true});
     var SCROLLKEY=/^(Page|Arrow|Home|End| )/;
     document.addEventListener('keydown',function(e){
       if(!hlBar.hidden&&SCROLLKEY.test(e.key)) hlHide();
@@ -1007,7 +1063,7 @@ SCRIPT = """
     hlBtn.addEventListener('click',function(){
       hlOn=!hlOn;
       hlBtn.classList.toggle('on',hlOn);
-      hlHide(); hlPaint(); hlStatus();
+      hlHide(); tipHide(); hlPaint(); hlStatus();
     });
     document.getElementById('hlcopy').addEventListener('click',function(){
       if(!hlItems.length){ hlSay('還沒有畫記'); return; }
@@ -1495,6 +1551,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 </section>
 </div>
 <script id="pa-marks" type="application/json">{mark_json}</script>
+<div id="hltip" hidden></div>
 <section id="hlnote" hidden>
   <div class="nhead">畫記註解 <span class="nhint">存在瀏覽器，複製後交給 agent 落檔</span></div>
   <textarea id="hlnotepad" placeholder="這段為什麼重要？想到什麼？"></textarea>
