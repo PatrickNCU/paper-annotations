@@ -7,6 +7,34 @@
 - 產出單頁 HTML：側邊目錄、疑問清單、狀態篩選、全文搜尋、明暗主題，公式離線渲染
 - 零依賴，只需要 Python 3.8+
 
+## 跟其他工具的差別
+
+| 類別 | 代表 | 它記什麼 |
+|---|---|---|
+| PDF 標註／文獻管理 | [Zotero](https://www.zotero.org)、[Obsidian Annotator](https://github.com/elias-sundqvist/obsidian-annotator)、[PDF++](https://github.com/RyotaUshio/obsidian-pdf-plus) | 螢光筆與註解——「這段很重要」 |
+| Web 標註 | [Hypothes.is](https://web.hypothes.is) | 引文定位的公開標註層 |
+| AI 讀論文 | [SciSpace Copilot](https://scispace.com)、ChatPDF、Explainpaper | 對話與摘要，存在側邊筆記本 |
+| 間隔複習 | [RemNote](https://www.remnote.com)、[SuperMemo](https://help.supermemo.org/wiki/Incremental_reading) | 抽出原文做成卡片，有排程演算法 |
+| Agent plugin | [research-papers-plugin](https://github.com/ctoth/research-papers-plugin)、[phd-skills](https://github.com/fcakyon/phd-skills) | 把論文加工成結構化摘要與 claims |
+
+這套工具記的是**你的問題**。收合時只顯示問題本身，展開才有答案——複習時你得先自己
+答一次。上面每一類都不記這個：它們記重點、記答案、記摘要，就是不記讀的人哪裡不懂。
+
+三個實際差異：
+
+- **問問題本身就是記錄動作。** 不必停下來切到標註軟體再手動建卡。incremental
+  reading 這類方法通常死在這道摩擦上。
+- **錨點是每次建置重新解析出來的，不是宣告的。** 先試公式編號這種重新轉檔後仍然
+  存在的標籤，再試小節標題，最後才用引文；比對到多個位置就拒絕猜並報錯。
+  Hypothes.is 的[研究](https://www.arxiv.org/abs/1512.06195)量測過純引文定位的下場：
+  27% 的標註已經失去依附，另外 61% 只要內容一改就會失去。
+- **產物是純檔案。** 卡片是 Markdown，可以進 git；複習頁是一個離線 HTML，沒有帳號、
+  沒有訂閱、沒有廠商，要分享就把檔案寄出去。
+
+**不適合的情況**：想直接標 PDF 不想轉檔（用 Zotero）、要間隔複習排程（用 RemNote 或
+Anki，這裡只有狀態篩選）、要標圖上的區域、要多人共享標註層（用 Hypothes.is）、
+要管理整個文獻庫（用 Zotero）。
+
 ## 安裝
 
 需要 Claude Code CLI（`/plugin` 是互動面板，桌面版叫不出來）。在 CLI 裡跑：
