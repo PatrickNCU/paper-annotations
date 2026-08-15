@@ -149,10 +149,16 @@ box-shadow .3s ease,outline-color .3s ease}}
 body{margin:0;background:var(--bg);color:var(--fg);
 font-family:-apple-system,"Segoe UI","Noto Sans TC",system-ui,sans-serif;
 line-height:1.75;font-size:16.5px}
-#layout{display:flex;align-items:flex-start}
-#side{position:sticky;top:0;height:100vh;width:310px;flex:0 0 310px;overflow-y:auto;
-background:var(--sidebar);border-right:1px solid var(--line);padding:18px 16px;font-size:14px}
-#main{flex:1;min-width:0;max-width:900px;margin:0 auto;padding:28px 34px 120px}
+#layout{display:block}
+/* The sidebar floats over the paper rather than sitting beside it: opening it
+   used to reflow the text mid-sentence, which is the last thing you want while
+   reading. Hovering the tab slides it in; the paper does not move at all. */
+#sidewrap{position:fixed;top:0;left:0;height:100vh;z-index:30}
+#side{position:absolute;top:0;left:0;height:100vh;width:310px;overflow-y:auto;
+background:var(--sidebar);border-right:1px solid var(--line);padding:18px 16px;font-size:14px;
+transform:translateX(-100%);box-shadow:0 0 24px var(--shadow)}
+#sidewrap:hover #side,body.side-pin #side{transform:none}
+#main{max-width:900px;margin:0 auto;padding:28px 34px 120px}
 #side h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
 margin:20px 0 8px}
 #side a{display:block;color:var(--fg);text-decoration:none;padding:3px 6px;border-radius:4px}
@@ -209,12 +215,44 @@ margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line)}
 .pbar button{font:inherit;font-size:13px;padding:3px 9px;border:1px solid var(--line);
 border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
 .pbar button:hover{background:var(--line)}
-#sidetoggle{position:fixed;top:12px;left:12px;z-index:30;font:inherit;font-size:13px;
+#sidetoggle{position:absolute;top:12px;left:12px;font:inherit;font-size:13px;
 padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);
 color:var(--fg);cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
 #sidetoggle:hover{background:var(--line)}
-body:not(.side-off) #sidetoggle{display:none}
-body.side-off #side{display:none}
+#sidewrap:hover #sidetoggle,body.side-pin #sidetoggle{opacity:0;pointer-events:none}
+/* Motion is the point here, but not for readers who asked for less of it. */
+@media(prefers-reduced-motion:no-preference){
+#side{transition:transform .22s ease}
+#sidetoggle{transition:opacity .18s ease}
+#note{transition:transform .22s ease}}
+
+/* Somewhere to draft a question while reading, instead of interrupting the
+   paragraph to ask. Nothing is sent from here -- copy it into the chat. */
+#notewrap{position:fixed;top:0;right:0;height:100vh;z-index:29;pointer-events:none}
+#notewrap>*{pointer-events:auto}
+#notetab{position:absolute;top:12px;right:12px;font:inherit;font-size:13px;
+padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+color:var(--fg);cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
+#notetab:hover{background:var(--line)}
+body.note-on #notetab{opacity:0;pointer-events:none}
+#note{position:absolute;top:0;right:0;width:min(360px,90vw);height:100vh;
+display:flex;flex-direction:column;gap:8px;padding:16px 14px;
+background:var(--sidebar);border-left:1px solid var(--line);box-shadow:0 0 24px var(--shadow);
+transform:translateX(100%)}
+body.note-on #note{transform:none}
+/* The drawer is a working surface, not a passing hover like the sidebar: while
+   it is open the column steps aside so it never covers the text being written
+   about. Same width, so the line breaks do not change. */
+@media(min-width:1000px){body.note-on #layout{padding-right:calc(min(360px,90vw) + 20px)}}
+.nhead{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:600}
+.nhint{font-weight:400;font-size:12px;color:var(--muted)}
+#notepad{flex:1;min-height:0;resize:none;font:inherit;font-size:14px;line-height:1.7;
+padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+background:var(--bg);color:var(--fg)}
+.nbar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.nbar button{font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);
+border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.nbar button:hover{background:var(--line)}
 #qlist{margin-bottom:6px}
 /* #side a above is an ID selector and outranks a bare .qlink rule, so scope
    these to #qlist -- otherwise display:block wins and the dots collapse. */
@@ -233,9 +271,7 @@ padding:12px 16px;margin-bottom:24px;font-size:14px;color:var(--muted)}
 .warn{border-color:var(--open);color:var(--fg)}
 .meta{color:var(--muted);font-size:14px;margin-bottom:20px}
 @media(max-width:900px){
-#layout{display:block}
-#side{position:static;height:auto;max-height:56vh;width:auto;flex:none;
-border-right:none;border-bottom:1px solid var(--line)}
+#side{width:min(310px,88vw)}
 #main{padding:20px 18px 90px}}
 """
 
@@ -299,13 +335,50 @@ SCRIPT = """
   filter.addEventListener('change',apply);
   search.addEventListener('input',apply);
 
-  // The sidebar starts collapsed so the paper sits in the middle of the window.
+  // Hover opens the sidebar (CSS); the pin is for touch, where there is no
+  // hover, and for anyone who wants it to stay put.
   var body=document.body;
-  document.getElementById('sidetoggle').addEventListener('click',function(){
-    body.classList.remove('side-off');
+  var pin=document.getElementById('sidepin');
+  function setPin(on){
+    body.classList.toggle('side-pin',on);
+    pin.classList.toggle('on',on);
+    pin.textContent=on?'📌 已釘住':'📌 釘住';
+  }
+  document.getElementById('sidetoggle').addEventListener('click',function(){ setPin(true); });
+  pin.addEventListener('click',function(){ setPin(!body.classList.contains('side-pin')); });
+
+  // Draft area. Nothing leaves the page from here -- the copy button is the
+  // whole point: read the paragraph, write the question, paste it into chat.
+  var pad=document.getElementById('notepad');
+  var stat=document.getElementById('nstat');
+  var KEY='pa-draft:'+(document.title||'');
+  try{ var kept=localStorage.getItem(KEY); if(kept) pad.value=kept; }catch(e){}
+  function say(msg){ stat.textContent=msg; setTimeout(function(){ stat.textContent=''; },1600); }
+  pad.addEventListener('input',function(){
+    try{ localStorage.setItem(KEY,pad.value); }catch(e){}
   });
-  document.getElementById('sideclose').addEventListener('click',function(){
-    body.classList.add('side-off');
+  document.getElementById('notetab').addEventListener('click',function(){
+    body.classList.add('note-on'); pad.focus();
+  });
+  document.getElementById('noteclose').addEventListener('click',function(){
+    body.classList.remove('note-on');
+  });
+  document.getElementById('ncopy').addEventListener('click',function(){
+    if(!pad.value){ say('還沒有內容'); return; }
+    var done=function(){ say('已複製'); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(pad.value).then(done,fallback);
+    } else { fallback(); }
+    // file:// often refuses the async clipboard, so keep the old way around
+    function fallback(){
+      pad.select();
+      try{ document.execCommand('copy'); done(); }catch(e){ say('複製失敗，請手動選取'); }
+      pad.setSelectionRange(pad.value.length,pad.value.length);
+    }
+  });
+  document.getElementById('nclear').addEventListener('click',function(){
+    if(!pad.value) return;
+    pad.value=''; try{ localStorage.removeItem(KEY); }catch(e){} say('已清空'); pad.focus();
   });
 
   // A card opens over the paper and closes again -- it never pushes the text
@@ -349,7 +422,11 @@ SCRIPT = """
   document.getElementById('pclose').addEventListener('click',closeCard);
   ov.addEventListener('click',closeCard);
   document.addEventListener('keydown',function(e){
-    if(e.key==='Escape'&&!panel.hidden) closeCard();
+    if(e.key!=='Escape') return;
+    if(!panel.hidden){ closeCard(); return; }
+    if(body.classList.contains('note-on')&&document.activeElement!==pad){
+      body.classList.remove('note-on');
+    }
   });
   // Formulas light up as a whole while selected -- see the .katex rules in the
   // stylesheet for why the browser's own painting is switched off there.
@@ -542,13 +619,14 @@ def build(work_root: Path, embed: bool = False) -> int:
 <style>{STYLE}</style>
 {katex_assets()}
 </head>
-<body class="side-off">
-<button id="sidetoggle">☰ 目錄與疑問</button>
+<body>
 <div id="layout">
+<div id="sidewrap">
+<button id="sidetoggle">☰ 目錄與疑問</button>
 <nav id="side">
   <div class="controls">
     <button id="theme">🌗 跟隨系統</button>
-    <button id="sideclose">✕ 收合側欄</button>
+    <button id="sidepin">📌 釘住</button>
   </div>
   <div class="controls">
     <select id="statusf">
@@ -566,6 +644,7 @@ def build(work_root: Path, embed: bool = False) -> int:
   <h2>目錄</h2>
   {nav}
 </nav>
+</div>
 <main id="main">
 <div class="meta">疑問 {len(cards)} 則 —
 🔴 未解決 {counts.get('open', 0)} ·
@@ -577,10 +656,19 @@ def build(work_root: Path, embed: bool = False) -> int:
 本頁是<strong>衍生檔</strong>，由論文原文與 <code>notes/cards/</code> 合併產生，請勿直接編輯。
 摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
 正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
-先自己想過再看解答。左上角可以打開目錄與疑問清單。
+先自己想過再看解答。滑鼠移到左上角會滑出目錄與疑問清單，右上角有提問草稿區。
 </div>
 {''.join(body_parts)}
 </main>
+</div>
+<div id="notewrap">
+<button id="notetab">✎ 提問草稿</button>
+<section id="note">
+  <div class="nhead">提問草稿 <span class="nhint">讀完整段再一次問，複製後貼回對話</span></div>
+  <textarea id="notepad" placeholder="例：IV-B 的 dc removal 為什麼要扣掉平均密度？&#10;（這裡只是草稿，不會送出，也不會變成卡片）"></textarea>
+  <div class="nbar"><button id="ncopy">複製</button><button id="nclear">清空</button>
+  <button id="noteclose">✕ 收起</button><span id="nstat"></span></div>
+</section>
 </div>
 <div id="ov" hidden></div>
 <aside id="panel" hidden tabindex="-1" role="dialog" aria-modal="true"><div class="pbar">
