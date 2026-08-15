@@ -91,21 +91,24 @@ STYLE = """
 --plate:#fff;--shadow:rgba(0,0,0,.05);--mark:#f7e3a9;
 --sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;--algo:#eef1f6;
 --sel:rgba(138,79,36,.20);
---hl1:rgba(244,201,63,.45);--hl2:rgba(96,190,136,.36);--hl3:rgba(114,164,235,.34)}
+--hl1:rgba(244,201,63,.45);--hl2:rgba(96,190,136,.36);--hl3:rgba(114,164,235,.34);
+--hl4:rgba(240,124,120,.36)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
 --sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
 --sel:rgba(224,167,106,.26);
---hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34)}}
+--hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34);
+--hl4:rgba(206,96,92,.34)}}
 :root[data-theme="dark"]{
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
 --sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
 --sel:rgba(224,167,106,.26);
---hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34)}
+--hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34);
+--hl4:rgba(206,96,92,.34)}
 *{box-sizing:border-box}
 /* The hidden attribute has to actually hide. It comes from the UA stylesheet,
    and any author rule setting display beats it on cascade origin alone -- so
@@ -169,13 +172,16 @@ img[id]:target{outline:2px solid var(--accent);outline-offset:4px}
 ::highlight(pa-hl1){background-color:rgba(244,201,63,.45)}
 ::highlight(pa-hl2){background-color:rgba(96,190,136,.36)}
 ::highlight(pa-hl3){background-color:rgba(114,164,235,.34)}
+::highlight(pa-hl4){background-color:rgba(240,124,120,.36)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) *::highlight(pa-hl1){
 background-color:rgba(212,166,44,.34)}
 :root:not([data-theme="light"]) *::highlight(pa-hl2){background-color:rgba(70,168,118,.30)}
-:root:not([data-theme="light"]) *::highlight(pa-hl3){background-color:rgba(96,144,212,.34)}}
+:root:not([data-theme="light"]) *::highlight(pa-hl3){background-color:rgba(96,144,212,.34)}
+:root:not([data-theme="light"]) *::highlight(pa-hl4){background-color:rgba(206,96,92,.34)}}
 :root[data-theme="dark"] *::highlight(pa-hl1){background-color:rgba(212,166,44,.34)}
 :root[data-theme="dark"] *::highlight(pa-hl2){background-color:rgba(70,168,118,.30)}
 :root[data-theme="dark"] *::highlight(pa-hl3){background-color:rgba(96,144,212,.34)}
+:root[data-theme="dark"] *::highlight(pa-hl4){background-color:rgba(206,96,92,.34)}
 #hlbar{position:fixed;z-index:45;display:flex;gap:5px;padding:5px;
 background:var(--card);border:1px solid var(--line);border-radius:8px;
 box-shadow:0 4px 14px var(--shadow)}
@@ -186,6 +192,7 @@ background:var(--bg);color:var(--fg);cursor:pointer}
 #hlbar [data-c="1"]{background:var(--hl1)}
 #hlbar [data-c="2"]{background:var(--hl2)}
 #hlbar [data-c="3"]{background:var(--hl3)}
+#hlbar [data-c="4"]{background:var(--hl4)}
 #hlstat{font-size:12.5px;color:var(--muted);padding:2px 6px;line-height:1.55}
 /* The three parts of an opened card, each its own block. */
 .csec{margin:12px 0;padding:10px 14px 2px;border-radius:8px;
@@ -654,7 +661,7 @@ SCRIPT = """
   }
   function hlPaint(){
     if(!HL_OK) return;
-    ['1','2','3'].forEach(function(c){ CSS.highlights.delete('pa-hl'+c); });
+    ['1','2','3','4'].forEach(function(c){ CSS.highlights.delete('pa-hl'+c); });
     if(!hlOn) return;
     var by={};
     hlItems.forEach(function(it){
@@ -754,7 +761,7 @@ SCRIPT = """
   // mark being found again -- but they are noise in the handed-over text.
   function hlPlain(s){ return (s||'').replace(/[\\u200b-\\u200f\\ufeff]/g,''); }
   function hlReport(){
-    var names={'1':'黃','2':'綠','3':'藍'};
+    var names={'1':'黃','2':'綠','3':'藍','4':'紅'};
     var out=['螢光筆畫記 '+hlItems.length+' 條 — '+document.title.replace(' — 疑問註記',''),
              '（複習頁本機保存的畫記，貼回對話就能請 agent 依這些段落整理或建卡）',''];
     hlItems.forEach(function(it,i){
@@ -1249,6 +1256,7 @@ def build(work_root: Path, embed: bool = False) -> int:
 <button data-c="1" title="黃色畫記" aria-label="黃色畫記"></button>
 <button data-c="2" title="綠色畫記" aria-label="綠色畫記"></button>
 <button data-c="3" title="藍色畫記" aria-label="藍色畫記"></button>
+<button data-c="4" title="紅色畫記" aria-label="紅色畫記"></button>
 <button id="hldel" title="清除這條畫記" aria-label="清除這條畫記" hidden>✕</button>
 </div>
 <div id="ov" hidden></div>
