@@ -220,16 +220,22 @@ line-height:1.75;font-size:16.5px}
 #layout{display:block}
 /* The sidebar floats over the paper rather than sitting beside it: opening it
    used to reflow the text mid-sentence, which is the last thing you want while
-   reading. The handle opens it on click, and it stays until clicked again.
-   It used to open on hover, which could not be made to hold still: the handle
-   drops its label the moment it is hovered, shrinking 103px to 34px with no
-   transition, while the drawer is still 0.22s away from covering the gap. A
-   pointer anywhere in that 69px band -- which is the label, the part you aim
-   at -- lost the hover it had just gained, and the drawer chattered. Hover
-   cannot drive a state that moves the thing being hovered. */
+   reading. Pointing at the handle slides it in; clicking pins it open.
+   The rule that keeps hover stable: nothing about the handle's geometry may
+   change while the pointer is deciding. Hiding its label on :hover shrank it
+   from 103px to 34px instantly, while the drawer was still 0.22s from covering
+   that ground -- a pointer anywhere in the 69px band it left behind, which is
+   the label and so the part you aim at, lost the hover it had just gained and
+   the drawer chattered. The label now goes only once the drawer has arrived
+   underneath it (side-settled), and comes back only once it has left
+   (side-closing). Both are driven off the measured transition duration, so
+   reduced-motion collapses them to zero rather than drifting. */
 #sidewrap{position:fixed;top:0;left:0;height:100vh;z-index:30;
 transform:translateX(-310px)}
 body.side-open #sidewrap{transform:none}
+/* Retracting, the handle sweeps back across the page; deaf to the pointer for
+   that moment so it cannot catch one on the way past and reopen. */
+body.side-closing #sidewrap{pointer-events:none}
 #side{position:absolute;top:0;left:0;height:100vh;width:310px;overflow-y:auto;
 background:var(--sidebar);border-right:1px solid var(--line);padding:18px 16px;font-size:14px;
 box-shadow:0 0 24px var(--shadow)}
@@ -308,8 +314,8 @@ border-radius:0 8px 8px 0;background:var(--card);
 color:var(--fg);cursor:pointer;box-shadow:2px 2px 8px var(--shadow)}
 #sidetoggle:hover{background:var(--line)}
 /* open, the handle is just a grip: the label would only cover the paper.
-   Safe to collapse now that nothing about the state depends on the pointer. */
-body.side-open .stxt{display:none}
+   side-settled, not side-open -- see the timing note above. */
+body.side-settled .stxt{display:none}
 /* Motion is the point here, but not for readers who asked for less of it. */
 @media(prefers-reduced-motion:no-preference){
 #sidewrap,#note{transition:transform .22s ease}}
@@ -442,19 +448,54 @@ SCRIPT = """
   filter.addEventListener('change',apply);
   search.addEventListener('input',apply);
 
-  // The handle opens and closes the sidebar. One state, one gesture, and the
-  // same behaviour on touch -- where there was never any hover to lose.
+  // Pointing at the handle opens the sidebar; clicking pins it. Driven from
+  // JS rather than :hover so the handle's geometry can be held still until the
+  // slide is over -- see the stylesheet for why that is the whole ballgame.
   var body=document.body;
+  var wrap=document.getElementById('sidewrap');
   var pin=document.getElementById('sidepin');
-  function setSide(on){
-    body.classList.toggle('side-open',on);
-    // the in-drawer button is only reachable while open, so it only ever closes
-    pin.textContent='✕ 收起目錄';
+  var pinned=false, leaveTimer=0, slideTimer=0;
+  // read the duration rather than repeating it: reduced-motion drops the rule
+  // entirely, and 0s then falls out of this by itself
+  function slideMs(){
+    var d=(getComputedStyle(wrap).transitionDuration||'0s').split(',')[0].trim();
+    var n=parseFloat(d)||0;
+    return /ms$/.test(d)?n:n*1000;
   }
-  document.getElementById('sidetoggle').addEventListener('click',function(){
-    setSide(!body.classList.contains('side-open'));
+  function openSide(){
+    clearTimeout(leaveTimer); leaveTimer=0;
+    body.classList.remove('side-closing');
+    if(body.classList.contains('side-open')) return;
+    body.classList.add('side-open');
+    clearTimeout(slideTimer);
+    slideTimer=setTimeout(function(){ body.classList.add('side-settled'); },slideMs());
+  }
+  function closeSide(){
+    pinned=false;
+    if(!body.classList.contains('side-open')) return;
+    body.classList.remove('side-open');
+    body.classList.add('side-closing');
+    clearTimeout(slideTimer);
+    slideTimer=setTimeout(function(){
+      body.classList.remove('side-settled');
+      body.classList.remove('side-closing');
+    },slideMs());
+  }
+  wrap.addEventListener('mouseenter',function(){
+    if(!body.classList.contains('side-closing')) openSide();
   });
-  pin.addEventListener('click',function(){ setSide(false); });
+  wrap.addEventListener('mouseleave',function(){
+    if(pinned) return;
+    clearTimeout(leaveTimer);
+    // a pointer that clips the edge on its way somewhere else should not
+    // slam the drawer shut behind it
+    leaveTimer=setTimeout(closeSide,180);
+  });
+  document.getElementById('sidetoggle').addEventListener('click',function(){
+    if(pinned){ closeSide(); return; }
+    pinned=true; openSide();
+  });
+  pin.addEventListener('click',closeSide);
 
   // Draft area. Nothing leaves the page from here -- the copy button is the
   // whole point: read the paragraph, write the question, paste it into chat.
@@ -1238,7 +1279,8 @@ def build(work_root: Path, embed: bool = False) -> int:
 本頁是<strong>衍生檔</strong>，由論文原文與 <code>notes/cards/</code> 合併產生，請勿直接編輯。
 摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
 正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
-先自己想過再看解答。點左上角的 <strong>☰</strong> 會滑出目錄與疑問清單，右上角有提問草稿區。
+先自己想過再看解答。滑鼠移到左上角的 <strong>☰</strong> 會滑出目錄與疑問清單，點一下可以釘住；
+右上角有提問草稿區。
 選取正文會浮出<strong>螢光筆</strong>，畫記存在這台瀏覽器裡，要留下來請用側欄的「複製畫記」貼回對話。
 </div>
 {''.join(body_parts)}
