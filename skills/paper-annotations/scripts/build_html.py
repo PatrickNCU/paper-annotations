@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import html
+import json
 import mimetypes
 import re
 import sys
@@ -173,6 +174,13 @@ img[id]:target{outline:2px solid var(--accent);outline-offset:4px}
 ::highlight(pa-hl2){background-color:rgba(96,190,136,.36)}
 ::highlight(pa-hl3){background-color:rgba(114,164,235,.34)}
 ::highlight(pa-hl4){background-color:rgba(240,124,120,.36)}
+/* A mark carrying a note is underlined, so it reads as something to open
+   rather than just something coloured. If a browser refuses the decoration
+   inside a highlight pseudo it simply looks like the plain one. */
+::highlight(pa-hl1n){background-color:rgba(244,201,63,.45);text-decoration:underline dotted}
+::highlight(pa-hl2n){background-color:rgba(96,190,136,.36);text-decoration:underline dotted}
+::highlight(pa-hl3n){background-color:rgba(114,164,235,.34);text-decoration:underline dotted}
+::highlight(pa-hl4n){background-color:rgba(240,124,120,.36);text-decoration:underline dotted}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) *::highlight(pa-hl1){
 background-color:rgba(212,166,44,.34)}
 :root:not([data-theme="light"]) *::highlight(pa-hl2){background-color:rgba(70,168,118,.30)}
@@ -194,6 +202,12 @@ background:var(--bg);color:var(--fg);cursor:pointer}
 #hlbar [data-c="3"]{background:var(--hl3)}
 #hlbar [data-c="4"]{background:var(--hl4)}
 #hlstat{font-size:12.5px;color:var(--muted);padding:2px 6px;line-height:1.55}
+#hlnote{position:fixed;z-index:46;width:min(340px,88vw);display:flex;flex-direction:column;
+gap:8px;padding:12px 14px;background:var(--card);border:1px solid var(--line);
+border-radius:10px;box-shadow:0 10px 30px var(--shadow)}
+#hlnotepad{height:120px;resize:none;font:inherit;font-size:14px;line-height:1.65;
+padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+background:var(--bg);color:var(--fg)}
 /* The three parts of an opened card, each its own block. */
 .csec{margin:12px 0;padding:10px 14px 2px;border-radius:8px;
 border-left:3px solid var(--line);background:var(--sec-answer)}
@@ -580,6 +594,8 @@ SCRIPT = """
   ov.addEventListener('click',closeCard);
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape') return;
+    var np=document.getElementById('hlnote');
+    if(np&&!np.hidden){ np.hidden=true; np.dataset.i=''; return; }
     if(hlBar&&!hlBar.hidden){ hlHide(); return; }
     if(!panel.hidden){ closeCard(); return; }
     if(body.classList.contains('note-on')&&document.activeElement!==pad){
@@ -719,32 +735,50 @@ SCRIPT = """
   }
   function hlPaint(){
     if(!HL_OK) return;
-    ['1','2','3','4'].forEach(function(c){ CSS.highlights.delete('pa-hl'+c); });
+    ['1','2','3','4'].forEach(function(c){
+      CSS.highlights.delete('pa-hl'+c); CSS.highlights.delete('pa-hl'+c+'n'); });
     if(!hlOn) return;
     var by={};
     hlItems.forEach(function(it){
-      if(it.range) (by[it.color]=by[it.color]||[]).push(it.range); });
-    Object.keys(by).forEach(function(c){
-      var h=new Highlight();
-      by[c].forEach(function(r){ h.add(r); });
-      CSS.highlights.set('pa-hl'+c,h);
+      if(!it.range) return;
+      var key=it.color+(it.note?'n':'');
+      (by[key]=by[key]||[]).push(it.range);
     });
+    Object.keys(by).forEach(function(k){
+      var h=new Highlight();
+      by[k].forEach(function(r){ h.add(r); });
+      CSS.highlights.set('pa-hl'+k,h);
+    });
+  }
+  // Only what the browser is holding. The filed ones came out of notes/marks/
+  // and belong to the build; writing them back here would give every mark two
+  // homes and no way to tell which one is current.
+  function hlLocal(){
+    return hlItems.filter(function(it){ return it.src!=='file'; });
   }
   function hlSave(){
     try{
-      localStorage.setItem(hlKey,JSON.stringify(hlItems.map(function(it){
-        return {s:it.sec,e:it.exact,p:it.prefix,x:it.suffix,c:it.color}; })));
+      localStorage.setItem(hlKey,JSON.stringify(hlLocal().map(function(it){
+        return {s:it.sec,f:it.file||'',e:it.exact,p:it.prefix,x:it.suffix,
+                c:it.color,n:it.note||''}; })));
     }catch(e){}
   }
   // Marks that no longer resolve are kept, not dropped: they still carry the
   // sentence, and 「複製畫記」 lists them so nothing disappears silently.
   function hlStatus(){
     if(!HL_OK){ hlStat.textContent='這個瀏覽器不支援畫記（需要較新版 Chrome／Edge／Safari／Firefox）'; return; }
-    var lost=0;
-    hlItems.forEach(function(it){ if(!it.range) lost++; });
-    var msg=hlItems.length?(hlItems.length+' 條畫記'):'選取正文就能畫記，存在瀏覽器本機';
-    if(lost) msg+='；'+lost+' 條找不到原文（複製時仍會列出）';
-    if(hlItems.length&&!hlOn) msg+='（已隱藏）';
+    var lost=0, local=0;
+    hlItems.forEach(function(it){
+      if(!it.range) lost++;
+      if(it.src!=='file') local++;
+    });
+    if(!hlItems.length){ hlStat.textContent='選取正文就能畫記'; return; }
+    var msg=hlItems.length+' 條畫記';
+    // the distinction that matters: filed ones survive a rebuild, the rest
+    // live in this browser only until they are handed over
+    if(local) msg+='，其中 '+local+' 條還沒落檔';
+    if(lost) msg+='；'+lost+' 條找不到原文';
+    if(!hlOn) msg+='（已隱藏）';
     hlStat.textContent=msg;
   }
   var hlTimer=0;
@@ -770,10 +804,10 @@ SCRIPT = """
   }
   function hlAdd(color){
     var sel=window.getSelection();
-    if(!sel||sel.isCollapsed||!sel.rangeCount) return;
+    if(!sel||sel.isCollapsed||!sel.rangeCount) return -1;
     var r=sel.getRangeAt(0), sec=hlSec(r.startContainer);
-    if(!sec){ hlSay('只能在正文裡畫記'); return; }
-    if(hlSec(r.endContainer)!==sec){ hlSay('畫記不能跨章節，請分兩次'); return; }
+    if(!sec){ hlSay('只能在正文裡畫記'); return -1; }
+    if(hlSec(r.endContainer)!==sec){ hlSay('畫記不能跨章節，請分兩次'); return -1; }
     var map=hlMap(sec);
     var a=hlIndex(map,r.startContainer,r.startOffset);
     var b=hlIndex(map,r.endContainer,r.endOffset);
@@ -781,22 +815,24 @@ SCRIPT = """
     while(a<b&&/\\s/.test(map.txt.charAt(a))) a++;
     while(b>a&&/\\s/.test(map.txt.charAt(b-1))) b--;
     var exact=hlNorm(map.txt.slice(a,b));
-    if(exact.length<2){ hlSay('選取太短'); return; }
-    var it={sec:sec.id,exact:exact,color:color,
+    if(exact.length<2){ hlSay('選取太短'); return -1; }
+    var it={sec:sec.id,file:sec.dataset.src||(sec.id+'.md'),
+      exact:exact,color:color,note:'',src:'local',
       prefix:hlNorm(map.txt.slice(Math.max(0,a-48),a)),
       suffix:hlNorm(map.txt.slice(b,b+48))};
     it.range=hlRange(map,a,b);
-    if(!it.range){ hlSay('這段定位不到，請換個選取範圍'); return; }
+    if(!it.range){ hlSay('這段定位不到，請換個選取範圍'); return -1; }
     hlItems.push(it);
     if(!hlOn){ hlOn=true; hlBtn.classList.add('on'); }
     hlSave(); hlPaint(); hlStatus();
     sel.removeAllRanges();
     // The palette stays, now aimed at what was just drawn: the moment you most
-    // often want it back is straight after, to change the colour or undo. It
-    // clears itself once the pointer leaves.
+    // often want it back is straight after, to change the colour, write a note
+    // or undo. It clears itself once the pointer leaves.
     hlPick=hlItems.length-1;
     hlDel.hidden=false;
     hlPlace(it.range.getBoundingClientRect());
+    return hlPick;
   }
   function hlAt(x,y){
     var r=null;
@@ -819,19 +855,81 @@ SCRIPT = """
   // mark being found again -- but they are noise in the handed-over text.
   function hlPlain(s){ return (s||'').replace(/[\\u200b-\\u200f\\ufeff]/g,''); }
   function hlReport(){
-    var names={'1':'黃','2':'綠','3':'藍','4':'紅'};
-    var out=['螢光筆畫記 '+hlItems.length+' 條 — '+document.title.replace(' — 疑問註記',''),
-             '（複習頁本機保存的畫記，貼回對話就能請 agent 依這些段落整理或建卡）',''];
-    hlItems.forEach(function(it,i){
-      out.push((i+1)+'. ['+it.sec+'] '+(names[it.color]||it.color)
-        +(it.range?'':' ⚠️ 目前定位不到'));
-      out.push('   「'+hlPlain(it.exact)+'」');
-      out.push('   前後文：…'+hlPlain(it.prefix)+' ⟦…⟧ '+hlPlain(it.suffix)+'…');
+    var names={'1':'yellow','2':'green','3':'blue','4':'red'};
+    var list=hlLocal();
+    var out=['螢光筆畫記 '+list.length+' 條 — '+document.title.replace(' — 疑問註記',''),
+             '（這些還沒落檔，請 agent 依 SKILL 的格式寫進 notes/marks/ 再重建）',''];
+    list.forEach(function(it,i){
+      out.push((i+1)+'. file: '+(it.file||it.sec)+'  color: '+(names[it.color]||'yellow')
+        +(it.range?'':'  ⚠️ 目前定位不到'));
+      out.push('   exact:  '+hlPlain(it.exact));
+      out.push('   prefix: '+hlPlain(it.prefix));
+      out.push('   suffix: '+hlPlain(it.suffix));
+      if(it.note) out.push('   note:   '+it.note.replace(/\\n/g,'\\n           '));
     });
     return out.join('\\n');
   }
 
+  // Writing on a highlight, the thing obsidian-annotator gets right: the mark
+  // and what you wanted to say about it are one object, not two.
+  var hlNote=document.getElementById('hlnote');
+  var hlPad=document.getElementById('hlnotepad');
+  function hlEdit(i){
+    if(i<0||!hlItems[i]||hlItems[i].src==='file') return;
+    hlNote.dataset.i=String(i);
+    hlPad.value=hlItems[i].note||'';
+    hlNote.hidden=false;
+    var r=hlItems[i].range?hlItems[i].range.getBoundingClientRect():null;
+    var w=hlNote.offsetWidth, h=hlNote.offsetHeight;
+    var x=r?Math.min(Math.max(8,r.left),window.innerWidth-w-8):(window.innerWidth-w)/2;
+    var y=r?(r.bottom+10):(window.innerHeight-h)/2;
+    if(y+h>window.innerHeight-8) y=Math.max(8,(r?r.top:0)-h-10);
+    hlNote.style.left=x+'px'; hlNote.style.top=y+'px';
+    hlHide();
+    hlPad.focus();
+  }
+  function hlEditClose(){ hlNote.hidden=true; hlNote.dataset.i=''; }
+  // A filed mark is read-only here: it lives in notes/marks/, and letting the
+  // page edit it would give the same note two masters.
+  function hlShowNote(it){
+    panelIn.innerHTML='<div class="ptitle">'+esc(hlPlain(it.exact))+'</div>'
+      +'<div class="csec csec-key"><b class="csec-t">畫記註解</b><p>'
+      +esc(it.note).replace(/\\n{2,}/g,'</p><p>').replace(/\\n/g,'<br>')+'</p></div>';
+    panel.dataset.status='';
+    current=null;
+    jump.hidden=true;
+    panel.hidden=false; ov.hidden=false;
+    panel.scrollTop=0; panel.focus();
+  }
+  function esc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   if(HL_OK){
+    document.getElementById('hlnotebtn').addEventListener('mousedown',function(e){
+      e.preventDefault();
+    });
+    document.getElementById('hlnotebtn').addEventListener('click',function(){
+      // straight from a selection: draw it first, then write on it
+      hlEdit(hlPick>=0?hlPick:hlAdd('1'));
+    });
+    document.getElementById('hlnoteok').addEventListener('click',function(){
+      var i=parseInt(hlNote.dataset.i,10);
+      if(!isNaN(i)&&hlItems[i]){
+        hlItems[i].note=hlPad.value.trim();
+        hlSave(); hlPaint(); hlStatus();
+      }
+      hlEditClose();
+    });
+    document.getElementById('hlnotecancel').addEventListener('click',hlEditClose);
+    document.getElementById('hlnotedel').addEventListener('click',function(){
+      var i=parseInt(hlNote.dataset.i,10);
+      if(!isNaN(i)&&hlItems[i]){
+        hlItems.splice(i,1);
+        hlSave(); hlPaint(); hlStatus();
+      }
+      hlEditClose();
+    });
     [].slice.call(hlBar.querySelectorAll('[data-c]')).forEach(function(btn){
       btn.addEventListener('mousedown',function(e){ e.preventDefault(); });
       btn.addEventListener('click',function(){
@@ -855,7 +953,7 @@ SCRIPT = """
       // And a click on the page furniture is not a reading gesture -- it does
       // not always clear the selection, which would put the palette straight
       // back over the paper the moment the reader reached for a button.
-      var chrome=e.target.closest&&e.target.closest('#sidewrap,#notewrap,#panel,#ov');
+      var chrome=e.target.closest&&e.target.closest('#sidewrap,#notewrap,#panel,#ov,#hlnote');
       if(!hlOn||chrome){ hlHide(); return; }
       setTimeout(function(){
         if(!panel.hidden){ hlHide(); return; }
@@ -869,8 +967,12 @@ SCRIPT = """
         var onCard=e.target.closest&&e.target.closest('mark[data-id]');
         var i=onCard?-1:hlAt(e.clientX,e.clientY);
         if(i>=0&&hlOn){
+          var it=hlItems[i];
+          // a filed mark shows what it says; one still in the browser is
+          // still yours to change
+          if(it.src==='file'){ hlHide(); if(it.note) hlShowNote(it); return; }
           hlPick=i; hlDel.hidden=false;
-          hlPlace(hlItems[i].range.getBoundingClientRect());
+          hlPlace(it.range.getBoundingClientRect());
           return;
         }
         hlHide();
@@ -929,15 +1031,33 @@ SCRIPT = """
   // registered in <head>, so ours runs second.
   function hlInit(){
     if(HL_OK){
+      hlItems=[];
+      var filed={};
+      var tag=document.getElementById('pa-marks');
+      var fromFile=[];
+      if(tag){ try{ fromFile=JSON.parse(tag.textContent||'[]')||[]; }catch(e){ fromFile=[]; } }
+      fromFile.forEach(function(d){
+        var it={sec:d.s,file:d.f||'',exact:d.e,prefix:d.p||'',suffix:d.x||'',
+                color:d.c||'1',note:d.n||'',src:'file',id:d.id};
+        it.range=hlLocate(it);
+        filed[it.sec+'\\u0000'+it.exact]=true;
+        hlItems.push(it);
+      });
       var raw=null;
       try{ raw=localStorage.getItem(hlKey); }catch(e){}
       var data=[];
       if(raw){ try{ data=JSON.parse(raw)||[]; }catch(e){ data=[]; } }
-      hlItems=data.map(function(d){
-        var it={sec:d.s,exact:d.e,prefix:d.p||'',suffix:d.x||'',color:d.c||'1'};
+      var filedAny=false;
+      data.forEach(function(d){
+        // already written into notes/marks/ -- drop the browser's copy rather
+        // than paint the same sentence twice
+        if(filed[d.s+'\\u0000'+d.e]){ filedAny=true; return; }
+        var it={sec:d.s,file:d.f||'',exact:d.e,prefix:d.p||'',suffix:d.x||'',
+                color:d.c||'1',note:d.n||'',src:'local'};
         it.range=hlLocate(it);
-        return it;
+        hlItems.push(it);
       });
+      if(filedAny) hlSave();
       hlPaint();
     }
     hlStatus();
@@ -1118,6 +1238,63 @@ def tag_marks(body_html: str, cards) -> str:
     return _MARK_RE.sub(sub, body_html)
 
 
+def collect_marks(notes, paper_root):
+    """Read notes/marks/, check each quote against the paper, hand back JSON.
+
+    Checked here against the original sections rather than against annotated/,
+    because the annotated copy already has ==…== wrapped round the sentences
+    the cards point at -- matching there would fail for reasons that have
+    nothing to do with the mark.
+
+    Placement itself is left to the page: it resolves marks with the same
+    quote-plus-neighbours search it uses for the ones drawn in the browser, so
+    there is one locator, not two that can disagree. What is worth doing here
+    is saying loudly when a quote no longer matches, which the page cannot do.
+    """
+    problems = []
+    marks = paperkit.load_marks(notes, problems)
+    bad = [(path.name, message) for path, message in problems]
+    data, cache = [], {}
+
+    for mark in marks:
+        anchor = mark["meta"].get("anchor") or {}
+        rel = str(anchor.get("file") or "").strip()
+        quote = anchor.get("quote") or {}
+        exact = paperkit.normalize(str(quote.get("exact") or ""))
+        name = mark["path"].name
+
+        src = (paper_root / rel) if rel else None
+        if not src or not src.is_file():
+            bad.append((name, f"anchor.file 是「{rel or '空白'}」，原文裡沒有這個檔案"))
+            continue
+        if rel not in cache:
+            cache[rel] = src.read_text(encoding="utf-8").splitlines()
+        hits = paperkit.count_quote(cache[rel], exact)
+        # -1 means the quote is too short to count on its own; the page still
+        # places it, using the neighbouring text to choose between occurrences
+        if hits == 0:
+            bad.append((name, "引文在原文裡找不到，這條畫記不會出現"))
+            continue
+        if hits > 1:
+            bad.append((name, f"引文在原文裡出現 {hits} 次，無法確定要畫哪一處"))
+            continue
+
+        data.append(
+            {
+                "id": str(mark["meta"].get("id")),
+                "s": Path(rel).stem,
+                "f": rel,
+                "e": exact,
+                "p": paperkit.normalize(str(quote.get("prefix") or "")),
+                "x": paperkit.normalize(str(quote.get("suffix") or "")),
+                "c": paperkit.COLOR_SLOT.get(mark["color"], "1"),
+                "n": mark["note"],
+            }
+        )
+
+    return marks, data, bad
+
+
 def collect_questions(body_html: str):
     """Every question in the order it appears in the paper.
 
@@ -1193,9 +1370,17 @@ def build(work_root: Path, embed: bool = False) -> int:
             return anchor
 
         rendered, _ = minimd.render(text, heading_hook=hook)
-        body_parts.append(f'<section class="chunk" id="{rel.stem}">{rendered}</section>')
+        # data-src so a highlight drawn in the browser can name the file it
+        # belongs to, in the form a mark file has to write down
+        body_parts.append(
+            f'<section class="chunk" id="{rel.stem}" data-src="{rel.as_posix()}">'
+            f"{rendered}</section>"
+        )
 
     cards = paperkit.load_cards(notes)
+    marks, placed, mark_bad = collect_marks(notes, paper_root)
+    # "</" would end the script element early whatever it sits inside
+    mark_json = json.dumps(placed, ensure_ascii=False).replace("</", "<\\/")
     body_parts = [tag_marks(part, cards) for part in body_parts]
     # One pass over the whole page: a section often points at a figure that
     # lives in another section, so the target table must be complete first.
@@ -1227,8 +1412,6 @@ def build(work_root: Path, embed: bool = False) -> int:
     title = paper_root.name
     manifest = paper_root / "manifest.json"
     if manifest.is_file():
-        import json
-
         try:
             title = json.loads(manifest.read_text(encoding="utf-8")).get("title") or title
         except (ValueError, OSError):
@@ -1311,11 +1494,19 @@ def build(work_root: Path, embed: bool = False) -> int:
   <button id="noteclose">✕ 收起</button><span id="nstat"></span></div>
 </section>
 </div>
+<script id="pa-marks" type="application/json">{mark_json}</script>
+<section id="hlnote" hidden>
+  <div class="nhead">畫記註解 <span class="nhint">存在瀏覽器，複製後交給 agent 落檔</span></div>
+  <textarea id="hlnotepad" placeholder="這段為什麼重要？想到什麼？"></textarea>
+  <div class="nbar"><button id="hlnoteok">儲存</button><button id="hlnotedel">刪除畫記</button>
+  <button id="hlnotecancel">取消</button></div>
+</section>
 <div id="hlbar" hidden>
 <button data-c="1" title="黃色畫記" aria-label="黃色畫記"></button>
 <button data-c="2" title="綠色畫記" aria-label="綠色畫記"></button>
 <button data-c="3" title="藍色畫記" aria-label="藍色畫記"></button>
 <button data-c="4" title="紅色畫記" aria-label="紅色畫記"></button>
+<button id="hlnotebtn" title="寫註解" aria-label="寫註解">✎</button>
 <button id="hldel" title="清除這條畫記" aria-label="清除這條畫記" hidden>✕</button>
 </div>
 <div id="ov" hidden></div>
@@ -1335,6 +1526,11 @@ def build(work_root: Path, embed: bool = False) -> int:
     size = out.stat().st_size / 1024
     print(f"index.html  {len(sources)} 個章節、{len(cards)} 則疑問、{size:,.0f} KB")
     print(f"            演算法區塊 {len(algos)} 個、圖表交叉引用 {xrefs} 處已可點擊")
+    if marks:
+        noted = sum(1 for mark in marks if mark["note"])
+        print(f"            畫記 {len(marks)} 條：已定位 {len(placed)}、有註解 {noted}")
+    for name, why in mark_bad:
+        print(f"  🔴 畫記 {name}：{why}")
     if xref_missing:
         listed = "、".join(f"{k}×{v}" for k, v in sorted(xref_missing.items())[:6])
         print(f"  🟡 這些引用找不到對應的圖或表，維持純文字：{listed}")
