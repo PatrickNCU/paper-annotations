@@ -107,6 +107,13 @@ STYLE = """
 --sel:rgba(224,167,106,.26);
 --hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34)}
 *{box-sizing:border-box}
+/* The hidden attribute has to actually hide. It comes from the UA stylesheet,
+   and any author rule setting display beats it on cascade origin alone -- so
+   #hlbar{display:flex} and .pbar button{display:grid} were quietly keeping
+   their elements on screen however often the script set hidden=true. Nothing
+   showed up in testing either, because el.hidden reads back the property, not
+   what the page is painting. */
+[hidden]{display:none!important}
 /* The sentence a card is anchored to. Tinted, never the browser's
    default yellow-on-black, which ignores the palette entirely. */
 mark{background:var(--mark);color:inherit;padding:.05em .15em;border-radius:3px}
