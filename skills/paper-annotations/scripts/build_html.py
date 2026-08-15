@@ -88,16 +88,19 @@ STYLE = """
    (unless the reader forced light) or by an explicit data-theme="dark". */
 :root{--bg:#fbfaf7;--fg:#22201d;--muted:#6d685f;--line:#e4dfd5;--card:#f5f2ea;
 --sidebar:#f2efe8;--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;
---plate:#fff;--shadow:rgba(0,0,0,.05)}
+--plate:#fff;--shadow:rgba(0,0,0,.05);--mark:#f7e3a9}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
---plate:#e9e7e2;--shadow:rgba(0,0,0,.35)}}
+--plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f}}
 :root[data-theme="dark"]{
 --bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
---plate:#e9e7e2;--shadow:rgba(0,0,0,.35)}
+--plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f}
 *{box-sizing:border-box}
+/* The sentence a card is anchored to. Tinted, never the browser's
+   default yellow-on-black, which ignores the palette entirely. */
+mark{background:var(--mark);color:inherit;padding:.05em .15em;border-radius:3px}
 /* Colour changes ease across; layout and motion are left alone. Scoped to the
    surfaces that actually carry a palette colour rather than "*", so a 30000px
    page does not repaint every node. Nested text inherits the animating value,
@@ -105,7 +108,7 @@ STYLE = """
 @media(prefers-reduced-motion:no-preference){
 body,#side,#main,#side a,.controls button,.controls select,.controls input,
 .qcard,.qcard>summary,.banner,.meta,blockquote,pre,code,table,th,td,img,
-.footnotes,.fn-key,.dot,.qtext,a.qlink{
+.footnotes,.fn-key,.dot,.qtext,a.qlink,mark{
 transition:background-color .3s ease,color .3s ease,border-color .3s ease,
 box-shadow .3s ease,outline-color .3s ease}}
 body{margin:0;background:var(--bg);color:var(--fg);

@@ -19,7 +19,11 @@ python <scripts>/probe.py <paper> [--out <筆記路徑>] [--review <複習頁路
 python <scripts>/build_annotated.py <work>             # 改卡片後：重建 Markdown 檢視與索引
 python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
 python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
+python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
 ```
+
+`export_cards.py` 是唯讀的，給想拿卡片去 Anki 排程或自己處理的人用；預設寫到
+`notes/cards-export.txt`。這裡不做間隔複習演算法，只負責讓資料出得去。
 
 **`<work>` 是 `notes/` 所在的目錄**，不一定是論文目錄。預設版面：
 
@@ -110,6 +114,10 @@ anchor:
 沒有它，三個月後他會看不懂自己在問什麼。
 
 **`## 一句話直覺`**：讓複習時不必重讀整段解答。
+
+**引文會被標成高亮**：`quote.exact` 那句話在註記檢視與複習頁上會亮起來，等於「當初
+就是這句卡住」。所以引文要挑**真正讓使用者卡住的那一句**，不是隨便找一句夠獨特的來
+當定位標記。找不到或找到多處時不標——跟錨點同一條規則，不猜。
 
 **引文唯一性**：`anchor.quote.exact` 必須在該檔案中只出現一次。build 每次都會檢查，
 包括那些靠 `ref` 或 `heading` 已經掛好的卡。看到「🟡 引文提醒」就當場修掉，重新

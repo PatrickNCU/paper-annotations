@@ -73,6 +73,7 @@ def _extract(md: str, vault: _Vault):
 _IMG = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _FOOTREF = re.compile(r"\[\^([\w-]+)\]")
+_MARK = re.compile(r"==(?=\S)(.+?)(?<=\S)==")
 _BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
 _ITALIC = re.compile(r"(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])")
 
@@ -85,6 +86,7 @@ def _inline(text: str) -> str:
         lambda m: f'<sup class="fn"><a href="#fn-{m.group(1)}" id="fnref-{m.group(1)}">{m.group(1)}</a></sup>',
         text,
     )
+    text = _MARK.sub(lambda m: f"<mark>{m.group(1)}</mark>", text)
     text = _BOLD.sub(lambda m: f"<strong>{m.group(1)}</strong>", text)
     text = _ITALIC.sub(lambda m: f"<em>{m.group(1)}</em>", text)
     return text

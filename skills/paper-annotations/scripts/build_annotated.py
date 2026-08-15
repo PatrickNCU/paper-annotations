@@ -178,6 +178,11 @@ def build(work_root: Path, allow_drift: bool = False):
         # already computed against dst, so a rewrite of the merged text would
         # move it a second time. Anchoring still runs on the untouched lines.
         out = [paperkit.rewrite_links(line, src.parent, dst.parent) for line in lines]
+        # Marking runs before insertion: it never changes the line count, so the
+        # anchor indices resolved above still point where they did.
+        for _, _, card in insertions:
+            quote = (card["meta"].get("anchor") or {}).get("quote")
+            out = paperkit.highlight_quote(out, paperkit.quote_text(quote))
         for index, method, card in sorted(insertions, key=lambda x: -x[0]):
             block = render_card(card, dst).splitlines()
             out[index + 1 : index + 1] = [""] + block

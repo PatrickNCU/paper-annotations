@@ -334,6 +334,45 @@ def _find_quote(lines, quote):
     return None
 
 
+def highlight_quote(lines, exact: str):
+    """Wrap the anchored sentence in ==…== on the lines it covers.
+
+    The card already knows which sentence tripped the reader up; marking it
+    saves them re-reading the paragraph to find out where they were. Same
+    refuse-to-guess rule as anchoring: unknown or ambiguous means no mark.
+
+    ==…== rather than <mark>: the annotated Markdown stays portable (Obsidian
+    and friends render it) and minimd turns it into <mark> for the page.
+    """
+    if not exact:
+        return lines
+    haystack, spans = _norm_map(lines)
+    pos = haystack.find(exact)
+    if pos < 0 or haystack.find(exact, pos + 1) >= 0:
+        return lines
+    end = pos + len(exact)
+
+    out = list(lines)
+    for start, stop, idx in spans:
+        if stop <= pos or start >= end:
+            continue
+        fragment = haystack[max(start, pos) : min(stop, end)].strip()
+        if len(fragment) < 4:
+            continue
+        # Match back into the raw line, tolerating the whitespace normalize() ate.
+        pattern = r"\s+".join(re.escape(tok) for tok in fragment.split(" ") if tok)
+        hits = list(re.finditer(pattern, out[idx]))
+        if len(hits) != 1:
+            continue
+        head, body, tail = out[idx][: hits[0].start()], hits[0].group(0), out[idx][hits[0].end() :]
+        # Never cut into math, code or a link target -- and never nest marks,
+        # so a second card quoting the same line simply goes unmarked.
+        if any(ch in body for ch in "$`") or "](" in body or "==" in out[idx]:
+            continue
+        out[idx] = f"{head}=={body}=={tail}"
+    return out
+
+
 def quote_text(quote) -> str:
     if isinstance(quote, dict):
         return normalize(str(quote.get("exact") or ""))
