@@ -982,9 +982,10 @@ SCRIPT = """
     document.getElementById('hlnoteok').addEventListener('click',function(){
       var i=parseInt(hlNote.dataset.i,10);
       if(!isNaN(i)&&hlItems[i]){
-        var it=hlItems[i];
-        it.note=hlPad.value.trim();
-        if(it.src==='file'){ hlEditClose(); paMark(it,'update'); return; }
+        var it=hlItems[i], text=hlPad.value.trim();
+        // filed: let paMark apply it, so a failed write can put it back
+        if(it.src==='file'){ hlEditClose(); paMark(it,'update',{note:text}); return; }
+        it.note=text;
         hlSave(); hlPaint(); hlStatus();
       }
       hlEditClose();
@@ -1007,8 +1008,8 @@ SCRIPT = """
         // recolouring keeps the palette up, so a second try costs nothing
         if(hlPick<0){ hlAdd(c); return; }
         var it=hlItems[hlPick];
+        if(it.src==='file'){ hlHide(); paMark(it,'update',{color:c}); return; }
         it.color=c;
-        if(it.src==='file'){ hlHide(); paMark(it,'update'); return; }
         hlSave(); hlPaint();
       });
     });
@@ -1112,8 +1113,29 @@ SCRIPT = """
     // A filed mark has exactly one home, notes/marks/. Changing it from the
     // page means rewriting that file, so the page asks the server to do it and
     // then reloads onto the rebuilt result -- no second copy anywhere.
-    paMark=function(it,action){
+    // The server can go away while the page stays open -- closing its window is
+    // how you stop it. From then on the page must stop claiming it can write:
+    // hide the save button, put filed marks back to read-only, and say so once.
+    function paOffline(){
+      if(!paToken) return;
+      paToken='';
+      saveBtn.hidden=true;
+      hlSay('server 已經停了。畫記還留著，重新啟動後才能再存檔');
+    }
+    // The change is applied here rather than by the caller, so that a failed
+    // write can be put back. Showing a colour or a note that never reached the
+    // file is worse than refusing outright.
+    paMark=function(it,action,change){
       if(!paToken||!it.id) return;
+      var before={color:it.color,note:it.note};
+      if(change){
+        if('color' in change) it.color=change.color;
+        if('note' in change) it.note=change.note;
+      }
+      function undo(){
+        it.color=before.color; it.note=before.note;
+        hlPaint(); hlStatus();
+      }
       hlSay(action==='delete'?'刪除中…':'更新中…');
       fetch('/_pa/mark',{
         method:'POST',
@@ -1123,8 +1145,9 @@ SCRIPT = """
           note:it.note||''})
       }).then(function(r){ return r.json(); }).then(function(d){
         if(d.ok&&d.rebuilt){ location.reload(); return; }
+        undo();
         hlSay('失敗：'+(d.error||'重建沒有成功'));
-      }).catch(function(){ hlSay('失敗，server 可能停了'); });
+      }).catch(function(){ undo(); paOffline(); });
     };
     fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
       .then(function(r){ return r.ok?r.json():null; })
@@ -1153,7 +1176,7 @@ SCRIPT = """
         if(!d.written) hlSay('這些畫記已經存過了');
       }).catch(function(){
         saveBtn.disabled=false;
-        hlSay('存檔失敗，server 可能停了');
+        paOffline();
       });
     });
     document.getElementById('hlcopy').addEventListener('click',function(){
