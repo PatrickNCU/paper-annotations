@@ -67,9 +67,16 @@ background:var(--bg);color:var(--muted);font:inherit;font-size:13px;cursor:point
 .tfilter:hover{border-color:var(--accent);color:var(--accent)}
 .tfilter.on{background:var(--accent);border-color:var(--accent);color:var(--plate)}
 .tn{margin-left:6px;font-size:.86em;opacity:.75}
-.tsec{margin:0 0 30px}
-.th{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;
-color:var(--muted)}
+#tnew{padding:5px 12px;border:1px dashed var(--line);border-radius:14px;
+background:none;color:var(--muted);font:inherit;font-size:13px;cursor:pointer}
+#tnew:hover{border-color:var(--accent);color:var(--accent)}
+#tform{display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}
+#tname{flex:1 1 220px;padding:6px 11px;border:1px solid var(--line);border-radius:8px;
+background:var(--bg);color:var(--fg);font:inherit;font-size:14px}
+#tform button{padding:6px 14px;border:1px solid var(--line);border-radius:8px;
+background:var(--bg);color:var(--fg);font:inherit;font-size:13px;cursor:pointer}
+#tok{border-color:var(--accent);color:var(--accent)}
+.tmk{border-style:dashed !important}
 /* A topic the reader chose and one we guessed must not look the same. */
 .topics{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;padding-top:10px;
 border-top:1px dashed var(--line)}
@@ -153,12 +160,25 @@ JS = """
 
   // ---- 分類篩選 ---------------------------------------------------------
   var filters=[].slice.call(document.querySelectorAll('.tfilter'));
-  var secs=[].slice.call(document.querySelectorAll('.tsec'));
+  var allCards=[].slice.call(document.querySelectorAll('.paper'));
+  function has(card,topic){
+    var mine=(card.dataset.topics||'').split(' ').filter(Boolean);
+    if(topic==='_none') return mine.length===0;
+    return mine.indexOf(topic)>=0;
+  }
+  function applyFilter(want){
+    var shown=0;
+    allCards.forEach(function(c){
+      var ok = !want || has(c,want);
+      c.hidden=!ok;
+      if(ok) shown++;
+    });
+    document.getElementById('tempty').hidden = shown>0;
+  }
   filters.forEach(function(b){
     b.addEventListener('click',function(){
-      var want=b.dataset.topic;
       filters.forEach(function(x){ x.classList.toggle('on',x===b); });
-      secs.forEach(function(s){ s.hidden = !!want && s.dataset.topic!==want; });
+      applyFilter(b.dataset.topic);
     });
   });
 
@@ -172,17 +192,45 @@ JS = """
     var s=document.getElementById('stamp');
     if(s) s.textContent=msg;
   }
-  function post(slug,topic,action){
+  function post(body){
     return fetch('/_pa/topic',{
       method:'POST',
       headers:{'Content-Type':'application/json','X-PA-Token':token},
-      body:JSON.stringify({paper:slug,topic:topic,action:action})
+      body:JSON.stringify(body)
     }).then(function(r){ return r.json(); }).then(function(d){
       if(d.error){ say('沒改成：'+d.error); return; }
       location.reload();
     }).catch(function(){ say('沒改成，server 可能停了'); });
   }
+
+  // A category the reader invents ("已讀過") is not a topic of the paper at
+  // all, and that is fine -- the shelf is his, not the literature's. Defining
+  // one from the page beats hand-editing papers.yml for the one case where he
+  // knows exactly what he wants and it does not exist yet.
+  var form=document.getElementById('tform');
+  var nameBox=document.getElementById('tname');
+  var pendingFor=null;   // set when the new category should also be assigned
+  function openForm(slug){
+    pendingFor=slug||null;
+    form.hidden=false;
+    nameBox.value='';
+    nameBox.focus();
+  }
+  function submitForm(){
+    var name=(nameBox.value||'').trim();
+    if(!name){ say('分類名稱不能空白'); return; }
+    var body={action:'define',name:name};
+    if(pendingFor){ body.paper=pendingFor; }
+    post(body);
+  }
+  document.getElementById('tok').addEventListener('click',submitForm);
+  nameBox.addEventListener('keydown',function(e){ if(e.key==='Enter') submitForm(); });
+  document.getElementById('tcancel').addEventListener('click',function(){
+    form.hidden=true; pendingFor=null;
+  });
   function wire(){
+    document.getElementById('tnew').hidden=false;
+    document.getElementById('tnew').addEventListener('click',function(){ openForm(null); });
     [].slice.call(document.querySelectorAll('.tadd')).forEach(function(b){
       b.hidden=false;
       b.addEventListener('click',function(){
@@ -193,16 +241,19 @@ JS = """
         var left=Object.keys(VOCAB).filter(function(t){ return have.indexOf(t)<0; });
         var box=document.createElement('div');
         box.className='tpick';
-        if(!left.length){
-          box.textContent='已經在全部分類裡了。要新增分類請改 papers.yml 的 topics。';
-        } else {
-          left.forEach(function(t){
-            var x=document.createElement('button');
-            x.textContent=VOCAB[t];
-            x.addEventListener('click',function(){ post(card.dataset.slug,t,'add'); });
-            box.appendChild(x);
+        left.forEach(function(t){
+          var x=document.createElement('button');
+          x.textContent=VOCAB[t];
+          x.addEventListener('click',function(){
+            post({paper:card.dataset.slug,topic:t,action:'add'});
           });
-        }
+          box.appendChild(x);
+        });
+        var mk=document.createElement('button');
+        mk.className='tmk';
+        mk.textContent='＋ 自訂新分類';
+        mk.addEventListener('click',function(){ openForm(card.dataset.slug); });
+        box.appendChild(mk);
         b.parentNode.appendChild(box);
       });
     });
@@ -210,7 +261,7 @@ JS = """
       c.title='從這個分類移除';
       c.addEventListener('click',function(){
         var card=c.closest('.paper');
-        post(card.dataset.slug,c.dataset.topic,'remove');
+        post({paper:card.dataset.slug,topic:c.dataset.topic,action:'remove'});
       });
     });
   }
@@ -302,44 +353,34 @@ def render(registry: Path) -> str:
             "</div></div>"
         )
 
-    # Sections in vocabulary order, then whatever is filed nowhere. A paper in
-    # three topics is rendered three times -- that is the point of the layout,
-    # and the chip filter is what stops it becoming a wall once the shelf grows.
-    groups, loose = [], []
-    for slug, name in vocab.items():
-        members = [p for p in papers if slug in p["topics"] + p["topics_auto"]]
-        if members:
-            groups.append((slug, name, members))
-    loose = [p for p in papers if not (p["topics"] + p["topics_auto"])]
+    # One card per paper, filtered rather than duplicated. A paper's several
+    # topics all show on its own card; the bar decides which papers are listed.
+    # Duplicating a paper into one section per topic was the other reading of
+    # "show them all", and it turns a shelf of 50 papers into 150 cards.
+    counts = {
+        slug: sum(1 for p in papers if slug in p["topics"] + p["topics_auto"])
+        for slug in vocab
+    }
+    loose = sum(1 for p in papers if not (p["topics"] + p["topics_auto"]))
 
-    bar = ['<button class="tfilter on" data-topic="">全部</button>']
+    bar = [f'<button class="tfilter on" data-topic="">全部<span class="tn">{len(papers)}</span></button>']
     bar += [
         f'<button class="tfilter" data-topic="{esc(slug)}">{esc(name)}'
-        f'<span class="tn">{len(members)}</span></button>'
-        for slug, name, members in groups
+        f'<span class="tn">{counts[slug]}</span></button>'
+        for slug, name in vocab.items()
+        if counts[slug]
     ]
     if loose:
         bar.append(
             f'<button class="tfilter" data-topic="_none">未分類'
-            f'<span class="tn">{len(loose)}</span></button>'
+            f'<span class="tn">{loose}</span></button>'
         )
+    bar.append('<button id="tnew" hidden>＋ 新增分類</button>')
 
-    sections = [
-        f'<section class="tsec" data-topic="{esc(slug)}">'
-        f'<h2 class="th">{esc(name)}<span class="tn">{len(members)}</span></h2>'
-        + "".join(cards[p["slug"]] for p in members)
-        + "</section>"
-        for slug, name, members in groups
-    ]
-    if loose:
-        sections.append(
-            '<section class="tsec" data-topic="_none">'
-            '<h2 class="th">未分類<span class="tn">' + str(len(loose)) + "</span></h2>"
-            + "".join(cards[p["slug"]] for p in loose)
-            + "</section>"
-        )
-    if not sections:
-        sections = ['<div class="qempty">登記簿裡還沒有論文。</div>']
+    listing = (
+        "".join(cards[p["slug"]] for p in papers)
+        or '<div class="qempty">登記簿裡還沒有論文。</div>'
+    )
 
     cite_html = ""
     if edges:
@@ -377,7 +418,10 @@ def render(registry: Path) -> str:
 <code>python &lt;scripts&gt;/serve.py --library</code>
 </div>
 <div class="tbar">{''.join(bar)}</div>
-{''.join(sections)}
+<div id="tform" hidden><input id="tname" type="text" placeholder="分類名稱，例如「已讀過」" maxlength="40">
+<button id="tok">建立</button><button id="tcancel">取消</button></div>
+<div id="tlist">{listing}</div>
+<div id="tempty" hidden class="qempty">這個分類底下還沒有論文。</div>
 {cite_html}
 <div class="note">
 論文連結只有在 <code>serve.py --library</code> 跑著時才打得開——每篇論文掛在自己的

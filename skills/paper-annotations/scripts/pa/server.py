@@ -416,25 +416,39 @@ class Handler(SimpleHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._json(400, {"error": "bad payload"})
             return
-        paper = self._paper(payload.get("paper"))
-        if paper is None:
-            self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
-            return
         action = str(payload.get("action") or "")
-        if action not in ("add", "remove"):
-            self._json(400, {"error": "action 只能是 add 或 remove"})
+        if action not in ("add", "remove", "define"):
+            self._json(400, {"error": "action 只能是 add、remove 或 define"})
             return
 
+        # define may arrive without a paper (just add it to the vocabulary) or
+        # with one (define it and file this paper under it in one go).
+        paper = None
+        if action != "define" or payload.get("paper"):
+            paper = self._paper(payload.get("paper"))
+            if paper is None:
+                self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
+                return
+
         with self.lock:
-            ok, why = library.set_topic(
-                self.registry, paper["slug"], str(payload.get("topic") or ""),
-                action == "add",
-            )
+            topic = str(payload.get("topic") or "")
+            if action == "define":
+                topic, why = library.define_topic(self.registry, payload.get("name"))
+                if not topic:
+                    self._json(400, {"error": why})
+                    return
+            if paper is not None and action != "remove":
+                ok, why = library.set_topic(self.registry, paper["slug"], topic, True)
+            elif paper is not None:
+                ok, why = library.set_topic(self.registry, paper["slug"], topic, False)
+            else:
+                ok, why = True, ""
             if not ok:
                 self._json(400, {"error": why})
                 return
             rebuilt, log = self._rebuild_shelf()
-        self._json(200, {"ok": True, "note": why, "rebuilt": rebuilt, "log": log})
+        self._json(200, {"ok": True, "topic": topic, "note": why,
+                         "rebuilt": rebuilt, "log": log})
 
     def _rebuild_shelf(self):
         run = subprocess.run(

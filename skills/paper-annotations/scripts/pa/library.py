@@ -236,6 +236,38 @@ def vocabulary(registry_path):
     return {str(k): str(v or k) for k, v in raw.items()}
 
 
+def topic_slug(name: str) -> str:
+    """A stable key for a display name.
+
+    ASCII names get the usual lowercase-and-dash treatment; anything else --
+    "已讀過" -- keeps its own characters, because transliterating it would give
+    a key nobody could recognise in the file they are meant to hand-edit.
+    """
+    text = str(name or "").strip()
+    ascii_form = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return ascii_form or re.sub(r"\s+", "-", text)
+
+
+def define_topic(registry_path: Path, name: str):
+    """Add a category to the vocabulary. Returns (slug, message)."""
+    text = str(name or "").strip()
+    if not text:
+        return "", "分類名稱不能空白"
+    slug = topic_slug(text)
+    if not slug:
+        return "", "這個名稱轉不出可用的代號"
+    data = load_registry(registry_path)
+    vocab = data.get("topics")
+    if not isinstance(vocab, dict):
+        vocab = {}
+    if slug in vocab:
+        return slug, "這個分類已經有了"
+    vocab[slug] = text
+    data["topics"] = vocab
+    save_registry(registry_path, data)
+    return slug, ""
+
+
 def set_topic(registry_path: Path, slug: str, topic: str, add: bool):
     """Add or remove one topic for one paper. Returns (ok, message).
 
