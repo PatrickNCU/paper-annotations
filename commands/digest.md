@@ -1,5 +1,5 @@
 ---
-description: 把疑問卡和原文合成一份可以直接讀的整理
+description: 把疑問卡和原文合成一份整理，產出公式可讀的網頁
 argument-hint: "[論文或筆記資料夾] [review-sheet|theme-map|prerequisites|connections]"
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion, Skill, Write
 ---
@@ -27,8 +27,11 @@ $ARGUMENTS
 5. **寫**。輸出位置、frontmatter 與開頭的免責句都照 `references/digests.md`。
    寫不出來的部分就說沒有，不要為了填滿版面硬湊。
 
-6. **回報**：檔案路徑、用了哪個模式、涵蓋哪幾張卡，以及**這份整理不是冪等的**——
-   同一天重跑會覆蓋，重跑也不會得到一樣的文字。
+6. **跑 `build_digest.py`** 產生同名的 `.html`。這一步不可略過。
+
+7. **回報**：**`.html` 的路徑**（那才是他要開的檔案，公式已渲染好）、用了哪個模式、
+   涵蓋哪幾張卡，以及**這份整理不是冪等的**——同一天重跑會覆蓋，重跑也不會得到
+   一樣的文字。`.md` 是可編輯的來源，改完重跑 `build_digest.py`。
 
 完成條件：整理裡的每一條判斷都指得出是哪張卡或哪一節，而且使用者知道這份檔案是
 AI 產物、真實來源仍是卡片與原文。

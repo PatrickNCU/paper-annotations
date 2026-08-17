@@ -92,6 +92,13 @@ frontmatter 的 `cards` 之外多列一個 `papers:`，寫出這份整理涉及�
 寫到 `notes/digests/<模式>-<日期>.md`，例如 `notes/digests/theme-map-2026-08-15.md`。
 放在 `notes/` 底下但**不是** `notes/cards/`，build 不會碰它。
 
+**接著跑 `build_digest.py <work>`**，它會在旁邊產生同名的 `.html`：同一份樣式、同一份
+離線 KaTeX，公式直接渲染。**回報給使用者的是 `.html` 的路徑**——整理裡多半有公式，
+`$\lambda$` 在文字編輯器裡讀不了，而且不能假設他裝了 Markdown 編輯器。
+
+`.md` 仍是可編輯的來源，`.html` 是衍生檔，改完重跑一次就好。KaTeX 內嵌讓每份約 650 KB，
+這是換取「離線、不必裝任何東西就打得開」的代價，跟複習頁同一個取捨。
+
 ```yaml
 ---
 kind: digest

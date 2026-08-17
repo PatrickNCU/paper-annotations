@@ -19,6 +19,7 @@ python <scripts>/probe.py <paper> [--out <筆記路徑>] [--review <複習頁路
 python <scripts>/build_annotated.py <work>             # 改卡片後：重建 Markdown 檢視與索引
 python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
 python <scripts>/library.py [<起點>] [--json]          # 讀過哪些論文、疑問與要點、互相引用
+python <scripts>/build_digest.py <work> [--only <前綴>] # 把整理的 .md 渲染成可直接開的 .html
 python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
 python <scripts>/import_marks.py <work> --from <檔>   # 複習頁「複製畫記」的輸出
@@ -265,9 +266,13 @@ anchor:
 
 ## 整理
 
-使用者要一份「把疑問和原文合起來的整理」時，由你自己撰寫，不是跑腳本。三種模式
-（回顧單／主題聚合／前提盤點）、出處規則與輸出位置見
+使用者要一份「把疑問和原文合起來的整理」時，由你自己撰寫，不是跑腳本。四種模式
+（回顧單／主題聚合／前提盤點／接線）、出處規則與輸出位置見
 [references/digests.md](references/digests.md)。整理是額外產物，不是真實來源。
+
+**寫完一定要跑 `build_digest.py`**，把 `.md` 渲染成同名的 `.html`，並且**回報 `.html`
+的路徑**——那才是使用者要開的檔案。整理裡多半有公式，`$\lambda$` 在文字編輯器裡讀不了，
+而且不能假設使用者裝了 Markdown 編輯器。`.md` 仍然是可編輯的來源，改完重跑即可。
 
 ## 邊界
 
