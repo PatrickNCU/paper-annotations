@@ -1,6 +1,6 @@
-"""Re-attach cards after the source text was re-converted or re-split.
+"""Re-attach cards and points after the source text was re-converted or re-split.
 
-Only rewrites a card when its quote matches EXACTLY ONE place in the whole
+Only rewrites a note when its quote matches EXACTLY ONE place in the whole
 paper. Ambiguous and missing quotes are reported for a human decision -- papers
 repeat sentences constantly, and a plausible-but-wrong re-anchor is worse than
 an obviously broken one.
@@ -33,33 +33,23 @@ def enclosing_headings(lines, index: int):
     return [stack[k] for k in sorted(stack)]
 
 
-def main(argv):
-    args = cli.positionals(argv)
-    dry_run = "--dry-run" in argv
-    work_root = Path(args[0] if args else ".").resolve()
-    config, paper_root, notes_dir, _ = workspace.load_workspace(work_root)
-    config_path = notes_dir / "paper.yml"
-
-    source_list = sources.discover_sources(paper_root)
-    texts = {rel: (paper_root / rel).read_text(encoding="utf-8").splitlines() for rel in source_list}
-
-    card_problems = []
-    cards = notes.load_cards(notes_dir, card_problems)
-    fixed, ok, ambiguous, lost = [], [], [], []
-
-    for card in cards:
-        anchor = card["meta"].get("anchor") or {}
+def reattach(items, texts, no_quote_reason: str, dry_run: bool):
+    """Run the single-hit rule over a batch of notes. Same rule for every kind:
+    a quote that matches exactly one place is moved, anything else is reported."""
+    ok, fixed, ambiguous, lost = [], [], [], []
+    for item in items:
+        anchor = item["meta"].get("anchor") or {}
         declared = Path(str(anchor.get("file") or ""))
         if declared in texts:
             index, _ = anchors.resolve_anchor(anchor, texts[declared])
             if index is not None:
-                ok.append(card)
+                ok.append(item)
                 continue
 
         quote = anchor.get("quote") or {}
         exact = anchors.normalize(str(quote.get("exact") or "")) if isinstance(quote, dict) else ""
         if len(exact) < 12:
-            lost.append((card, "這張卡沒有指定要掛在哪一句原文旁，無法自動找回"))
+            lost.append((item, no_quote_reason))
             continue
 
         hits = []
@@ -79,15 +69,50 @@ def main(argv):
                 probe_anchor = {"ref": anchor["ref"]}
                 if anchors.resolve_anchor(probe_anchor, texts[rel])[0] is None:
                     anchor.pop("ref")
-            card["meta"]["anchor"] = anchor
-            card["meta"]["updated"] = date.today().isoformat()
-            fixed.append((card, rel))
+            item["meta"]["anchor"] = anchor
+            item["meta"]["updated"] = date.today().isoformat()
+            fixed.append((item, rel))
             if not dry_run:
-                notes.write_doc(card["path"], card["meta"], card["body"])
+                notes.write_doc(item["path"], item["meta"], item["body"])
         elif hits:
-            ambiguous.append((card, hits))
+            ambiguous.append((item, hits))
         else:
-            lost.append((card, "目前的原文裡找不到你指定的那句話"))
+            lost.append((item, "目前的原文裡找不到你指定的那句話"))
+    return ok, fixed, ambiguous, lost
+
+
+def report(label: str, counter: str, items, ok, fixed, ambiguous, lost) -> None:
+    print(f"{label} {len(items)} {counter}：仍正確 {len(ok)}、自動修復 {len(fixed)}、"
+          f"多重命中 {len(ambiguous)}、找不到 {len(lost)}")
+    for item, rel in fixed:
+        print(f"  ✅ {item['meta'].get('id')} → {rel.as_posix()}")
+    for item, hits in ambiguous:
+        print(f"  ❓ {item['meta'].get('id')} 命中 {len(hits)} 處，需人工裁決：")
+        for rel, idx in hits:
+            print(f"       {rel.as_posix()}:{idx + 1}")
+    for item, reason in lost:
+        print(f"  ⚠️  {item['meta'].get('id')} — {reason}")
+
+
+def main(argv):
+    args = cli.positionals(argv)
+    dry_run = "--dry-run" in argv
+    work_root = Path(args[0] if args else ".").resolve()
+    config, paper_root, notes_dir, _ = workspace.load_workspace(work_root)
+    config_path = notes_dir / "paper.yml"
+
+    source_list = sources.discover_sources(paper_root)
+    texts = {rel: (paper_root / rel).read_text(encoding="utf-8").splitlines() for rel in source_list}
+
+    card_problems = []
+    cards = notes.load_cards(notes_dir, card_problems)
+    points = notes.load_points(notes_dir, card_problems)
+    ok, fixed, ambiguous, lost = reattach(
+        cards, texts, "這張卡沒有指定要掛在哪一句原文旁，無法自動找回", dry_run
+    )
+    p_ok, p_fixed, p_ambiguous, p_lost = reattach(
+        points, texts, "這則要點沒有可比對的引文，無法自動找回", dry_run
+    )
 
     for path, message in card_problems:
         print(f"  ⚠️  {path.name} — {message}")
@@ -101,6 +126,10 @@ def main(argv):
             print(f"       {rel.as_posix()}:{idx + 1}")
     for card, reason in lost:
         print(f"  ⚠️  Q{card['meta'].get('id')} — {reason}")
+    if points:
+        report("要點", "則", points, p_ok, p_fixed, p_ambiguous, p_lost)
+    ambiguous = ambiguous + p_ambiguous
+    lost = lost + p_lost
 
     if dry_run:
         print("\n（--dry-run：沒有寫入任何檔案）")

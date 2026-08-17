@@ -1,7 +1,14 @@
-"""Cards and marks: frontmatter documents under notes/.
+"""Cards, marks and points: frontmatter documents under notes/.
 
 A card the user wrote must never disappear without a word -- every loader here
 reports what it could not use instead of skipping it in silence.
+
+Three kinds, deliberately not folded together (see docs/adr/0002):
+  cards  -- the reader's questions. What the review page counts.
+  marks  -- passages the reader highlighted. His decision, never ours.
+  points -- the paper's skeleton, written by the agent. The unit that
+            cross-paper comparison works on, because papers contradict each
+            other about claims, not about someone's questions.
 """
 
 from __future__ import annotations
@@ -19,16 +26,38 @@ VALID_ORIGIN = ("asked", "suggested")
 VALID_COLOR = ("yellow", "green", "blue", "red")
 COLOR_SLOT = {"yellow": "1", "green": "2", "blue": "3", "red": "4"}
 
+# What a point can be. Closed on purpose: an open vocabulary would drift into
+# a hundred near-synonyms across papers and stop being comparable, which is
+# the only reason points exist.
+VALID_KIND = ("claim", "method", "assumption", "definition", "result", "limitation")
+KIND_LABEL = {
+    "claim": "主張",
+    "method": "方法",
+    "assumption": "假設",
+    "definition": "定義",
+    "result": "結果",
+    "limitation": "限制",
+}
+# Points are normally the agent's reading, not the reader's; "user" exists so a
+# point he dictates is not mislabelled as ours.
+VALID_POINT_ORIGIN = ("agent", "user")
+
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
+
+
+def read_doc_text(text: str):
+    """Split already-loaded text into (meta, body). Callers that hold the text
+    for another reason should not have to read the file a second time."""
+    match = FRONTMATTER_RE.match(text)
+    if not match:
+        return {}, text
+    meta = miniyaml.load(match.group(1))
+    return (meta if isinstance(meta, dict) else {}), text[match.end() :]
 
 
 def read_doc(path: Path):
     """Return (meta, body) for a markdown file with YAML frontmatter."""
-    text = path.read_text(encoding="utf-8")
-    match = FRONTMATTER_RE.match(text)
-    if not match:
-        return {}, text
-    return miniyaml.load(match.group(1)), text[match.end() :]
+    return read_doc_text(path.read_text(encoding="utf-8"))
 
 
 def write_doc(path: Path, meta: dict, body: str) -> None:
@@ -145,6 +174,76 @@ def load_marks(notes_dir: Path, problems=None):
     return marks
 
 
+def load_points(notes_dir: Path, problems=None):
+    """Load the paper's skeleton: claims, methods, assumptions, results.
+
+    These are the agent's reading rather than the reader's, so the bar for
+    keeping one is higher, not lower -- a point whose kind or text is unusable
+    is dropped and reported, because a wrong claim filed under the paper's name
+    is worse than no claim at all.
+    """
+    points = []
+    points_dir = notes_dir / "points"
+    if not points_dir.is_dir():
+        return points
+
+    def complain(path, message):
+        if problems is not None:
+            problems.append((path, message))
+
+    for path in sorted(points_dir.glob("*.md")):
+        meta, body = read_doc(path)
+        if not isinstance(meta, dict) or not meta:
+            complain(path, "檔案開頭讀不到 --- YAML 區塊，這則要點沒有被使用")
+            continue
+        meta.setdefault("id", path.stem.split("-")[0])
+
+        anchor = meta.get("anchor")
+        if not isinstance(anchor, dict):
+            complain(path, "沒有 anchor 欄位，不知道要掛在哪一段")
+            continue
+        quote = anchor.get("quote")
+        if not isinstance(quote, dict) or not str(quote.get("exact") or "").strip():
+            complain(path, "anchor.quote.exact 是空的，沒有可以比對的原文")
+            continue
+
+        kind = str(meta.get("kind") or "")
+        if kind not in VALID_KIND:
+            complain(path, f"kind 是「{kind or '(空的)'}」，只能是 {' / '.join(VALID_KIND)}")
+            continue
+        origin = str(meta.get("origin") or "agent")
+        if origin not in VALID_POINT_ORIGIN:
+            complain(path, f"origin 是「{origin}」，只能是 {' / '.join(VALID_POINT_ORIGIN)}")
+            origin = "agent"
+
+        text = " ".join(body.split())
+        if not text:
+            complain(path, "內文是空的，要點至少要有一句話")
+            continue
+
+        # body is kept alongside the flattened text so reanchor.py can rewrite
+        # the file without reconstructing what the author actually typed
+        points.append(
+            {
+                "path": path,
+                "meta": meta,
+                "kind": kind,
+                "origin": origin,
+                "text": text,
+                "body": body,
+            }
+        )
+
+    seen = {}
+    for point in points:
+        pid = str(point["meta"].get("id"))
+        if pid in seen:
+            complain(point["path"], f"編號 {pid} 和 {seen[pid].name} 重複")
+        else:
+            seen[pid] = point["path"]
+    return points
+
+
 def card_sections(body: str):
     """Split a card body on '## ' headings into {heading: text}."""
     sections, current, buf = {}, None, []
@@ -164,6 +263,7 @@ def card_sections(body: str):
 # import for the one normalize() they use alongside.
 __all__ = [
     "VALID_STATUS", "VALID_ORIGIN", "VALID_COLOR", "COLOR_SLOT",
-    "FRONTMATTER_RE", "read_doc", "write_doc", "load_cards", "load_marks",
-    "card_sections", "normalize",
+    "VALID_KIND", "KIND_LABEL", "VALID_POINT_ORIGIN",
+    "FRONTMATTER_RE", "read_doc", "read_doc_text", "write_doc", "load_cards", "load_marks",
+    "load_points", "card_sections", "normalize",
 ]

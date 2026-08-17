@@ -8,6 +8,11 @@
   // A highlight is its card's footprint in the text, so it follows the card:
   // hide the card and the mark goes with it, leaving the sentence untouched.
   var marks=[].slice.call(document.querySelectorAll('mark[data-id]'));
+  // Points are filtered on their own switch, never by 狀態: they have no
+  // status, and "不顯示疑問" is about questions. The button only exists on a
+  // page that has some, hence the null guard everywhere it is touched.
+  var points=[].slice.call(document.querySelectorAll('.pnote'));
+  var showPt=document.getElementById('showpt');
 
   var themeBtn=document.getElementById('theme');
   var modes=[['system','🌗 跟隨系統'],['light','☀️ 淺色'],['dark','🌙 深色']];
@@ -69,9 +74,18 @@
     marks.forEach(function(k){
       k.classList.toggle('off', shown[k.dataset.id]===false);
     });
+    if(points.length){
+      var wantPt=!showPt||showPt.classList.contains('on');
+      points.forEach(function(p){
+        var ok=wantPt;
+        if(ok&&term&&p.textContent.toLowerCase().indexOf(term)<0) ok=false;
+        p.classList.toggle('hidden',!ok);
+      });
+    }
     if(current&&shown[current]===false) closeCard();
   }
   showAI.addEventListener('click',function(){ showAI.classList.toggle('on'); apply(); });
+  if(showPt) showPt.addEventListener('click',function(){ showPt.classList.toggle('on'); apply(); });
   filter.addEventListener('change',apply);
   search.addEventListener('input',apply);
 

@@ -18,6 +18,7 @@ description: 讀論文時把使用者的疑問就地註記回原文，累積成�
 python <scripts>/probe.py <paper> [--out <筆記路徑>] [--review <複習頁路徑>]
 python <scripts>/build_annotated.py <work>             # 改卡片後：重建 Markdown 檢視與索引
 python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
+python <scripts>/library.py [<起點>] [--json]          # 讀過哪些論文、疑問與要點、互相引用
 python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
 python <scripts>/import_marks.py <work> --from <檔>   # 複習頁「複製畫記」的輸出
@@ -31,11 +32,14 @@ python <scripts>/build_html.py <work> --embed-assets --to <檔>   # 寄給別人
 **`<work>` 是 `notes/` 所在的目錄**，不一定是論文目錄。預設版面：
 
 ```
+papers.yml              ← 論文登記簿，放 git repo 根目錄
 論文資料夾/
   論文.pdf
   論文_md/              ← 轉檔套件（原文唯讀）
     sections/ INDEX.md images/
-    notes/              ← 疑問卡，唯一真實來源
+    notes/              ← 唯一真實來源
+      cards/ marks/ points/
+      catalog.json references.json   ← 產生物，給跨論文用
   annotated/index.html  ← 複習頁，跟套件同一層
 ```
 
@@ -54,20 +58,26 @@ build 時依實際位置算出來的，手動搬移會全部斷掉。改位置�
 
 ## 何時動作
 
+- **接觸任何一篇論文之前** → 先跑 `library.py`，知道他讀過什麼（見下節）
 - 使用者問了關於論文內容的問題 → 回答，然後起草一張卡
 - 使用者說「重建 / 更新筆記」→ build
 - 使用者換了一版原文轉檔 → reanchor，再 build
 
 ## 閱讀回合的流程
 
+0. **先看他讀過什麼**：跑 `library.py`。這是每個回合的第一件事，不是只有第一次。
+   新 session 的你對這個人的閱讀史一無所知，而跨論文的關聯正是他要的東西——
+   `library.py` 印出每篇的疑問、要點與互相引用，一次就補齊。
 1. **首次接觸一份論文**：跑 `probe.py`，把 Tier 告訴使用者。只有 PDF 時它會印出
    轉檔指引；Tier B/C 時說明升到 Tier A 能多拿到什麼、要花多少時間，讓他自己決定。
-   細節見 [references/tiers.md](references/tiers.md)。
-2. **回答問題**：遵守論文套件根目錄自己的 `AGENTS.md` 閱讀政策（通常是先讀
-   `INDEX.md`、只讀 1–3 個 chunk）。
-3. **起草卡片**：見下一節。
-4. **回合結尾**：列出本回合新增的卡片標題，讓使用者當場否決。他不表態就是保留。
-5. **執行 build**（先 `build_annotated.py` 再 `build_html.py`），把警告回報給使用者。
+   細節見 [references/tiers.md](references/tiers.md)。probe 會登記這篇論文，並報出
+   它和他讀過的哪幾篇互相引用——**引用關係要主動講**，那是他最想知道的第一件事。
+2. **開卷一次**：新論文第一次讀，做一趟結構化掃描抽出要點。見「要點」那節。
+3. **回答問題**：遵守論文套件根目錄自己的 `AGENTS.md` 閱讀政策（通常是先讀
+   `INDEX.md`、只讀 1–3 個 chunk）。讀到的 chunk 裡若有值得留的要點，**順手記下來**。
+4. **起草卡片**：見下一節。
+5. **回合結尾**：列出本回合新增的卡片標題**與要點**，讓使用者當場否決。他不表態就是保留。
+6. **執行 build**（先 `build_annotated.py` 再 `build_html.py`），把警告回報給使用者。
    他正在讀而且還沒開 server，順帶提一次 `/paper-annotations:serve`：畫記可以直接存檔，
    不必再經過複製貼上。
 
@@ -185,6 +195,74 @@ anchor:
 **畫記不是卡片**：沒有 status、不進疑問清單、不算進「疑問 N 則」。使用者只是把一段
 標起來加一句話，就用畫記；他提出的是一個需要回答的問題，才建卡。
 
+## 要點
+
+卡片來自使用者的困惑，畫記來自他的手；兩者都沒發生的地方，這套系統就是瞎的。而**跨論文
+的關係恰恰長在他沒卡住的地方**——兩篇論文會不會矛盾，矛盾的是主張，不是誰的疑問。要點就是
+補這個洞：論文的骨架，由你寫，用來和其他論文對照。設計理由見
+[docs/adr/0002](../../docs/adr/0002-points-are-a-third-note-type.md)。
+
+檔案 `notes/points/NNNN-slug.md`：
+
+```yaml
+---
+id: "0001"
+created: 2026-08-17
+kind: claim | method | assumption | definition | result | limitation
+origin: agent | user            # agent = 你讀出來的（預設）
+tags: [local-density, 兩篇對照]
+anchor:
+  file: sections/S130-....md
+  heading: ["Contributions and Paper Organization"]   # 選填，只當標籤
+  quote:                        # 必填，而且是唯一的定位方式
+    prefix: |-
+    exact: |-
+    suffix: |-
+---
+一句話，就一句。
+```
+
+**要點只靠引文定位**，不走卡片的 `ref → heading → quote` 階梯。卡片講的是論證裡的一個
+位置，掛在小節開頭沒問題；要點轉述的是**特定那一句**，掛到半頁之外就會變成對錯誤的文字
+說錯誤的話。`heading` 純粹是索引上的標籤。
+
+### 怎麼取得
+
+兩條並用，缺一不可：
+
+**開卷一次**：新論文第一次讀時，掃摘要、引言、結論、各節標題，以及明確標了貢獻的段落。
+**不要讀全文**——論文的主張本來就寫在這幾個地方，成本有界。一篇期刊論文抽 5～12 則就夠，
+寧可少而準。
+
+**順手記**：之後每次為了回答問題讀某個 chunk，同時記下那個 chunk 裡值得留的要點。零額外
+閱讀成本，覆蓋率跟著他讀的深度長。
+
+### 護欄
+
+要點是你主動產生的，所以最大的風險不是寫錯，是**寫太多**。量一失控，使用者會關掉整個功能
+而不是修它。
+
+- **每回合結尾列出新增的要點讓他當場否決**，跟卡片一樣。他不表態就是保留。
+- 開卷那趟有上限。抽不到好的就少抽，不要湊數。
+- 要點是**論文說的**，不是你的評論。你的推論寫進卡片或整理，不要混進要點。
+- 一則一句話。需要三句才講得完的，多半是兩則，或者其實是一張卡。
+
+**要點不是卡片也不是畫記**：沒有 status、不進疑問清單、不算進「疑問 N 則」。使用者提出
+需要回答的問題 → 卡片；他自己標起一段 → 畫記；**論文自己主張了什麼 → 要點**。
+
+## 跨論文
+
+`library.py` 是你看見「不只這一篇」的唯一途徑。它讀 `papers.yml`（登記簿，在 git repo
+根目錄）與每篇的 `notes/catalog.json`（build 產生的卡片與要點目錄），印出全部論文的疑問、
+要點，以及**互相引用的關係**。
+
+引用關係是機械判定的：`probe.py` 把參考文獻抽進 `notes/references.json`，比對在讀取時
+才做，所以今天新增一篇論文，上個月處理的那篇的引用關係會自動跟著更新。它**不需要判斷**，
+所以可以直接當事實講給使用者聽——包括引用出現在哪一節、當下那句話怎麼說的。
+
+有判斷成分的關係（共識、矛盾、同一概念的不同講法）由你寫成整理，見下一節的 `connections`
+模式。不要把判斷寫進 `references.json` 或 `catalog.json`，那兩個是產生物。
+
 ## 整理
 
 使用者要一份「把疑問和原文合起來的整理」時，由你自己撰寫，不是跑腳本。三種模式
@@ -194,8 +272,9 @@ anchor:
 ## 邊界
 
 - 原文只讀不寫。有話要說就寫成卡片。
-- `annotated/`（含 `index.html`）與 `notes/QUESTIONS.md` 由 build 產生。要改內容
-  改 `notes/cards/`、`notes/marks/` 後重建。
+- `annotated/`（含 `index.html`）、`notes/QUESTIONS.md`、`notes/catalog.json` 由 build
+  產生；`notes/references.json` 與 `papers.yml` 由 probe 產生。要改內容改
+  `notes/cards/`、`notes/marks/`、`notes/points/` 後重建。
 - 使用者的複習介面是 `annotated/index.html`；Markdown 版是給你和 git 用的。
 
 ## 沒有 Python 時

@@ -1,0 +1,559 @@
+"""The library: which papers this reader has read, and how they connect.
+
+Everything else in this tool works inside one paper. This module is the only
+part that knows more than one exists. Without it a fresh session has no way to
+learn that the reader has been here before -- which is why cross-paper work was
+impossible, not merely unimplemented.
+
+Three pieces, in order of how much they can be trusted:
+
+  * ``papers.yml`` -- the registry. Lives at the git repository root so it
+    travels with version control instead of sitting in a home directory a
+    second machine never sees. Hand-editable; probe.py keeps it up to date.
+  * ``notes/catalog.json`` -- one per paper, written by the build. Every card
+    and point in a few hundred bytes, so a cross-paper reader can scan the
+    whole library without opening dozens of markdown files.
+  * ``notes/references.json`` -- one per paper, the reference list as printed.
+    Matching it against the registry happens **at read time**, never at write
+    time: adding a paper today should light up the citations in a paper
+    processed last month, without re-running anything.
+
+Citation edges are mechanical -- either two titles agree or they do not, and
+nothing here guesses. Edges of judgement (this contradicts that) are the
+agent's job and belong in a digest.
+
+Usage:
+    python library.py [<work>] [--json]
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from datetime import date
+from pathlib import Path
+
+from . import cli, miniyaml, notes
+
+cli.bootstrap()
+
+REGISTRY_NAME = "papers.yml"
+REGISTRY_SCHEMA = 1
+CATALOG_NAME = "catalog.json"
+REFS_NAME = "references.json"
+
+# "[12] A. Author et al., “Title,” in Proc. …, 2015, pp. 1-6."
+REF_LINE = re.compile(r"^\[(\d+)\]\s+(.+)$")
+REF_TITLE = re.compile("[“\"]([^”\"]{8,})[”\"]")
+YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+# --------------------------------------------------------------------------
+# the registry
+# --------------------------------------------------------------------------
+
+
+def _ancestors(start: Path):
+    start = start.resolve()
+    yield start
+    for parent in start.parents:
+        yield parent
+
+
+def find_registry(start: Path):
+    """An existing papers.yml at or above `start`, or None."""
+    for base in _ancestors(start):
+        candidate = base / REGISTRY_NAME
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def registry_home(start: Path) -> Path:
+    """Where papers.yml belongs when there is not one yet.
+
+    The git repository root, by the reader's decision: the registry should be
+    versioned alongside the notes rather than live in a home directory, so a
+    clone on another machine arrives with the library intact. Never the home
+    directory itself and never a drive root -- a file that far up would collect
+    papers from unrelated work.
+    """
+    found = find_registry(start)
+    if found is not None:
+        return found
+    home = Path.home().resolve()
+    for base in _ancestors(start):
+        if base == home or base == base.parent:
+            break
+        if (base / ".git").exists():
+            return base / REGISTRY_NAME
+    return start.resolve() / REGISTRY_NAME
+
+
+def load_registry(path):
+    empty = {"schema": REGISTRY_SCHEMA, "papers": {}}
+    if path is None or not Path(path).is_file():
+        return empty
+    try:
+        data = miniyaml.load(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return empty
+    if not isinstance(data, dict):
+        return empty
+    papers = data.get("papers")
+    data["papers"] = papers if isinstance(papers, dict) else {}
+    data.setdefault("schema", REGISTRY_SCHEMA)
+    return data
+
+
+def save_registry(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# 論文登記簿：paper-annotations 靠它知道你讀過哪些論文。\n"
+        "# probe.py 會自動登記；可以手改。路徑相對於這個檔案，所以整包 clone 到\n"
+        "# 另一台機器仍然成立。\n"
+        + miniyaml.dump(data)
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def paper_name(paper_root: Path) -> str:
+    """The paper's name without the conversion package's suffix."""
+    name = paper_root.name
+    for suffix in ("_md", "-md"):
+        if name.lower().endswith(suffix):
+            return name[: -len(suffix)] or name
+    return name
+
+
+def _store_path(registry_path: Path, target: Path) -> str:
+    """Relative to the registry when possible -- that is what makes it portable."""
+    try:
+        return target.resolve().relative_to(registry_path.parent.resolve()).as_posix()
+    except ValueError:
+        return target.resolve().as_posix()
+
+
+def _resolve_path(registry_path: Path, stored: str) -> Path:
+    path = Path(stored)
+    return path if path.is_absolute() else (registry_path.parent / path).resolve()
+
+
+def paper_title(paper_root: Path):
+    """(title, year) from manifest.json, falling back to the folder name."""
+    manifest = paper_root / "manifest.json"
+    if manifest.is_file():
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            year = data.get("year")
+            return (
+                str(data.get("title") or paper_name(paper_root)),
+                int(year) if isinstance(year, int) else None,
+            )
+        except (ValueError, OSError, TypeError):
+            pass
+    return paper_name(paper_root), None
+
+
+def register(work_root: Path, paper_root: Path, config: dict):
+    """Add or refresh this paper's entry. Returns (registry_path, slug)."""
+    path = registry_home(work_root)
+    data = load_registry(path)
+    papers = data["papers"]
+    stored = _store_path(path, work_root)
+
+    # Match on the stored path, not the name: re-probing a paper must update
+    # its entry rather than pile up a second one beside it.
+    slug = ""
+    for key, entry in papers.items():
+        if isinstance(entry, dict) and str(entry.get("work") or "") == stored:
+            slug = key
+            break
+    if not slug:
+        base = re.sub(r"[^a-z0-9]+", "-", paper_name(paper_root).lower()).strip("-") or "paper"
+        slug, n = base, 2
+        while slug in papers:
+            slug, n = f"{base}-{n}", n + 1
+
+    title, year = paper_title(paper_root)
+    previous = papers.get(slug) if isinstance(papers.get(slug), dict) else {}
+    papers[slug] = {
+        "work": stored,
+        "title": title,
+        "year": year,
+        "tier": config.get("tier"),
+        "added": previous.get("added") or date.today().isoformat(),
+    }
+    data["schema"] = REGISTRY_SCHEMA
+    save_registry(path, data)
+    return path, slug
+
+
+def entries(registry_path):
+    """Every registered paper, paths resolved, dead entries flagged not dropped."""
+    if registry_path is None:
+        return []
+    out = []
+    for slug, entry in (load_registry(registry_path).get("papers") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        work = _resolve_path(registry_path, str(entry.get("work") or ""))
+        out.append(
+            {
+                "slug": slug,
+                "work": work,
+                "title": str(entry.get("title") or slug),
+                "year": entry.get("year"),
+                "tier": entry.get("tier"),
+                "added": entry.get("added"),
+                # A folder the reader moved is a fact worth saying out loud,
+                # not a row to quietly omit.
+                "alive": (work / "notes" / "paper.yml").is_file(),
+            }
+        )
+    return out
+
+
+# --------------------------------------------------------------------------
+# per-paper catalog
+# --------------------------------------------------------------------------
+
+
+def _question_of(card) -> str:
+    sections = notes.card_sections(card["body"])
+    text = sections.get("問題") or sections.get("Question") or ""
+    return " ".join(text.split()) or "(未填問題)"
+
+
+def _where_of(meta) -> str:
+    anchor = meta.get("anchor") or {}
+    heading = anchor.get("heading") or []
+    if isinstance(heading, list) and heading:
+        return str(heading[-1])
+    return Path(str(anchor.get("file") or "")).stem
+
+
+def write_catalog(notes_dir: Path, paper_root: Path, config: dict, cards, points) -> Path:
+    """A scannable index of one paper's notes, for cross-paper readers.
+
+    Generated, never authoritative: notes/cards/ and notes/points/ remain the
+    only sources of truth. It exists so that answering "what has he already
+    wondered about?" costs one small file per paper instead of hundreds.
+    """
+    title, year = paper_title(paper_root)
+    catalog = {
+        "schema": 1,
+        "paper": paper_name(paper_root),
+        "title": title,
+        "year": year,
+        "tier": config.get("tier"),
+        "generated": date.today().isoformat(),
+        "cards": [
+            {
+                "id": str(card["meta"].get("id")),
+                "status": str(card["meta"].get("status", "open")),
+                "origin": str(card["meta"].get("origin", "asked")),
+                "tags": [str(t) for t in (card["meta"].get("tags") or [])],
+                "question": _question_of(card),
+                "where": _where_of(card["meta"]),
+            }
+            for card in cards
+        ],
+        "points": [
+            {
+                "id": str(point["meta"].get("id")),
+                "kind": point["kind"],
+                "origin": point["origin"],
+                "tags": [str(t) for t in (point["meta"].get("tags") or [])],
+                "text": point["text"],
+                "where": _where_of(point["meta"]),
+            }
+            for point in points
+        ],
+    }
+    path = notes_dir / CATALOG_NAME
+    path.write_text(
+        json.dumps(catalog, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return path
+
+
+def _read_json(path: Path):
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return None
+
+
+def read_catalog(work_root: Path):
+    return _read_json(work_root / "notes" / CATALOG_NAME)
+
+
+# --------------------------------------------------------------------------
+# references
+# --------------------------------------------------------------------------
+
+
+def _is_reference_file(rel: Path, text: str) -> bool:
+    if "reference" in rel.name.lower():
+        return True
+    meta, body = notes.read_doc_text(text)
+    types = meta.get("content_type") or []
+    if isinstance(types, list) and any("reference" in str(t).lower() for t in types):
+        return True
+    return bool(re.search(r"^#{1,6}\s*references\b", body, re.I | re.M))
+
+
+def extract_references(paper_root: Path, source_list):
+    """The reference list exactly as printed -- no matching, no interpretation.
+
+    Kept raw on purpose: the registry it would be matched against changes every
+    time another paper is added, so a match recorded here would be stale the
+    moment it was useful.
+    """
+    refs = []
+    for rel in source_list:
+        path = paper_root / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if not _is_reference_file(rel, text):
+            continue
+        for line in text.splitlines():
+            match = REF_LINE.match(line.strip())
+            if not match:
+                continue
+            body = match.group(2).strip()
+            found = REF_TITLE.search(body)
+            years = YEAR.findall(body)
+            refs.append(
+                {
+                    "n": int(match.group(1)),
+                    "title": found.group(1).strip().rstrip(",.;") if found else "",
+                    "year": int(years[-1]) if years else None,
+                    "text": " ".join(body.split()),
+                }
+            )
+    refs.sort(key=lambda r: r["n"])
+    return refs
+
+
+def write_references(notes_dir: Path, refs) -> Path:
+    path = notes_dir / REFS_NAME
+    path.write_text(
+        json.dumps({"schema": 1, "references": refs}, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return path
+
+
+def read_references(work_root: Path):
+    data = _read_json(work_root / "notes" / REFS_NAME)
+    if not isinstance(data, dict):
+        return []
+    refs = data.get("references")
+    return refs if isinstance(refs, list) else []
+
+
+def _norm_title(text) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(text or "").lower())
+
+
+def titles_match(a, b) -> bool:
+    """Same paper, by title. Containment, never a fuzzy score.
+
+    A citation keeps or drops a subtitle depending on the venue's house style,
+    so exact equality alone misses real matches. Containment with a floor is
+    the smallest relaxation that stays a fact: twenty-four characters of exact
+    agreement between two paper titles is not a coincidence. Anything looser
+    would start inventing edges, and a wrong edge is worse than a missing one.
+    """
+    first, second = _norm_title(a), _norm_title(b)
+    if not first or not second:
+        return False
+    if first == second:
+        return True
+    short, long = sorted((first, second), key=len)
+    return len(short) >= 24 and short in long
+
+
+def citation_context(paper_root: Path, source_list, number: int, limit: int = 2):
+    """Where in the body a reference number is actually used.
+
+    The sentence around a citation usually describes the relationship better
+    than anything inferred afterwards -- "we adopt the … of [29] but replace …"
+    simply says it.
+    """
+    pattern = re.compile(r"\[%d\]" % number)
+    hits = []
+    for rel in source_list:
+        path = paper_root / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if _is_reference_file(rel, text):
+            continue
+        for line in text.splitlines():
+            match = pattern.search(line)
+            if not match:
+                continue
+            # A window around the citation, not the head of the paragraph: the
+            # useful sentence is the one containing the bracket, and a long
+            # paragraph would otherwise be truncated before reaching it.
+            flat = " ".join(line.split())
+            at = flat.find(match.group(0))
+            start = max(0, at - 110)
+            end = min(len(flat), at + 130)
+            hits.append(
+                {
+                    "file": rel.as_posix(),
+                    "text": ("…" if start else "") + flat[start:end] + ("…" if end < len(flat) else ""),
+                }
+            )
+            if len(hits) >= limit:
+                return hits
+    return hits
+
+
+def citation_edges(papers):
+    """Which registered paper cites which, matched on title at read time.
+
+    `papers` is the output of entries(); each gets "cites", a list of
+    {slug, n, title} naming the other registered papers it references.
+    """
+    edges = []
+    for paper in papers:
+        if not paper["alive"]:
+            continue
+        refs = read_references(paper["work"])
+        for ref in refs:
+            if not isinstance(ref, dict) or not ref.get("title"):
+                continue
+            for other in papers:
+                if other["slug"] == paper["slug"]:
+                    continue
+                if titles_match(ref["title"], other["title"]):
+                    edges.append(
+                        {
+                            "from": paper["slug"],
+                            "to": other["slug"],
+                            "n": ref.get("n"),
+                            "title": ref.get("title"),
+                        }
+                    )
+    return edges
+
+
+# --------------------------------------------------------------------------
+# the view an agent reads at the start of a session
+# --------------------------------------------------------------------------
+
+
+def survey(start: Path):
+    registry = find_registry(start)
+    papers = entries(registry)
+    for paper in papers:
+        paper["catalog"] = read_catalog(paper["work"]) if paper["alive"] else None
+    return registry, papers, citation_edges(papers)
+
+
+def _counts(catalog):
+    tally = {"open": 0, "half": 0, "resolved": 0}
+    for card in (catalog or {}).get("cards") or []:
+        key = str(card.get("status") or "open")
+        tally[key] = tally.get(key, 0) + 1
+    return tally
+
+
+def main(argv):
+    args = cli.positionals(argv)
+    start = Path(args[0] if args else ".").resolve()
+    registry, papers, edges = survey(start)
+
+    if "--json" in argv:
+        print(
+            json.dumps(
+                {
+                    "registry": str(registry) if registry else None,
+                    "papers": [
+                        {k: (str(v) if isinstance(v, Path) else v) for k, v in p.items()}
+                        for p in papers
+                    ],
+                    "citations": edges,
+                },
+                ensure_ascii=False,
+                indent=1,
+            )
+        )
+        return 0
+
+    if registry is None:
+        print(f"還沒有論文登記簿。從 {start} 往上找不到 {REGISTRY_NAME}。")
+        print(f"對任何一篇論文執行 probe.py 就會建立一份（預設放在 {registry_home(start)}）。")
+        return 0
+
+    print(f"論文庫  {registry}  共 {len(papers)} 篇")
+    for paper in papers:
+        if not paper["alive"]:
+            print(f"\n⚠️  {paper['slug']} — 登記的位置找不到筆記：{paper['work']}")
+            print("     資料夾可能搬走了。改 papers.yml 裡的 work，或重跑 probe.py。")
+            continue
+        catalog = paper["catalog"]
+        head = f"\n{paper['slug']}  {paper['title']}"
+        bits = [b for b in (f"Tier {paper['tier']}" if paper["tier"] else "",
+                            str(paper["year"] or "")) if b]
+        print(head)
+        print(f"  {' · '.join(bits + [str(paper['work'])])}")
+        if catalog is None:
+            print("  （還沒有 catalog.json，跑一次 build_annotated.py 就會產生）")
+            continue
+        tally = _counts(catalog)
+        cards = catalog.get("cards") or []
+        points = catalog.get("points") or []
+        print(
+            f"  疑問 {len(cards)} 則（未解決 {tally.get('open', 0)} ·"
+            f" 半懂 {tally.get('half', 0)} · 已解決 {tally.get('resolved', 0)}）"
+            f" · 要點 {len(points)} 則"
+        )
+        for card in cards:
+            flag = " 💡" if card.get("origin") == "suggested" else ""
+            tags = ", ".join(card.get("tags") or [])
+            print(
+                f"    Q{card.get('id')}{flag} [{card.get('status')}] {card.get('question')}"
+                + (f"  ({tags})" if tags else "")
+            )
+        for point in points:
+            label = notes.KIND_LABEL.get(point.get("kind"), point.get("kind"))
+            print(f"    ·{label} {point.get('text')}")
+
+    print("\n引用關係（由參考文獻標題比對，機械判定）")
+    if not edges:
+        print("  這些論文之間沒有互相引用，或參考文獻還沒抽出來。")
+    for edge in edges:
+        print(f"  {edge['from']} [{edge['n']}] → {edge['to']}")
+        source = next((p for p in papers if p["slug"] == edge["from"]), None)
+        if source is None:
+            continue
+        config_path = source["work"] / "notes" / "paper.yml"
+        try:
+            config = miniyaml.load(config_path.read_text(encoding="utf-8"))
+            paper_root = (source["work"] / str(config.get("paper_root") or ".")).resolve()
+            source_list = [Path(p) for p in (config.get("sources") or [])]
+        except (OSError, ValueError):
+            continue
+        for hit in citation_context(paper_root, source_list, int(edge["n"])):
+            print(f"      {hit['file']}")
+            print(f"      「{hit['text']}」")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

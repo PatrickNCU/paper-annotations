@@ -84,6 +84,12 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
         )
 
     cards = notes.load_cards(notes_dir)
+    points = notes.load_points(notes_dir)
+    # No points, no button: a paper that never had any renders exactly the page
+    # it rendered before this feature existed.
+    point_toggle = (
+        '\n    <button id="showpt" class="on">論文要點</button>' if points else ""
+    )
     marks, placed, mark_bad, mark_soft = transforms.collect_marks(notes_dir, paper_root)
     # "</" would end the script element early whatever it sits inside
     mark_json = json.dumps(placed, ensure_ascii=False).replace("</", "<\\/")
@@ -153,7 +159,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
       <option value="resolved">已解決</option>
       <option value="none">不顯示疑問</option>
     </select>
-    <button id="showai" class="on">AI 提示卡</button>
+    <button id="showai" class="on">AI 提示卡</button>{point_toggle}
   </div>
   <div class="controls"><input id="q" type="search" placeholder="搜尋疑問內容…"></div>
   <h2>螢光筆</h2>
@@ -234,6 +240,8 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     size = out.stat().st_size / 1024
     print(f"{out.name}  {len(source_list)} 個章節、{len(cards)} 則疑問、{size:,.0f} KB")
     print(f"            演算法區塊 {len(algos)} 個、圖表交叉引用 {xrefs} 處已可點擊")
+    if points:
+        print(f"            要點 {len(points)} 則（側欄可一鍵隱藏）")
     if marks:
         noted = sum(1 for mark in marks if mark["note"])
         print(f"            畫記 {len(marks)} 條：已定位 {len(placed)}、有註解 {noted}")

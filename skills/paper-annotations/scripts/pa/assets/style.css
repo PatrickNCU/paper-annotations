@@ -139,6 +139,16 @@ border-left:3px solid var(--line);background:var(--sec-answer)}
 .csec-answer{background:var(--sec-answer);border-left-color:var(--line)}
 .csec-key{background:var(--sec-key);border-left-color:var(--done)}
 .csec-key .csec-t{color:var(--done)}
+/* A point restates the paper's own skeleton, so unlike a question it can be
+   read in place without spoiling anything -- which is why it shows and a card
+   does not. It still has to lose every contest for attention with the reader's
+   own highlights: no fill, one hairline, muted type. */
+.pnote{margin:14px 0;padding:1px 0 1px 12px;border-left:2px solid var(--line);
+color:var(--muted);font-size:.93em}
+.pnote.hidden{display:none}
+.pnote p{margin:3px 0}
+.pnote sub{font-size:11.5px;color:var(--muted)}
+.pk{font-size:.82em;letter-spacing:.06em;color:var(--accent)}
 /* Colour changes ease across; layout and motion are left alone. Scoped to the
    surfaces that actually carry a palette colour rather than "*", so a 30000px
    page does not repaint every node. Nested text inherits the animating value,
@@ -146,7 +156,7 @@ border-left:3px solid var(--line);background:var(--sec-answer)}
 @media(prefers-reduced-motion:no-preference){
 body,#side,#main,#side a,.controls button,.controls select,.controls input,
 .qcard,.qcard>summary,.banner,.meta,blockquote,pre,code,table,th,td,img,
-.footnotes,.fn-key,.dot,.qtext,a.qlink,mark,.csec,.csec-t,.algo,.algo-t{
+.footnotes,.fn-key,.dot,.qtext,a.qlink,mark,.csec,.csec-t,.algo,.algo-t,.pnote,.pk{
 transition:background-color .3s ease,color .3s ease,border-color .3s ease,
 box-shadow .3s ease,outline-color .3s ease}}
 body{margin:0;background:var(--bg);color:var(--fg);

@@ -17,7 +17,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import cli, links, miniyaml, notes, sources, workspace
+from . import cli, library, links, miniyaml, notes, sources, workspace
 
 cli.bootstrap()
 
@@ -182,6 +182,7 @@ def main(argv):
     notes_dir = work_root / "notes"
     notes_dir.mkdir(exist_ok=True)
     (notes_dir / "cards").mkdir(exist_ok=True)
+    (notes_dir / "points").mkdir(exist_ok=True)
     out_path = notes_dir / "paper.yml"
     out_path.write_text(
         "# 由 probe.py 產生；可手改，但 build 仍會對實際內容重新驗證。\n"
@@ -190,6 +191,14 @@ def main(argv):
         encoding="utf-8",
         newline="\n",
     )
+
+    # The reference list is pulled out now and matched later: which other
+    # papers it names depends on the registry, and the registry grows every
+    # time another paper is probed. Recording a match here would be stale by
+    # the time it mattered.
+    refs = library.extract_references(paper_root, [Path(p) for p in config["sources"]])
+    library.write_references(notes_dir, refs)
+    registry_path, slug = library.register(work_root, paper_root, config)
 
     caps = config["capabilities"]
     # "Tier" means nothing to someone meeting this tool for the first time,
@@ -220,6 +229,24 @@ def main(argv):
     print(f"複習頁會產生在 {annotated_root / 'index.html'}")
     if work_root != paper_root:
         print(f"之後的 build / reanchor 請傳 {work_root}，不是論文路徑。")
+
+    print(f"登記簿       {registry_path}（登記為 {slug}）")
+    print(f"參考文獻     抽出 {len(refs)} 筆 → {notes_dir / library.REFS_NAME}")
+    everyone = library.entries(registry_path)
+    edges = library.citation_edges(everyone)
+    named = {p["slug"]: p["title"] for p in everyone}
+    out_edges = [e for e in edges if e["from"] == slug]
+    in_edges = [e for e in edges if e["to"] == slug]
+    if out_edges:
+        print("  這篇引用了你讀過的：")
+        for edge in out_edges:
+            print(f"    [{edge['n']}] {named.get(edge['to'], edge['to'])}")
+    if in_edges:
+        print("  你讀過的這幾篇引用了它：")
+        for edge in in_edges:
+            print(f"    {named.get(edge['from'], edge['from'])} [{edge['n']}]")
+    if len(everyone) > 1 and not out_edges and not in_edges:
+        print("  和你讀過的其他論文之間沒有互相引用。")
 
     # Writing into a directory that already holds someone's own Markdown would
     # look like we ate it; the build also prunes stale .md there.
