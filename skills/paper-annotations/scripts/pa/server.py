@@ -402,7 +402,11 @@ class Handler(SimpleHTTPRequestHandler):
         self._json(200, {"ok": True, "id": wanted, "grade": grade, "schedule": state})
 
     def _topic(self):
-        """Put one paper into a topic, or take it out of one.
+        """Everything the shelf can do to a category.
+
+        Filing a paper under one (add / remove) and maintaining the categories
+        themselves (define / color / undefine) go through one endpoint because
+        they share the same two guarantees and the same rebuild.
 
         Both the paper and the topic are names checked against things that
         already exist -- the registry's papers and its declared vocabulary --
@@ -417,8 +421,26 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(400, {"error": "bad payload"})
             return
         action = str(payload.get("action") or "")
-        if action not in ("add", "remove", "define"):
-            self._json(400, {"error": "action 只能是 add、remove 或 define"})
+        if action not in ("add", "remove", "define", "color", "undefine"):
+            self._json(400, {"error": "action 只能是 add、remove、define、color 或 undefine"})
+            return
+
+        # Neither of these is about a paper: they change the category itself.
+        if action in ("color", "undefine"):
+            with self.lock:
+                topic = str(payload.get("topic") or "")
+                if action == "color":
+                    ok, why = library.set_topic_color(
+                        self.registry, topic, payload.get("color")
+                    )
+                else:
+                    ok, why = library.undefine_topic(self.registry, topic)
+                if not ok:
+                    self._json(400, {"error": why})
+                    return
+                rebuilt, log = self._rebuild_shelf()
+            self._json(200, {"ok": True, "topic": topic,
+                             "rebuilt": rebuilt, "log": log})
             return
 
         # define may arrive without a paper (just add it to the vocabulary) or
@@ -433,7 +455,9 @@ class Handler(SimpleHTTPRequestHandler):
         with self.lock:
             topic = str(payload.get("topic") or "")
             if action == "define":
-                topic, why = library.define_topic(self.registry, payload.get("name"))
+                topic, why = library.define_topic(
+                    self.registry, payload.get("name"), payload.get("color")
+                )
                 if not topic:
                     self._json(400, {"error": why})
                     return

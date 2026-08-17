@@ -46,6 +46,10 @@ REFS_NAME = "references.json"
 # "Index Terms—Analytic placement, electrostatic analogy, …"
 INDEX_TERMS = re.compile(r"^Index Terms\s*[—\-–:]\s*(.+)$", re.M)
 
+# A topic's colour, if it has one. Six digits only: the shelf hands this
+# straight to CSS, so anything it cannot parse would silently do nothing.
+COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
 # "[12] A. Author et al., “Title,” in Proc. …, 2015, pp. 1-6."
 REF_LINE = re.compile(r"^\[(\d+)\]\s+(.+)$")
 REF_TITLE = re.compile("[“\"]([^”\"]{8,})[”\"]")
@@ -116,6 +120,7 @@ DEFAULT_HEADER = (
     "# 另一台機器仍然成立。\n"
     "#\n"
     "# topics 是分類的詞彙表，先定義才能使用（避免 3D-IC 和 3d-ic 變成兩個分類）。\n"
+    "# topic_colors 是各分類的顏色（#rrggbb），沒寫的就用預設樣式。\n"
     "# 每篇論文底下：topics 是你自己定的、topics_auto 是 AI 建議的、\n"
     "# topics_off 是你移除過的（AI 不會再建議）。\n"
 )
@@ -248,7 +253,7 @@ def topic_slug(name: str) -> str:
     return ascii_form or re.sub(r"\s+", "-", text)
 
 
-def define_topic(registry_path: Path, name: str):
+def define_topic(registry_path: Path, name: str, color: str = ""):
     """Add a category to the vocabulary. Returns (slug, message)."""
     text = str(name or "").strip()
     if not text:
@@ -256,16 +261,106 @@ def define_topic(registry_path: Path, name: str):
     slug = topic_slug(text)
     if not slug:
         return "", "這個名稱轉不出可用的代號"
+    tint = str(color or "").strip().lower()
+    if tint and not COLOR.match(tint):
+        return "", "顏色要寫成 #rrggbb"
     data = load_registry(registry_path)
     vocab = data.get("topics")
     if not isinstance(vocab, dict):
         vocab = {}
-    if slug in vocab:
-        return slug, "這個分類已經有了"
-    vocab[slug] = text
+    already = slug in vocab
+    vocab[slug] = vocab.get(slug, text)
     data["topics"] = vocab
+    # Only when one was actually asked for: an existing category being defined
+    # again must not silently lose the colour it already has.
+    if tint:
+        _paint(data, slug, tint)
     save_registry(registry_path, data)
-    return slug, ""
+    return slug, ("這個分類已經有了" if already else "")
+
+
+def topic_colors(registry_path):
+    """slug -> #rrggbb, for the categories that have been given one.
+
+    A separate table rather than a field inside `topics`, so the vocabulary
+    stays the one-line-per-category list it is meant to be read as, and a
+    registry written before colours existed keeps loading unchanged.
+    """
+    data = load_registry(registry_path)
+    raw = data.get("topic_colors")
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(k): str(v).lower()
+        for k, v in raw.items()
+        if COLOR.match(str(v or ""))
+    }
+
+
+def _paint(data: dict, topic: str, color) -> bool:
+    """Set or clear one topic's colour inside an already-loaded registry."""
+    text = str(color or "").strip().lower()
+    if text and not COLOR.match(text):
+        return False
+    table = data.get("topic_colors")
+    if not isinstance(table, dict):
+        table = {}
+    if text:
+        table[topic] = text
+    else:
+        table.pop(topic, None)
+    if table:
+        data["topic_colors"] = table
+    else:
+        data.pop("topic_colors", None)
+    return True
+
+
+def set_topic_color(registry_path: Path, topic: str, color):
+    """Give a category its own colour, or ("") put it back to the default."""
+    if topic not in vocabulary(registry_path):
+        return False, f"分類 {topic} 還沒有定義"
+    if str(color or "").strip() and not COLOR.match(str(color).strip().lower()):
+        return False, "顏色要寫成 #rrggbb"
+    data = load_registry(registry_path)
+    _paint(data, topic, color)
+    save_registry(registry_path, data)
+    return True, ""
+
+
+def undefine_topic(registry_path: Path, topic: str):
+    """Delete a category outright. Returns (ok, message).
+
+    Refused while any paper is still filed under it: emptying it first is one
+    extra click, and it makes deletion incapable of losing anything. Also
+    clears the topic out of every topics_off, because a name nobody has heard
+    of should not go on suppressing a future suggestion of the same name.
+    """
+    data = load_registry(registry_path)
+    vocab = data.get("topics")
+    if not isinstance(vocab, dict) or topic not in vocab:
+        return False, f"沒有這個分類：{topic}"
+    users = [
+        slug
+        for slug, entry in (data.get("papers") or {}).items()
+        if isinstance(entry, dict)
+        and topic in (topics_of(entry)[0] + topics_of(entry)[1])
+    ]
+    if users:
+        return False, f"還有 {len(users)} 篇論文在這個分類裡，先把它們移出去才能刪"
+    vocab.pop(topic)
+    data["topics"] = vocab
+    _paint(data, topic, "")
+    for entry in (data.get("papers") or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        left = [t for t in topics_of(entry)[2] if t != topic]
+        if left:
+            entry["topics_off"] = left
+        else:
+            entry.pop("topics_off", None)
+    save_registry(registry_path, data)
+    return True, ""
 
 
 def set_topic(registry_path: Path, slug: str, topic: str, add: bool):
