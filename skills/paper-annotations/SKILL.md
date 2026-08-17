@@ -3,116 +3,130 @@ name: paper-annotations
 description: 讀論文時把使用者的疑問就地註記回原文，累積成可複習的筆記與單頁 HTML。使用時機：使用者問論文內容、要求記下疑問、要更新或複習既有的論文筆記、手上有 PDF 或 Markdown 論文要開始讀。
 ---
 
-# 論文疑問註記
+# Paper annotations
 
-使用者讀論文時卡住的地方，做成**疑問卡**掛回原文對應位置，供日後複習。
+Where the reader got stuck becomes a **question card**, anchored back onto the
+spot that caused it, for later review.
 
-原文唯讀。卡片是唯一真實來源，`annotated/` 與 `notes/QUESTIONS.md` 都可重新生成。
+Speak to the user in **Traditional Chinese**. Chinese strings quoted below are
+literal — file headings, on-screen buttons, filenames, build warnings. Reproduce
+exactly; never translate them.
 
-## 指令
+Source text is read-only. Cards are the only source of truth; `annotated/` and
+`notes/QUESTIONS.md` are regenerable.
 
-`<scripts>` 代表本 skill 的 `scripts/` 目錄；`<paper>` 是論文 Markdown 套件的根目錄
-（含 `sections/`、`INDEX.md` 的那一層，或單一 `.md` 所在目錄）。
+## Commands
+
+`<scripts>` = this skill's `scripts/`. `<paper>` = root of the paper's Markdown
+package (the level with `sections/` + `INDEX.md`, or the dir holding a single
+`.md`). **`<work>` = the dir containing `notes/`**, not necessarily the paper dir.
 
 ```bash
-python <scripts>/probe.py <paper> [--out <筆記路徑>] [--review <複習頁路徑>]
-python <scripts>/build_annotated.py <work>             # 改卡片後：重建 Markdown 檢視與索引
-python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
-python <scripts>/library.py [<起點>] [--json]          # 讀過哪些論文、疑問與要點、互相引用
-python <scripts>/build_digest.py <work> [--only <前綴>] # 把整理的 .md 渲染成可直接開的 .html
-python <scripts>/build_library.py [<起點>]             # 產生書房頁 library.html
-python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
+python <scripts>/probe.py <paper> [--out <notes>] [--review <page>]
+python <scripts>/build_annotated.py <work>       # after editing notes: Markdown view + index
+python <scripts>/build_html.py <work>            # then: index.html, the page he reads
+python <scripts>/library.py [<start>] [--json]   # all papers: cards, points, citations
+python <scripts>/build_digest.py <work> [--only <prefix>]   # digest .md -> openable .html
+python <scripts>/build_library.py [<start>]      # the shelf page library.html
+python <scripts>/reanchor.py <work>              # source reconverted/re-split: reattach notes
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
-python <scripts>/import_marks.py <work> --from <檔>   # 複習頁「複製畫記」的輸出
-python <scripts>/serve.py <work> [--port 8975]        # 複習頁的畫記可直接存檔
-python <scripts>/serve.py --library [<起點>]          # 一次服務所有論文，首頁是書房
-python <scripts>/build_html.py <work> --embed-assets --to <檔>   # 寄給別人的單檔
+python <scripts>/import_marks.py <work> --from <file>   # output of the 「複製畫記」 button
+python <scripts>/serve.py <work> [--port 8975]   # lets the page save highlights and grade
+python <scripts>/serve.py --library [<start>]    # every paper at once; home is the shelf
+python <scripts>/build_html.py <work> --embed-assets --to <file>   # one file to send
 ```
 
-`export_cards.py` 是唯讀的，給想拿卡片去 Anki 排程或自己處理的人用；預設寫到
-`notes/cards-export.txt`。這裡不做間隔複習演算法，只負責讓資料出得去。
+`export_cards.py` is read-only, for people who want their cards in Anki or their
+own pipeline; defaults to `notes/cards-export.txt`. No scheduling logic there.
 
-**`<work>` 是 `notes/` 所在的目錄**，不一定是論文目錄。預設版面：
+Default layout:
 
 ```
-papers.yml              ← 論文登記簿，放 git repo 根目錄
-論文資料夾/
-  論文.pdf
-  論文_md/              ← 轉檔套件（原文唯讀）
+papers.yml              ← registry, at the git repo root
+<paper folder>/
+  paper.pdf
+  paper_md/             ← conversion package (source, read-only)
     sections/ INDEX.md images/
-    notes/              ← 唯一真實來源
+    notes/              ← the only source of truth
       cards/ marks/ points/
-      catalog.json references.json   ← 產生物，給跨論文用
-  annotated/index.html  ← 複習頁，跟套件同一層
+      catalog.json references.json   ← generated, for cross-paper use
+  annotated/index.html  ← review page, beside the package
 ```
 
-卡片留在套件裡（整包可攜），複習頁放在套件旁邊——套件裡有幾十個檔案，複習頁埋在
-裡面就等於找不到。`probe.py` 只在論文套件看起來是轉檔產物時（目錄名以 `_md` 結尾，
-或同層有 PDF）才往上放一層，否則仍放在 `<work>/annotated`。
+Cards stay in the package so it travels as one unit; the page sits beside it,
+because a page buried among dozens of files is a page nobody finds. `probe.py`
+only lifts the page a level when the package looks like a conversion artifact
+(dir ends in `_md`, or a PDF sits alongside); else `<work>/annotated`.
 
-`--out` 移動筆記，`--review` 只移動複習頁；兩者都會記進 `paper.yml`，之後的指令
-不需要再帶旗標。給了 `--out` 就表示使用者自己決定了工作區位置，複習頁預設跟著筆記走。
+`--out` moves the notes, `--review` only the page; both are recorded in
+`paper.yml`, so later commands need no flags. `--out` means he chose the
+workspace, and the page then follows the notes.
 
-不要為了搬動產物而去改路徑或搬檔案：所有相對連結（圖片、卡片回連、索引跳轉）都是
-build 時依實際位置算出來的，手動搬移會全部斷掉。改位置就重跑一次 `probe.py`。
+Never move files or rewrite paths to relocate an artifact: every relative link
+(images, backlinks, index jumps) is computed at build time from actual locations.
+To change a location, re-run `probe.py`.
 
-零依賴，只需要 Python 3.8+。所有檢查都在 Python 裡，不要改用 `grep`、`sed`——
-使用者可能在只有 PowerShell 的 Windows 上。
+Zero dependencies, Python 3.8+. Do checks in Python, not `grep`/`sed` — he may be
+on Windows with only PowerShell.
 
-### 工作區本身
+### The workspace itself
 
-放論文的那一層有四樣**工具不會自己建、但少了會出事**的東西。`/paper-annotations:setup`
-在還沒有 `papers.yml` 時會列出缺的哪幾樣問使用者，規則見那支指令的第 0 步。
+Four things the tool will not create but misbehaves without.
+`/paper-annotations:setup` lists whichever are missing and asks — but only when
+there is no `papers.yml` yet (step 0 of that command).
 
-- **`.git`** — 決定 `papers.yml` 落在哪。有 repo 就放 repo 根目錄；沒有就退而放
-  **執行指令的那一層**，前提是論文在它底下。兩條路通常給出同一個答案，但從別的目錄
-  跑一次工具就會落到論文套件裡去，而那個位置**長不大**：下一篇論文往上找的路徑不會
-  經過同輩的資料夾，於是自己再開一份登記簿，書房裂成兩半而畫面上什麼都不會說。
-  probe.py 偵測到這件事會警告。
-- **`.gitattributes`（`* text=auto eol=lf`）** — git 把原文行尾換成 CRLF 的話指紋
-  就變了，build 會報出根本沒發生的原文漂移。
-- **`.gitignore`（至少 `*.html`）** — 複習頁與書房頁都是產生物，且很大。
-- **`AGENTS.md`** — 沒有它，使用者直接問論文問題不會自動走到這套工具。
+- **`.git`** — decides where `papers.yml` goes: repo root, else the dir the
+  command ran from, provided the paper is under it. One run from an unrelated dir
+  drops it inside the paper package, and that spot **cannot grow**: the next
+  paper's upward search never passes a sibling's folder, so it starts a second
+  registry and the shelf splits in two silently. `probe.py` warns on this.
+- **`.gitattributes`** (`* text=auto eol=lf`) — CRLF rewriting changes the source
+  fingerprint, and the build reports drift that never happened.
+- **`.gitignore`** (at least `*.html`) — review and shelf pages are generated and
+  large.
+- **`AGENTS.md`** — without it a plain question about a paper does not route here.
 
-這四樣都是**問過就做完**的事，不要問完又叫使用者自己去跑——他叫你 setup 就是不想自己
-處理這些。
+All four are **ask, then do**. Never ask and hand the work back; he ran setup so
+as not to deal with this.
 
-筆記適合放進**私有 GitHub repo**：登記簿存相對路徑，卡片、要點、複習紀錄全是純文字，
-clone 到另一台機器直接可用。本機的 `git init` 與 commit 他同意就做；**push 到遠端要他
-明確開口**，那是把東西送出這台機器。
+Notes belong in a **private GitHub repo**: relative paths, plain text throughout,
+so a clone works immediately. Local `git init` and commit once he agrees;
+**pushing needs him to ask** — that sends material off his machine.
 
-## 何時動作
+## When to act
 
-- **接觸任何一篇論文之前** → 先跑 `library.py`，知道他讀過什麼（見下節）
-- 使用者問了關於論文內容的問題 → 回答，然後起草一張卡
-- 使用者說「重建 / 更新筆記」→ build
-- 使用者換了一版原文轉檔 → reanchor，再 build
+- **Before touching any paper** → run `library.py`, to know what he has read
+- He asks about a paper's content → answer, then draft a card
+- "Rebuild / update the notes" → build
+- He replaced the source with a new conversion → reanchor, then build
 
-## 閱讀回合的流程
+## A reading round
 
-0. **先看他讀過什麼**：跑 `library.py`。這是每個回合的第一件事，不是只有第一次。
-   新 session 的你對這個人的閱讀史一無所知，而跨論文的關聯正是他要的東西——
-   `library.py` 印出每篇的疑問、要點與互相引用，一次就補齊。
-1. **首次接觸一份論文**：跑 `probe.py`，把 Tier 告訴使用者。只有 PDF 時它會印出
-   轉檔指引；Tier B/C 時說明升到 Tier A 能多拿到什麼、要花多少時間，讓他自己決定。
-   細節見 [references/tiers.md](references/tiers.md)。probe 會登記這篇論文，並報出
-   它和他讀過的哪幾篇互相引用——**引用關係要主動講**，那是他最想知道的第一件事。
-2. **開卷一次**：新論文第一次讀，做一趟結構化掃描抽出要點。見「要點」那節。
-3. **回答問題**：遵守論文套件根目錄自己的 `AGENTS.md` 閱讀政策（通常是先讀
-   `INDEX.md`、只讀 1–3 個 chunk）。讀到的 chunk 裡若有值得留的要點，**順手記下來**。
-4. **起草卡片**：見下一節。
-5. **回合結尾**：列出本回合新增的卡片標題**與要點**，讓使用者當場否決。他不表態就是保留。
-6. **執行 build**（先 `build_annotated.py` 再 `build_html.py`），把警告回報給使用者。
-   他正在讀而且還沒開 server，順帶提一次 `/paper-annotations:serve`：畫記可以直接存檔，
-   不必再經過複製貼上。
+0. **Run `library.py`.** First thing every round, not just the first. A fresh
+   session knows nothing of his reading history, and cross-paper connections are
+   what he is here for.
+1. **First contact**: `probe.py`, then tell him the Tier. PDF-only prints
+   conversion instructions; at Tier B/C explain what Tier A buys and costs, let
+   him decide ([references/tiers.md](references/tiers.md)). probe registers the
+   paper and reports citations to/from his other papers — **say that unprompted**,
+   it is the first thing he wants.
+2. **One pass through**: structured scan for points (see Points).
+3. **Answer**: follow the package's own `AGENTS.md` reading policy (usually
+   `INDEX.md` first, 1–3 chunks). Record any point worth keeping while you are in
+   that chunk.
+4. **Draft the card.**
+5. **End of round**: list new cards **and points** for on-the-spot veto. Silence
+   means keep.
+6. **Build** (`build_annotated.py`, then `build_html.py`), report warnings. If he
+   is reading with no server, mention `/paper-annotations:serve` once.
 
-完成條件：本回合每個被回答的問題都有一張卡，且 build 回報「找不到位置」為 0、
-沒有「🟡 引文提醒」（或已逐項向使用者說明原因）。
+Done when every question answered this round has a card, the build reports zero
+「找不到位置」, and no 「🟡 引文提醒」 remains unexplained.
 
-## 卡片格式
+## Card format
 
-檔名 `notes/cards/NNNN-slug.md`，`NNNN` 是未使用過的流水號。**不要帶章節前綴**——
-原文重新切分後前綴會變成誤導。
+`notes/cards/NNNN-slug.md`, `NNNN` an unused serial. **No section prefix** — it
+becomes misleading once the source is re-split.
 
 ```yaml
 ---
@@ -120,19 +134,19 @@ id: "0007"
 created: 2026-08-15
 updated: 2026-08-15
 status: open | half | resolved      # half = 半懂
-origin: asked | suggested           # suggested = 你主動標的疑點，非使用者提問
+origin: asked | suggested           # suggested = a doubt you raised, not his
 tags: [density, poisson]
 anchor:
   file: sections/S400-iv-a-density-function.md
   heading: ["IV. DENSITY FUNCTION ANALYSIS", "A. Density Function"]
-  ref: eq:7                         # 選填：eq:N / fig:N / table:N
-  quote:                            # 必填
+  ref: eq:7                         # optional: eq:N / fig:N / table:N
+  quote:                            # required
     prefix: |-
-      前文約 20 字
+      ~20 chars before
     exact: |-
-      原文中獨一無二的一段字
+      text unique within the file
     suffix: |-
-      後文約 20 字
+      ~20 chars after
 ---
 
 ## 問題
@@ -141,68 +155,77 @@ anchor:
 ## 一句話直覺
 ```
 
-`anchor` 只描述「要找什麼」，實際位置每次 build 都對原文重新解析，順序是
-`ref` → `heading` → `quote` → 找不到位置。原理見
-[references/anchoring.md](references/anchoring.md)。
+Those four headings are literal — write them exactly; build and page both look
+for them.
 
-## 卡片撰寫
+`anchor` says only *what to look for*. Position is resolved against the live
+source every build, in order `ref` → `heading` → `quote` → unresolved
+([references/anchoring.md](references/anchoring.md)).
 
-**`## 問題` 是使用者複習時第一眼看到的東西**——複習頁上點了反白句子後，卡片最上面
-就是它，疑問清單列的也是它。寫成看完就能開始嘗試回答的完整問題，不要寫成只有當下
-才看得懂的簡稱。
+## Writing cards
 
-**`## 卡點` 最重要**：寫下使用者當初缺哪個前提、誤解了什麼，不是重複問題。
-沒有它，三個月後他會看不懂自己在問什麼。
+- **`## 問題`** is the first thing he sees when reviewing — top of the card, and
+  the text in the question list. Write a full question answerable from cold, not
+  shorthand that made sense at the time.
+- **`## 卡點` matters most**: which premise he lacked, what he misunderstood — not
+  a restatement of the question. Without it he cannot decode his own card in three
+  months.
+- **`## 一句話直覺`**: so review does not mean rereading the whole answer.
 
-**`## 一句話直覺`**：讓複習時不必重讀整段解答。
+**The quote is the highlight and the way into the card.** `quote.exact` lights up
+on the page; clicking it opens the card. So pick **the sentence that actually
+stopped him**, not any unique string used as a position marker. Missing or
+appearing twice → do not mark it; never guess. The card still opens from the
+sidebar list, it just has no entry point in the body.
 
-**引文會被標成高亮，而且是打開卡片的入口**：`quote.exact` 那句話在複習頁上會亮起來，
-點它才叫得出卡片。所以引文要挑**真正讓使用者卡住的那一句**，不是隨便找一句夠獨特的
-來當定位標記。找不到或找到多處時不標——跟錨點同一條規則，不猜；那張卡仍可從側邊的
-疑問清單打開，只是正文裡沒有入口。
+**Uniqueness**: `anchor.quote.exact` must occur exactly once in its file. The
+build checks every card each time, including ones anchored by `ref`/`heading`.
+Fix a 「🟡 引文提醒」 immediately and rebuild until it is gone — a bad quote is
+invisible day to day and detonates the day he reconverts.
 
-**引文唯一性**：`anchor.quote.exact` 必須在該檔案中只出現一次。build 每次都會檢查，
-包括那些靠 `ref` 或 `heading` 已經掛好的卡。看到「🟡 引文提醒」就當場修掉，重新
-build 到提醒消失為止——壞引文平常看不出來，會一路潛伏到使用者重新轉檔那天才爆炸。
+**Status** follows his reaction: understood → `resolved`; still uneasy → `half`;
+unresolved → `open`. Unsure → `half`, the tier most worth revisiting.
 
-**狀態**由使用者的反應決定：他說懂了 → `resolved`；還有疑慮 → `half`；沒解決 →
-`open`。拿不準時用 `half`，那是最值得回頭看的一檔。
+**`origin: suggested`** is for pitfalls you spotted unasked. Allowed, but must be
+marked; the interface can hide them in one click.
 
-**`origin: suggested`** 留給你主動看出、使用者沒問但很可能踩到的坑。這種卡放行，
-但要標清楚；複習介面可以一鍵把它們隱藏。
+**A card is a note, not a paper.** Anything the paper does not state outright —
+your inference — must say so inside the card. In three months he will not
+remember which sentence was the author's.
 
-**卡片是筆記，不是論文**。解說中凡是論文沒明講、由你補上的推論，在卡片裡直說是
-補充。使用者三個月後不會記得哪句是作者的、哪句是你的。
+## Highlights (marks)
 
-## 畫記（螢光筆）
+**Normally you are not involved**: he runs `serve.py`, presses 「存檔」, and it
+lands in `notes/marks/` and rebuilds. Editing a comment, recolouring, deleting all
+work the same way. If he is still copy-pasting by hand, introduce
+`/paper-annotations:serve`.
 
-**畫記正常不需要你介入**：使用者跑 `serve.py`，在頁面上按「存檔」就寫進 `notes/marks/`
-並重建；改註解、換顏色、刪畫記也一樣。這是預設路徑——他還在手動複製貼上，就介紹
-`/paper-annotations:serve`。
-
-只有**沒跑 server**時（多半是別人寄了一個複習頁 HTML 給他）畫記才留在瀏覽器裡。他按
-「複製畫記」把內容貼給你的時候，**把整段存成檔案再交給 `import_marks.py`**，不要自己
-逐條轉寫：
+Only **without a server** (usually someone sent him a review page) do highlights
+stay in the browser. When he presses 「複製畫記」 and pastes the result, **save the
+whole block to a file and hand it to `import_marks.py`** — do not transcribe
+entries yourself:
 
 ```bash
-python <scripts>/import_marks.py <work> --from <剛存下來的檔>
+python <scripts>/import_marks.py <work> --from <the file you just saved>
 ```
 
-它會配流水號、寫成下面的格式、跳過已經存在的畫記（重跑安全），然後照常 build。
-**畫記不需要你判斷或整理**：哪一段、什麼顏色、註解寫什麼，都是使用者已經決定好的。
+It assigns serials, writes the format below, skips ones already present (safe to
+re-run), then builds. **Highlights need no judgement from you**: passage, colour
+and comment are decisions he already made.
 
-匯入時的 🟡 提醒不必處理。含公式的畫記引文會是 KaTeX 的渲染字（例如 `x1,…,xn`），
-在原始 Markdown 裡本來就找不到——頁面搜的是渲染後的文字，照樣定位得到。真正定位不到
-的畫記，複習頁側欄會自己報數字。
+🟡 warnings on import need no action. A highlight over a formula carries KaTeX's
+rendered text (e.g. `x1,…,xn`), absent from the raw Markdown; the page searches
+rendered text and still finds it. Truly unlocatable ones are counted in the
+sidebar.
 
-檔案格式（`notes/marks/NNNN-slug.md`）：
+`notes/marks/NNNN-slug.md`:
 
 ```yaml
 ---
 id: "0003"
 created: 2026-08-16
 color: yellow | green | blue | red
-tags: [density]          # 選填
+tags: [density]          # optional
 anchor:
   file: sections/S210-....md
   quote:
@@ -211,238 +234,277 @@ anchor:
     suffix: |-
 ---
 
-註解內文，沒有就整段留空
+comment body, or leave empty
 ```
 
-定位得到的畫記會回到頁面上；使用者重新整理後，瀏覽器裡那份會自動消失，同一段不會被
-畫兩次。build 也會再檢查一次引文並回報。
+Locatable highlights return to the page; after a reload the browser's copy
+disappears, so nothing is highlighted twice. The build re-checks the quote.
 
-**畫記不是卡片**：沒有 status、不進疑問清單、不算進「疑問 N 則」。使用者只是把一段
-標起來加一句話，就用畫記；他提出的是一個需要回答的問題，才建卡。
+**A highlight is not a card**: no status, not in the question list, not counted in
+「疑問 N 則」. He marked a passage and added a sentence → highlight. He raised a
+question needing an answer → card.
 
-## 要點
+## Points
 
-卡片來自使用者的困惑，畫記來自他的手；兩者都沒發生的地方，這套系統就是瞎的。而**跨論文
-的關係恰恰長在他沒卡住的地方**——兩篇論文會不會矛盾，矛盾的是主張，不是誰的疑問。要點就是
-補這個洞：論文的骨架，由你寫，用來和其他論文對照。設計理由見
-[docs/adr/0002](../../docs/adr/0002-points-are-a-third-note-type.md)。
+Cards come from his confusion, highlights from his hand; where neither happened
+this system is blind. And **cross-paper relationships live exactly where he did
+not get stuck** — whether two papers contradict is about their claims, not
+anyone's doubts. Points are the paper's skeleton, written by you, to compare
+against other papers ([docs/adr/0002](../../docs/adr/0002-points-are-a-third-note-type.md)).
 
-檔案 `notes/points/NNNN-slug.md`：
+`notes/points/NNNN-slug.md`:
 
 ```yaml
 ---
 id: "0001"
 created: 2026-08-17
 kind: claim | method | assumption | definition | result | limitation
-origin: agent | user            # agent = 你讀出來的（預設）
+origin: agent | user            # agent = you read it out (default)
 tags: [local-density, 兩篇對照]
 anchor:
   file: sections/S130-....md
-  heading: ["Contributions and Paper Organization"]   # 選填，只當標籤
-  quote:                        # 必填，而且是唯一的定位方式
+  heading: ["Contributions and Paper Organization"]   # optional, label only
+  quote:                        # required, and the only locator
     prefix: |-
     exact: |-
     suffix: |-
 ---
-一句話，就一句。
+One sentence. Just one.
 ```
 
-**要點只靠引文定位**，不走卡片的 `ref → heading → quote` 階梯。卡片講的是論證裡的一個
-位置，掛在小節開頭沒問題；要點轉述的是**特定那一句**，掛到半頁之外就會變成對錯誤的文字
-說錯誤的話。`heading` 純粹是索引上的標籤。
+**Points are located by quote alone** — no `ref → heading → quote` ladder. A card
+marks a position in an argument, so a section heading is fine; a point paraphrases
+**one specific sentence**, and landing half a page away says the wrong thing about
+the wrong text. `heading` is an index label only.
 
-### 怎麼取得
+### How to gather them
 
-兩條並用，缺一不可：
+Both routes, neither optional.
 
-**開卷一次**：新論文第一次讀時，掃摘要、引言、結論、各節標題，以及明確標了貢獻的段落。
-**不要讀全文**——論文的主張本來就寫在這幾個地方，成本有界。一篇期刊論文抽 5～12 則就夠，
-寧可少而準。
+**One pass through**: on first read scan abstract, intro, conclusion, section
+headings, and any paragraph listing contributions. **Do not read the whole
+paper** — the claims are already in those places, so cost is bounded. 5–12 per
+journal paper; prefer few and accurate.
 
-**順手記**：之後每次為了回答問題讀某個 chunk，同時記下那個 chunk 裡值得留的要點。零額外
-閱讀成本，覆蓋率跟著他讀的深度長。
+**As you go**: whenever you open a chunk to answer a question, record that chunk's
+points. Zero extra reading; coverage grows with how deeply he reads.
 
-### 護欄
+### Guardrails
 
-要點是你主動產生的，所以最大的風險不是寫錯，是**寫太多**。量一失控，使用者會關掉整個功能
-而不是修它。
+You generate points on your own initiative, so the risk is not being wrong — it is
+**writing too many**. Once volume gets away, he turns the feature off rather than
+correcting it.
 
-- **每回合結尾列出新增的要點讓他當場否決**，跟卡片一樣。他不表態就是保留。
-- 開卷那趟有上限。抽不到好的就少抽，不要湊數。
-- 要點是**論文說的**，不是你的評論。你的推論寫進卡片或整理，不要混進要點。
-- 一則一句話。需要三句才講得完的，多半是兩則，或者其實是一張卡。
+- **List new points at the end of every round for veto**, same as cards.
+- The opening pass has a ceiling. Nothing good there → take fewer, never pad.
+- A point is **what the paper claims**, not your commentary. Inferences go in a
+  card or a digest.
+- One sentence each. Needing three means two points — or actually a card.
 
-**要點不是卡片也不是畫記**：沒有 status、不進疑問清單、不算進「疑問 N 則」。使用者提出
-需要回答的問題 → 卡片；他自己標起一段 → 畫記；**論文自己主張了什麼 → 要點**。
+**A point is neither a card nor a highlight**: no status, not in the question
+list, not counted in 「疑問 N 則」. Question needing an answer → card; he marked a
+passage → highlight; **the paper asserted something** → point.
 
-## 複習排程
+## Review scheduling
 
-複習頁側欄的「複習」是內建的間隔重複，不需要 Anki。**評分必須有 `serve.py` 在跑**——
-複習紀錄要寫成檔案，而複習歷史是這套系統裡唯一無法重生的資料，設計理由見
-[docs/adr/0003](../../docs/adr/0003-review-history-is-the-first-irreplaceable-data.md)。
-沒跑 server 時頁面照樣列出待複習的卡，但不給評分按鈕，也會說明原因。
+The 複習 panel in the page's sidebar is built-in spaced repetition; Anki not
+required. **Grading needs `serve.py` running** — the log must reach a file, and
+review history is the only data here that cannot be regenerated
+([docs/adr/0003](../../docs/adr/0003-review-history-is-the-first-irreplaceable-data.md)).
+Without a server the page still lists what is due, shows no grading buttons, and
+says why.
 
-哪些卡進排程，由狀態決定，你不需要也不應該手動干預：
+Status decides what is scheduled. Do not intervene:
 
-| 狀態 | 進排程嗎 |
+| Status | Scheduled? |
 |---|---|
-| `resolved` ＋ `origin: asked` | 進。他懂了，接下來是別忘掉 |
-| `half` | 不排程，但永遠排在佇列最前面。半懂不是記憶問題，是還沒讀完 |
-| `open` | 不進。它本來就在疑問清單裡 |
-| `origin: suggested` | 不進。那是你標的，不是他問的 |
+| `resolved` + `origin: asked` | Yes. He understood it; the job now is not forgetting |
+| `half` | No, but permanently first in the queue. Half-understood is unfinished reading, not a memory problem |
+| `open` | No. Already in the question list |
+| `origin: suggested` | No. You raised it, he did not |
 
-紀錄放在 `notes/reviews/<卡片編號>.md`，一行一次評分。**build 絕對不寫這個目錄**，
-唯一的寫入者是 server 的評分端點。排程狀態不儲存，每次由紀錄重放算出來——所以日後換
-演算法不需要任何遷移。
+Logs in `notes/reviews/<card id>.md`, one line per grading. **The build never
+writes that directory**; its only writer is the server's grading endpoint. The
+schedule is not stored — it is replayed from the log, so changing the algorithm
+later needs no migration.
 
-卡片被刪除後紀錄會留著，build 回報成孤兒。**不要自動清掉**，那是使用者的資料。
+A deleted card leaves its log behind and the build reports an orphan. **Never
+clean those up automatically**; they are his data.
 
-`export_cards.py --format csv` 會帶上 `reviews / interval / ease / lapses / due`，
-想搬去 Anki 的人不必從零開始。
+`export_cards.py --format csv` carries `reviews / interval / ease / lapses / due`,
+so moving to Anki does not start from zero.
 
-## 跨論文
+## Across papers
 
-`library.py` 是你看見「不只這一篇」的唯一途徑。它讀 `papers.yml`（登記簿，在 git repo
-根目錄）與每篇的 `notes/catalog.json`（build 產生的卡片與要點目錄），印出全部論文的疑問、
-要點，以及**互相引用的關係**。
+`library.py` is your only way to see past the current paper. It reads
+`papers.yml` (registry, at the git repo root) and each paper's
+`notes/catalog.json` (the build's index of cards and points), and prints every
+paper's questions, points, and **who cites whom**.
 
-引用關係是機械判定的：`probe.py` 把參考文獻抽進 `notes/references.json`，比對在讀取時
-才做，所以今天新增一篇論文，上個月處理的那篇的引用關係會自動跟著更新。它**不需要判斷**，
-所以可以直接當事實講給使用者聽——包括引用出現在哪一節、當下那句話怎麼說的。
+Citations are mechanical: `probe.py` extracts the reference list into
+`notes/references.json`, and matching happens **at read time**, so adding a paper
+today updates the citation picture for one processed last month with no re-run. It
+**involves no judgement**, so state it as fact — including which section the
+citation is in and what the surrounding sentence says.
 
-有判斷成分的關係（共識、矛盾、同一概念的不同講法）由你寫成整理，見下一節的 `connections`
-模式。不要把判斷寫進 `references.json` 或 `catalog.json`，那兩個是產生物。
+Judgement-bearing relationships (agreement, contradiction, one idea under two
+names) are yours to write as a digest — the `connections` mode. Never write
+judgement into `references.json` or `catalog.json`; both are generated.
 
-### 卡片與要點之間的連結
+### Typed links between cards and points
 
-`connections` 整理找出的關係，值得留下的就固化成連結。整理是散文，得靠使用者想起來去翻；
-連結會**自己出現在它所談的那一句旁邊**，兩者是前後關係，不是二選一。
+When a `connections` digest finds a relationship worth keeping, harden it into a
+link. A digest is prose he must remember to go find; a link **appears next to the
+sentence it is about**. Sequential, not alternatives.
 
-宣告在卡片或要點的 frontmatter，一行一條，**只寫一邊**：
+Declared in a card's or point's frontmatter, one per line, **on one side only**:
 
 ```yaml
 links:
   - contradicts eplace-ms#P0003
   - answers replace#Q0002
-  - same-as #Q0004            # 省略代號就是本篇
+  - same-as #Q0004            # omitting the slug means this paper
 ```
 
-型別只有三種：`answers`（這則回答了目標）、`contradicts`（兩邊說法牴觸）、`same-as`
-（同一件事的不同講法）。**不要自己發明型別**，build 會擋下來。清單刻意很短——開放的
-詞彙會長出一堆近義詞，然後就不能拿來比對了，而那是連結存在的唯一理由。真的不夠用時
-再來加，不要預先擴充。
+Three types only: `answers`, `contradicts`, `same-as`. **Do not invent types** —
+the build rejects them. The list is deliberately tiny: an open vocabulary grows
+near-synonyms and then cannot be compared against anything, which was the only
+reason links exist. Extend it when it genuinely runs out, not in advance.
 
-反向連結**由 build 算出來**，不要在兩邊各寫一條——那會漂移。目標的一句話也會一起顯示，
-所以看到連結就知道對方說了什麼，不必跳過去。
+Backlinks are **computed by the build**. Never write both sides; that drifts. The
+target's one-line text is shown alongside, so a link tells you what the other side
+says without going there.
 
-解析遵循 ADR 0001：目標是拿當下的 `catalog.json` 比對的，解不到就回報、不猜。因此
-**目標論文必須先 build 過**（沒有 catalog 就沒有可比對的東西），而新增一篇論文之後，
-指向它的連結會在下次 build 時自動接上，不需要改任何檔案。
+Resolution follows ADR 0001: targets are matched against the current
+`catalog.json`; unresolved is reported, never guessed. So **the target paper must
+have been built**, and links pointing at a newly added paper connect on the next
+build with no file edits.
 
-### 書房頁
+### The shelf page
 
-`build_library.py` 產生 `library.html`（放在 `papers.yml` 旁邊）：每篇論文一張卡，帶疑問
-統計、要點數、今天要複習幾張。
+`build_library.py` produces `library.html` beside `papers.yml`: one card per
+paper with question counts, point counts, and how many are due today.
 
-**互相引用列在卡片上，不是頁尾**：同一條邊在兩端都出現一次（引用方看到「→ 引用了 X」、
-被引用方看到「← 被 X 引用」），按下去會跳到對方那張卡並讓它閃一下；對方被目前的篩選藏起來
-時會先切回「全部」。「這篇跟誰有關係」是關於這篇論文的問題，答案就該放在這篇論文旁邊。
+**Citations sit on the cards, not in a footer.** The same edge appears at both
+ends — citing side 「→ 引用了 X」, cited side 「← 被 X 引用」 — and clicking jumps
+to the other card and flashes it, switching the filter back to 「全部」 first if
+that card is hidden. "Who is this connected to" is a question about *this paper*,
+so the answer belongs beside it.
 
-**用 `serve.py --library` 開**——一個 server 掛所有論文，點卡片直接進那篇的複習頁，
-不需要另外開任何東西。`serve.py --library --launcher` 會在 `papers.yml` 旁邊放一個
-`開啟書房.cmd`，點兩下就起來；它不帶路徑參數，所以整個工作區搬家或 clone 到別台機器
-都還能用。
+**Open it with `serve.py --library`** — one server mounting every paper; click a
+card and land in that paper's review page. `serve.py --library --launcher` puts a
+開啟書房.cmd next to `papers.yml`; it takes no path argument, so it survives the
+workspace being moved or cloned.
 
-**產生書房頁就要一併放好 `開啟書房.cmd`**，兩件事不可以分開做：`library.html` 是雙擊
-打不開的（論文連結是 server 路徑），只建頁不建啟動器等於留下一個開不了的檔案，而使用者
-不會知道少的是什麼。`:setup` 第 8 步兩個啟動器都要寫。
+**Producing the shelf page and placing 開啟書房.cmd are one job, never split**:
+`library.html` cannot be opened by double-click (paper links are server paths), so
+a page without a launcher is a file that will not open and he has no way to know
+what is missing. Step 8 of `:setup` writes both launchers.
 
-直接雙擊 `library.html` 也開得起來，但論文連結是 server 路徑、點不動——頁面偵測到不是
-http 就會在最上面明講並附上指令，不必等使用者踩到。
+Double-clicking `library.html` does open it, but the paper links are dead; the
+page detects it is not on http and says so at the top, with the command to run.
 
-### 分類
+### Categories
 
-書房頁上方一排分類標籤：**全部**列出所有論文，點某個分類就只列出屬於它的。清單只有一份，
-一篇論文只出現一次，它的所有分類顯示在自己的卡片上。**已定義的分類一律列出來，包含底下
-一篇論文都沒有的**（虛線、數字 0）——把空分類藏起來的話，剛建好一個分類跟建立失敗看起來
-一模一樣。
+A row of chips above the shelf: 「全部」 lists every paper, any other chip lists
+only its members. One list, each paper once, all of its categories shown on its
+own card. **Every declared category is listed, including empty ones** (dashed,
+count 0) — hiding empties makes a just-created category look like a failed one.
 
-使用者也可以**自訂分類**（像「已讀過」這種和論文主題無關、屬於他自己的分類）：書房頁上
-「＋ 新增分類」，或在某篇論文的「＋ 加入分類」裡選「＋ 自訂新分類」，後者會建立並直接掛上。
-自訂的分類一律進 `topics`（他的），不是 `topics_auto`。
+He can also **define his own** — 「已讀過」 and the like, about him rather than
+about any paper's subject: 「＋ 新增分類」 on the shelf, or 「＋ 自訂新分類」 inside
+a paper's 「＋ 加入分類」 picker, which defines and assigns in one step. His
+categories always go to `topics`, never `topics_auto`.
 
-書房頁的「⚙ 管理分類」會在每個分類旁邊長出色票（換顏色）、`↺`（回到預設）和 `✕`
-（刪掉分類，**只有底下沒有論文的刪得掉**）。顏色存在 `papers.yml` 的 `topic_colors:`
-（slug → `#rrggbb`），沒設定的分類外觀完全不變。**不要主動幫使用者配色**，那是他的偏好，
-不是可以推導的事實。
+「⚙ 管理分類」 grows a swatch (colour), `↺` (default) and `✕` (delete, **only when
+no paper is in it**) beside each category. Colours live in `topic_colors:` in
+`papers.yml` (slug → `#rrggbb`); a category without one looks exactly as before.
+**Do not pick colours for him** — preference, not something derivable.
 
-**詞彙表在 `papers.yml` 的 `topics:`（slug → 顯示名稱），先定義才能使用。** 沒定義的分類
-build 會回報，篩選列上也不會有它——那不是龜毛，是避免 `3D-IC` 和 `3d-ic` 變成兩個看起來
-一樣的分類。每篇論文底下三個清單：
+**The vocabulary is `topics:` in `papers.yml` (slug → display name); define
+before use.** The build reports undefined ones and they get no chip. Not
+fussiness: it stops `3D-IC` and `3d-ic` becoming two identical-looking categories.
+Three lists per paper:
 
-| 欄位 | 意思 |
+| Field | Meaning |
 |---|---|
-| `topics` | 使用者自己定的。頁面上是實線標籤 |
-| `topics_auto` | **你**建議的，一樣生效。頁面上是虛線標籤 |
-| `topics_off` | 使用者移除過的。**不要再建議這些** |
+| `topics` | His own. Solid chips |
+| `topics_auto` | **Yours**, equally in effect. Dashed chips |
+| `topics_off` | He removed these. **Never suggest them again** |
 
-#### 什麼時候提議分類
+#### When to propose
 
-**主要時機是 `/paper-annotations:setup`**——新論文第一次進來就分好，不要等使用者哪天
-想到才補。之後跑 `library.py` 看到沒分類的論文時再補提。
+**Mainly during `/paper-annotations:setup`** — file a new paper as it arrives
+rather than waiting for him to think of it. After that, propose for any
+uncategorised paper you notice while running `library.py`.
 
-#### 你要怎麼提議分類
+#### How to propose
 
-**分類必須比關鍵字粗。** `catalog.json` 的 `keywords` 是論文自己的 Index Terms，那是
-**原料，不是分類**——實測兩篇直接相承的論文（ePlace-MS 與 RePlAce）13 個關鍵字交集為零，
-拿來當分類的話每篇各自成一類，等於沒分類。要做的是把 "Analytic placement" 和
-"Global placement" 收斂成同一個 `placement`。
+**A category must be coarser than a keyword.** `catalog.json`'s `keywords` are the
+paper's own Index Terms: raw material, **not categories**. Measured on two papers
+where one directly succeeds the other (ePlace-MS, RePlAce), their 13 index terms
+intersect in **zero** entries — as categories every paper becomes its own bucket,
+i.e. no categories at all. The job is collapsing "Analytic placement" and "Global
+placement" into one `placement`.
 
-- 寫進 `topics_auto`，不要寫進 `topics`——那是使用者的欄位
-- 一篇 2～4 個就夠。分類是拿來把論文**分開**的，每篇都掛滿等於沒分
-- 新分類要同時加進 `topics:` 詞彙表，否則 build 會回報
-- 回合結尾列出新增的分類讓使用者當場否決，跟卡片與要點一樣
-- **`topics_off` 裡的絕對不要再提**。一個被拒絕還一直回來的建議比沒有建議更煩
+- Write to `topics_auto`, never `topics` — that field is his
+- 2–4 per paper. Categories exist to **separate**; tagging everything with
+  everything separates nothing
+- Add any new category to the `topics:` vocabulary at the same time, or the build
+  reports it
+- List new categories at end of round for veto, same as cards and points
+- **Never re-propose anything in `topics_off`.** A rejected suggestion that keeps
+  returning is worse than no suggestion
 
-#### 分類不是由 build 想出來的
+#### The build does not invent categories
 
-build 只負責**讀取與分組**，它是純 Python、裡面沒有 LLM，而且必須冪等。「想出分類」發生
-在對話裡（你做），「套用分類」發生在 build。這個分工是刻意的：分類若每次 build 重算，
-同樣的輸入就會產生不同的輸出，整套設計的地基就沒了。
+The build only **reads and groups**: pure Python, no LLM, and it must be
+idempotent. Deciding a category happens in conversation (you); applying one
+happens in the build. Deliberate: recomputing categories per build would make the
+same input produce different output, and the foundation of the design is gone.
 
-使用者在書房頁上按「＋ 加入分類」或點標籤移除時，由 server 寫回 `papers.yml`——**需要
-`serve.py --library` 在跑**，沒有就不顯示按鈕。加入寫進 `topics`，移除同時記進
-`topics_off`。改顏色、刪分類走同一個端點（`POST /_pa/topic`，action 為
-`add`／`remove`／`define`／`color`／`undefine`），寫完都會重建書房頁。
+When he presses 「＋ 加入分類」 or clicks a chip to remove it, the server writes
+back to `papers.yml` — which **needs `serve.py --library` running**; without it the
+buttons never appear. Adding writes `topics`; removing also records `topics_off`.
+Colour and deletion use the same endpoint (`POST /_pa/topic`, action
+`add`/`remove`/`define`/`color`/`undefine`), and every write rebuilds the shelf.
 
-多論文模式下每篇掛在 `/p/<代號>/` 底下，**各自只開放自己的資料夾**。不要試圖給 server 一個
-橫跨所有論文的根目錄——論文散在硬碟各處時那會退化成整顆磁碟。同理，寫入請求帶的是論文代號，
-由 server 端查表得到路徑；任何情況下都不要讓請求裡的字串變成路徑。
+In multi-paper mode each paper mounts at `/p/<slug>/` and **serves only its own
+directory**. Never give the server one root spanning all papers — scattered across
+a disk that degrades to the whole drive. Likewise a write request carries a slug
+and the server looks the path up in a table; never let a request string become a
+path.
 
-單篇模式（`serve.py <work>`）完全沒變，既有的啟動器照舊可用。
+Single-paper mode (`serve.py <work>`) is unchanged; existing launchers still work.
 
-## 整理
+## Digests
 
-使用者要一份「把疑問和原文合起來的整理」時，由你自己撰寫，不是跑腳本。四種模式
-（回顧單／主題聚合／前提盤點／接線）、出處規則與輸出位置見
-[references/digests.md](references/digests.md)。整理是額外產物，不是真實來源。
+When he wants "the questions and the source pulled together", you write it — not a
+script. The four modes (回顧單 / 主題聚合 / 前提盤點 / 接線), sourcing rules and
+output location are in [references/digests.md](references/digests.md). A digest is
+an extra artifact, never a source of truth.
 
-**寫完一定要跑 `build_digest.py`**，把 `.md` 渲染成同名的 `.html`，並且**回報 `.html`
-的路徑**——那才是使用者要開的檔案。整理裡多半有公式，`$\lambda$` 在文字編輯器裡讀不了，
-而且不能假設使用者裝了 Markdown 編輯器。`.md` 仍然是可編輯的來源，改完重跑即可。
+**Always run `build_digest.py`** afterwards to render the `.md` into a same-named
+`.html`, and **report the `.html` path** — that is what he opens. Digests usually
+contain formulas; `$\lambda$` is unreadable in a text editor and you cannot assume
+he has a Markdown editor. The `.md` stays the editable source: change it and
+re-render.
 
-## 邊界
+## Boundaries
 
-- 原文只讀不寫。有話要說就寫成卡片。
-- `annotated/`（含 `index.html`）、`notes/QUESTIONS.md`、`notes/catalog.json` 由 build
-  產生；`notes/references.json` 與 `papers.yml` 由 probe 產生；`notes/digests/*.html`
-  由 build_digest 產生。要改內容改 `notes/cards/`、`notes/marks/`、`notes/points/` 後重建。
-- **`notes/reviews/` 不是產生物，也不可重生。** 只有 server 的評分端點寫它。任何情況下
-  都不要用程式碼去改或刪它。
-- 使用者的複習介面是 `annotated/index.html`；Markdown 版是給你和 git 用的。
+- Source text is read-only. Something to say → write a card.
+- Generated: `annotated/` (incl. `index.html`), `notes/QUESTIONS.md`,
+  `notes/catalog.json` by the build; `notes/references.json` and `papers.yml` by
+  probe; `notes/digests/*.html` by build_digest. To change any of them, edit
+  `notes/cards/`, `notes/marks/` or `notes/points/` and rebuild.
+- **`notes/reviews/` is not generated and cannot be regenerated.** Only the
+  server's grading endpoint writes it. Never modify or delete it in code.
+- His review interface is `annotated/index.html`; the Markdown version is for you
+  and for git.
 
-## 沒有 Python 時
+## When Python is unavailable
 
-依同一套規則手工合併：從原文整份重建（不要增量插入舊的 `annotated/`），並在
-`QUESTIONS.md` 標 `built_by: agent`。手工合併不保證冪等，這個標記是給使用者的
-風險揭露。不要另寫一套實作。
+Merge by hand under the same rules: rebuild from the source in full — never patch
+the old `annotated/` incrementally — and mark `built_by: agent` in `QUESTIONS.md`.
+A hand merge is not guaranteed idempotent; that marker is the risk disclosure. Do
+not write a second implementation.

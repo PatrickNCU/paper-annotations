@@ -225,7 +225,7 @@ localStorage。改用 server 之後就固定從 `http://127.0.0.1:…` 讀；先
 
 ## 寄給別人
 
-`/paper-annotations:share` 會產生一個**圖片全部內嵌的單檔**，放在論文資料夾裡
+`/paper-annotations:share-page` 會產生一個**圖片全部內嵌的單檔**，放在論文資料夾裡
 （`<論文名>-複習頁.html`），寄出去對方點兩下就能讀：不用裝 Python、不用開 server、
 手機平板也行。他可以照樣畫記、寫註解、篩選、搜尋；想回饋給你就按「複製畫記」把內容
 傳回來，你再用 `/paper-annotations:marks` 收進 `notes/marks/`。
@@ -277,7 +277,7 @@ server 幫不上這個場景——對方手上沒有 `notes/` 可以寫。所以
 - **篩選**：依狀態（未解決／半懂／已解決）、隱藏 AI 主動標的卡、全文搜尋。
   選「不顯示疑問」連反白都熄掉，剩一份乾淨的論文
 - **明暗主題**在右下角切換，跟隨系統或手動指定；打開提問草稿時它會被讓開的抽屜蓋住
-- 要寄給別人就跑 `/paper-annotations:share`，圖片一併內嵌成單一檔案（見上面〈寄給別人〉）
+- 要寄給別人就跑 `/paper-annotations:share-page`，圖片一併內嵌成單一檔案（見上面〈寄給別人〉）
 
 ## 整理
 
@@ -298,7 +298,7 @@ server 幫不上這個場景——對方手上沒有 `notes/` 可以寫。所以
 
 ## 匯出
 
-`/paper-annotations:export`，或直接跑：
+`/paper-annotations:export-cards`，或直接跑：
 
 ```bash
 python export_cards.py <論文路徑> --format anki --status resolved,half
@@ -318,10 +318,10 @@ python export_cards.py <論文路徑> --format anki --status resolved,half
 | `/paper-annotations:build [路徑]` | 重新產生註記檢視與複習頁，回報所有警告 |
 | `/paper-annotations:review [路徑]` | 盤點還有哪裡沒懂 |
 | `/paper-annotations:digest [路徑] [模式]` | 把疑問與原文合成一份整理：回顧單、主題聚合、或前提盤點 |
-| `/paper-annotations:export [路徑] [格式]` | 匯出卡片：Anki 匯入檔、CSV 或 JSON |
+| `/paper-annotations:export-cards [路徑] [格式]` | 把卡片資料匯給別的程式：Anki 匯入檔、CSV 或 JSON |
 | `/paper-annotations:serve [路徑]` | 開本機 server，複習頁上的畫記可以直接存檔 |
 | `/paper-annotations:marks [貼上畫記]` | 把「複製畫記」的內容存成 `notes/marks/` 並重建 |
-| `/paper-annotations:share [路徑]` | 產生可以寄給別人的單檔複習頁（圖片全部內嵌） |
+| `/paper-annotations:share-page [路徑]` | 把複習頁打包成單一 HTML 檔寄給別人（圖片全部內嵌） |
 
 平常**不需要指令**：直接問論文問題，疑問會自動累積成卡片。
 

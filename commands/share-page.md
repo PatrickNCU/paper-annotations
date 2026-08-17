@@ -1,5 +1,5 @@
 ---
-description: 產生一個可以寄給別人的單檔複習頁（圖片全部內嵌）
+description: 把複習頁打包成單一 HTML 檔寄給別人（圖片全部內嵌，對方不必裝任何東西）
 argument-hint: "[論文或筆記資料夾]"
 allowed-tools: Bash, Read, Glob, Skill
 ---

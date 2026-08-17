@@ -1,5 +1,5 @@
 ---
-description: 把疑問卡匯出成 Anki 匯入檔，或 CSV／JSON
+description: 把疑問卡的資料匯出給別的程式用：Anki 匯入檔、CSV 或 JSON
 argument-hint: "[論文或筆記資料夾] [anki|csv|json] [狀態]"
 allowed-tools: Bash, Read, Glob, AskUserQuestion, Skill
 ---
