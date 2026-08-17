@@ -35,6 +35,7 @@ import sys
 import threading
 import webbrowser
 from functools import partial
+from urllib.parse import quote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -340,7 +341,17 @@ def flag(argv, name, fallback=None):
 
 
 def main(argv) -> int:
-    args = [a for a in argv[1:] if not a.startswith("--")]
+    # --port takes a value: skip it, or "--port 9000 <work>" reads 9000 as work
+    args = []
+    skip = False
+    for arg in argv[1:]:
+        if skip:
+            skip = False
+            continue
+        if arg.startswith("--"):
+            skip = arg == "--port"
+            continue
+        args.append(arg)
     work = Path(args[0] if args else ".").resolve()
     config, paper_root, notes, annotated = paperkit.load_workspace(work)
     if not (annotated / "index.html").is_file():
@@ -362,7 +373,9 @@ def main(argv) -> int:
     # disk; "/" redirects to wherever the page actually sits. The stdlib
     # handler still refuses to walk above whatever root it is given.
     root = Path(os.path.commonpath([str(annotated), str(paper_root)]))
-    Handler.index_url = "/" + (annotated / "index.html").relative_to(root).as_posix()
+    # percent-encoded: http.server writes headers in latin-1, so a Chinese
+    # directory name in the redirect target would crash the "/" handler
+    Handler.index_url = "/" + quote((annotated / "index.html").relative_to(root).as_posix())
 
     url = f"http://127.0.0.1:{port}/"
     # Double-clicking the launcher twice is the common case, and "address

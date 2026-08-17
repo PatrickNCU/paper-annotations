@@ -152,7 +152,17 @@ def save_mark(mark, color: str, note: str) -> None:
 
 
 def main(argv) -> int:
-    args = [a for a in argv[1:] if not a.startswith("--")]
+    # --from takes a value: skip it, or "--from x.txt" alone reads x.txt as work
+    args = []
+    skip = False
+    for arg in argv[1:]:
+        if skip:
+            skip = False
+            continue
+        if arg.startswith("--"):
+            skip = arg == "--from"
+            continue
+        args.append(arg)
     work = Path(args[0] if args else ".").resolve()
     _, paper_root, notes, _ = paperkit.load_workspace(work)
 

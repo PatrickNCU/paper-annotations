@@ -1245,7 +1245,11 @@ SCRIPT = """
         var it={sec:d.s,file:d.f||'',exact:d.e,prefix:d.p||'',suffix:d.x||'',
                 color:d.c||'1',note:d.n||'',src:'file',id:d.id};
         it.range=hlLocate(it);
-        filed[it.sec+'\\u0000'+it.exact]=true;
+        // hlPlain on the key: the browser copy keeps KaTeX's zero-width
+        // breaks, the filed copy was stripped of them on save -- compared
+        // raw, a mark that touched a formula never matched its filed twin
+        // and stayed "還沒落檔" forever, painted twice.
+        filed[it.sec+'\\u0000'+hlPlain(it.exact)]=true;
         hlItems.push(it);
       });
       var raw=null;
@@ -1256,7 +1260,7 @@ SCRIPT = """
       data.forEach(function(d){
         // already written into notes/marks/ -- drop the browser's copy rather
         // than paint the same sentence twice
-        if(filed[d.s+'\\u0000'+d.e]){ filedAny=true; return; }
+        if(filed[d.s+'\\u0000'+hlPlain(d.e)]){ filedAny=true; return; }
         var it={sec:d.s,file:d.f||'',exact:d.e,prefix:d.p||'',suffix:d.x||'',
                 color:d.c||'1',note:d.n||'',src:'local'};
         it.range=hlLocate(it);
