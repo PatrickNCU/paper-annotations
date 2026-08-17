@@ -23,6 +23,11 @@ lose its positions.
 2. Paste the prompt from §0 「使用方式」 of the rules file
 3. Unzip the returned archive into the paper folder and re-run `probe.py`
 
+`pdf2md_rules.md` **stays in Chinese by the user's decision**, unlike every other
+document here. It is never loaded into this agent's context — probe.py only
+prints its path — so translating it would save nothing, and its §0 prompt is text
+the user copies into ChatGPT himself. Do not "helpfully" convert it.
+
 **Always state the cost up front** so he does not expect one click:
 
 - Conversion takes real time; an IEEE journal paper usually needs several rounds
