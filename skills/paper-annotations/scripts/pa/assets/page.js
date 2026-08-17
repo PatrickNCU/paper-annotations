@@ -606,6 +606,12 @@
       hlItems.splice(hlPick,1);
       hlSave(); hlPaint(); hlStatus(); hlHide();
     });
+    // Distinguish a click from a drag: with user-select:all a bare click on a
+    // formula already IS a selection, and the selection branch below used to
+    // shadow the mark underneath -- managing a formula highlight took two
+    // clicks where highlighted text took one.
+    var downAt=null;
+    document.addEventListener('mousedown',function(e){ downAt=[e.clientX,e.clientY]; });
     // mouseup, not selectionchange: during a drag the bar would chase the
     // pointer. The timeout lets the selection settle first.
     document.addEventListener('mouseup',function(e){
@@ -618,16 +624,7 @@
       if(!hlOn||chrome){ hlHide(); return; }
       setTimeout(function(){
         if(!panel.hidden){ hlHide(); return; }
-        var sel=window.getSelection();
-        if(sel&&!sel.isCollapsed&&sel.rangeCount&&hlSec(sel.getRangeAt(0).startContainer)){
-          hlPick=-1; hlDel.hidden=true;
-          hlPlace(sel.getRangeAt(0).getBoundingClientRect());
-          return;
-        }
-        // clicking a mark opens its card -- that gesture stays as it was
-        var onCard=e.target.closest&&e.target.closest('mark[data-id]');
-        var i=onCard?-1:hlAt(e.clientX,e.clientY);
-        if(i>=0&&hlOn){
+        function manage(i){
           var it=hlItems[i];
           // a filed mark shows what it says; one still in the browser is
           // still yours to change
@@ -637,8 +634,24 @@
           }
           hlPick=i; hlDel.hidden=false;
           hlPlace(it.range.getBoundingClientRect());
+        }
+        // clicking a mark opens its card -- that gesture stays as it was
+        var onCard=e.target.closest&&e.target.closest('mark[data-id]');
+        var sel=window.getSelection();
+        if(sel&&!sel.isCollapsed&&sel.rangeCount&&hlSec(sel.getRangeAt(0).startContainer)){
+          // A selection without a drag is user-select:all handing over a
+          // whole formula. Aimed at an existing mark, that gesture means
+          // "this mark", not "a new mark on top of it": drop the automatic
+          // selection and manage the mark, one click, same as text.
+          var clicked=downAt&&Math.abs(e.clientX-downAt[0])<5&&Math.abs(e.clientY-downAt[1])<5;
+          var hit=clicked&&!onCard?hlAt(e.clientX,e.clientY):-1;
+          if(hit>=0){ sel.removeAllRanges(); manage(hit); return; }
+          hlPick=-1; hlDel.hidden=true;
+          hlPlace(sel.getRangeAt(0).getBoundingClientRect());
           return;
         }
+        var i=onCard?-1:hlAt(e.clientX,e.clientY);
+        if(i>=0&&hlOn){ manage(i); return; }
         hlHide();
       },0);
     });
