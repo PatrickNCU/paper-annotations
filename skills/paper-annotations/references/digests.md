@@ -1,8 +1,10 @@
 # Digests
 
 Cards plus source text, combined into something written for this particular
-reader. **Written by the agent, not produced by a script.** Written in
-Traditional Chinese — the user reads it.
+reader. **Written by the agent, not produced by a script.** Follows the skill's
+Language section: Traditional Chinese, English term alongside on first use in
+this file, abbreviations spelled out in full the first time — a digest is read on
+its own, so it cannot rely on a full name given in some card.
 
 ## What not to make: a paper summary
 

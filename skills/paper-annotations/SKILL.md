@@ -8,12 +8,39 @@ description: 讀論文時把使用者的疑問就地註記回原文，累積成�
 Where the reader got stuck becomes a **question card**, anchored back onto the
 spot that caused it, for later review.
 
-Speak to the user in **Traditional Chinese**. Chinese strings quoted below are
-literal — file headings, on-screen buttons, filenames, build warnings. Reproduce
-exactly; never translate them.
-
 Source text is read-only. Cards are the only source of truth; `annotated/` and
 `notes/QUESTIONS.md` are regenerable.
+
+## Language
+
+Everything the user reads follows one convention — replies in conversation, card
+bodies, point text, digests, category display names, anything you write for him:
+
+**Traditional Chinese as the base, English as the technical anchor.**
+
+- Write Traditional Chinese prose. Do not drift into English paragraphs.
+- Carry the paper's own English term beside the Chinese the first time a term
+  appears in that file: 「密度懲罰（density penalty）」. The paper he is reading is
+  in English; a note he cannot map back onto its terminology is a note he cannot
+  use.
+- **An abbreviation always carries its full name on first use**:
+  「HPWL（half-perimeter wirelength，半周長線長）」,
+  「FFT（fast Fourier transform，快速傅立葉轉換）」. The bare abbreviation is fine
+  after that.
+- **"First use" is scoped per file, not per session.** A card is read on its own
+  three months from now; a full name that only exists in some other card is a
+  full name he does not have. Spell it out again in every card, point and digest
+  that uses the abbreviation.
+- Terms with no settled Chinese rendering stay in English — Nesterov's method,
+  Lipschitz constant. Never invent a translation.
+
+Exempt because they are keys rather than prose: `id`, filenames, topic slugs and
+`tags`. Keep a tag as the paper's own short English term, which is what he would
+search for, and spell the term out in the prose instead. A topic's **display
+name** in `topics:` is prose and does follow the convention.
+
+Chinese strings quoted in this file are literal — file headings, on-screen
+buttons, filenames, build warnings. Reproduce them exactly; never translate them.
 
 ## Commands
 
@@ -164,6 +191,9 @@ source every build, in order `ref` → `heading` → `quote` → unresolved
 ([references/anchoring.md](references/anchoring.md)).
 
 ## Writing cards
+
+Card bodies follow the Language section above — and the per-file scope matters
+most here, because a card is exactly the thing he opens alone months later.
 
 - **`## 問題`** is the first thing he sees when reviewing — top of the card, and
   the text in the question list. Write a full question answerable from cold, not
