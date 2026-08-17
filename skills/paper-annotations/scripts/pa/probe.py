@@ -231,6 +231,14 @@ def main(argv):
         print(f"之後的 build / reanchor 請傳 {work_root}，不是論文路徑。")
 
     print(f"登記簿       {registry_path}（登記為 {slug}）")
+    # A registry inside the paper's own package is the one placement that
+    # cannot grow: the next paper probed never walks through this folder, so it
+    # silently starts a second registry and the library splits in two with
+    # nothing on screen saying so. Say it now, while there is still one paper.
+    if registry_path.parent == work_root:
+        print("  ⚠️  登記簿現在在這篇論文的資料夾裡，第二篇論文找不到它，會自己另外開一份。")
+        print("      在放論文的那一層執行 git init（或把 papers.yml 手動移上去），")
+        print("      之後所有論文才會共用同一個書房。")
     print(f"參考文獻     抽出 {len(refs)} 筆 → {notes_dir / library.REFS_NAME}")
     everyone = library.entries(registry_path)
     edges = library.citation_edges(everyone)

@@ -77,25 +77,45 @@ def find_registry(start: Path):
     return None
 
 
+def _too_high(base: Path, home: Path) -> bool:
+    """Somewhere no registry may be created: the home folder or a drive root.
+
+    A papers.yml that far up would collect every paper on the machine plus
+    whatever unrelated work happens to sit beneath it.
+    """
+    return base == home or base == base.parent
+
+
 def registry_home(start: Path) -> Path:
     """Where papers.yml belongs when there is not one yet.
 
     The git repository root, by the reader's decision: the registry should be
     versioned alongside the notes rather than live in a home directory, so a
-    clone on another machine arrives with the library intact. Never the home
-    directory itself and never a drive root -- a file that far up would collect
-    papers from unrelated work.
+    clone on another machine arrives with the library intact.
+
+    Failing that, the folder the command was run from -- which for every path
+    the skill takes is the workspace holding the papers. The old fallback was
+    the paper's own package, and that is worse than it sounds: the next paper
+    probed does not walk through its sibling's folder, so it never finds that
+    registry and quietly starts a second one. Two registries mean two shelves,
+    no citations between them, and nothing on screen saying so. Guarded by
+    containment, because a run from an unrelated directory should not drop a
+    registry there.
     """
     found = find_registry(start)
     if found is not None:
         return found
+    start = start.resolve()
     home = Path.home().resolve()
     for base in _ancestors(start):
-        if base == home or base == base.parent:
+        if _too_high(base, home):
             break
         if (base / ".git").exists():
             return base / REGISTRY_NAME
-    return start.resolve() / REGISTRY_NAME
+    here = Path.cwd().resolve()
+    if not _too_high(here, home) and here in start.parents:
+        return here / REGISTRY_NAME
+    return start / REGISTRY_NAME
 
 
 def load_registry(path):
