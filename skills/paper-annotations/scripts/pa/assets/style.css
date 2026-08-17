@@ -139,6 +139,15 @@ border-left:3px solid var(--line);background:var(--sec-answer)}
 .csec-answer{background:var(--sec-answer);border-left-color:var(--line)}
 .csec-key{background:var(--sec-key);border-left-color:var(--done)}
 .csec-key .csec-t{color:var(--done)}
+/* A link and its mirror image. The one you declared and the one pointing back
+   at you look alike on purpose -- from the reader's chair there is no
+   difference between "I said this contradicts that" and "something contradicts
+   this", and which file the line happens to live in is not his problem. */
+.xlinks{margin:14px 0 10px;padding:9px 0 1px;border-top:1px dashed var(--line)}
+.xl{margin:0 0 5px;font-size:.9em;line-height:1.6;color:var(--muted)}
+.xl code{font-size:.86em;padding:1px 5px;border-radius:4px;background:var(--sec-answer)}
+.xlt{color:var(--accent);font-weight:600}
+.xl.back .xlt{color:var(--done)}
 /* The review queue. Two kinds sit in it and they are not the same thing: a
    half-understood card is unfinished work, a due card is a memory check. The
    tag says which, so the reader is never asked to grade something he never

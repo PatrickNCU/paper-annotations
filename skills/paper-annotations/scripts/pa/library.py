@@ -228,6 +228,14 @@ def _question_of(card) -> str:
     return " ".join(text.split()) or "(未填問題)"
 
 
+def _links_of(meta):
+    """The note's declared links, verbatim. Validation belongs to the build."""
+    raw = meta.get("links")
+    if not isinstance(raw, list):
+        return []
+    return [str(item) for item in raw if str(item or "").strip()]
+
+
 def _where_of(meta) -> str:
     anchor = meta.get("anchor") or {}
     heading = anchor.get("heading") or []
@@ -263,6 +271,9 @@ def write_catalog(notes_dir: Path, paper_root: Path, config: dict, cards, points
                 "tags": [str(t) for t in (card["meta"].get("tags") or [])],
                 "question": _question_of(card),
                 "where": _where_of(card["meta"]),
+                # Kept raw: resolving them here would freeze an answer that
+                # depends on which papers are registered right now.
+                "links": _links_of(card["meta"]),
             }
             for card in cards
         ],
@@ -274,6 +285,7 @@ def write_catalog(notes_dir: Path, paper_root: Path, config: dict, cards, points
                 "tags": [str(t) for t in (point["meta"].get("tags") or [])],
                 "text": point["text"],
                 "where": _where_of(point["meta"]),
+                "links": _links_of(point["meta"]),
             }
             for point in points
         ],

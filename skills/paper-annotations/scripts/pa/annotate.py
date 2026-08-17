@@ -14,7 +14,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import anchors, cli, library, links, notes, sources, srs, workspace
+from . import anchors, cli, library, links, notes, sources, srs, workspace, xlinks
 
 cli.bootstrap()
 
@@ -56,7 +56,7 @@ def summary_text(card) -> str:
     return " ".join(question.split()) or "(未填問題)"
 
 
-def render_card(card, dst_path: Path) -> str:
+def render_card(card, dst_path: Path, out_links=(), in_links=()) -> str:
     meta, sections = card["meta"], notes.card_sections(card["body"])
     cid = str(meta.get("id", "?"))
     status = str(meta.get("status", "open"))
@@ -94,6 +94,8 @@ def render_card(card, dst_path: Path) -> str:
                 "",
             ]
 
+    parts += render_links(out_links, in_links)
+
     meta_bits = [f"狀態 {label}"]
     if meta.get("origin") == "suggested":
         meta_bits.append("AI 提示（非你提問）")
@@ -108,7 +110,43 @@ def render_card(card, dst_path: Path) -> str:
     return "\n".join(parts)
 
 
-def render_point(point, dst_path: Path) -> str:
+def render_links(out_links, in_links) -> list:
+    """Both ends of every link, on the note itself.
+
+    Cross-paper targets are not hyperlinked: the other paper lives under its
+    own root and the path that reaches it differs between disk and server, so a
+    href would be right in one place and broken in the other. What the target
+    actually says is shown instead, which is the part worth having anyway.
+    """
+    if not out_links and not in_links:
+        return []
+    rows = []
+    for link in out_links:
+        label = xlinks.LINK_TYPES[link["type"]][0]
+        ref = link["ref"]
+        rows.append(
+            f'<div class="xl"><b class="xlt">{label}</b> '
+            f'<code>{xlinks.ref_text(ref)}</code> {esc_html(link["summary"])}</div>'
+        )
+    for link in in_links:
+        pair = xlinks.LINK_TYPES.get(link["type"])
+        label = pair[1] if pair else link["type"]
+        src = link["from"]
+        rows.append(
+            f'<div class="xl back"><b class="xlt">← {label}</b> '
+            f'<code>{src["slug"]}#{src["kind"]}{src["id"]}</code> '
+            f'{esc_html(link["summary"])}</div>'
+        )
+    return ['<div class="xlinks">'] + rows + ["</div>", ""]
+
+
+def esc_html(text: str) -> str:
+    return (
+        str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    )
+
+
+def render_point(point, dst_path: Path, out_links=(), in_links=()) -> str:
     """A point, rendered as quietly as it can be while still being findable.
 
     Not a <details>: there is nothing to hide behind a summary -- a point is
@@ -138,6 +176,9 @@ def render_point(point, dst_path: Path) -> str:
             "",
             point["text"],
             "",
+        ]
+        + render_links(out_links, in_links)
+        + [
             "<sub>" + " · ".join(bits) + "</sub>",
             "",
             "</div>",
@@ -199,6 +240,24 @@ def build(work_root: Path, allow_drift: bool = False):
     placed, unanchored, rows, fragile = {}, [], [], []
     point_rows, point_lost, point_fragile = [], [], []
 
+    # Links resolve against the catalogs that exist right now, so a paper added
+    # later lights up the links pointing at it on the next build of either side
+    # -- nothing has to be rewritten.
+    this_slug = library.paper_name(paper_root).lower()
+    registry = library.find_registry(work_root)
+    catalogs = xlinks.index(registry) if registry else {}
+    back = xlinks.incoming(catalogs, this_slug)
+    link_problems, broken_links = [], []
+
+    def links_for(note, kind: str):
+        meta = note["meta"]
+        key = f"{kind}{str(meta.get('id') or '').zfill(4)}"
+        declared = xlinks.declared(meta, this_slug, link_problems, note["path"].name)
+        good, missing = xlinks.resolve(declared, catalogs, this_slug)
+        for item in missing:
+            broken_links.append((note["path"].name, xlinks.ref_text(item["ref"]), item["why"]))
+        return good, back.get(key, [])
+
     for order, rel in enumerate(source_list):
         src = paper_root / rel
         if not src.is_file():
@@ -255,8 +314,14 @@ def build(work_root: Path, allow_drift: bool = False):
         for _, _, card in insertions:
             quote = (card["meta"].get("anchor") or {}).get("quote")
             out = anchors.highlight_quote(out, anchors.quote_text(quote))
-        blocks = [(index, render_card(card, dst).splitlines()) for index, _, card in insertions]
-        blocks += [(index, render_point(point, dst).splitlines()) for index, point in point_hits]
+        blocks = [
+            (index, render_card(card, dst, *links_for(card, "Q")).splitlines())
+            for index, _, card in insertions
+        ]
+        blocks += [
+            (index, render_point(point, dst, *links_for(point, "P")).splitlines())
+            for index, point in point_hits
+        ]
         for index, block in sorted(blocks, key=lambda item: -item[0]):
             out[index + 1 : index + 1] = [""] + block
 
@@ -347,6 +412,16 @@ def build(work_root: Path, allow_drift: bool = False):
         print("\n🟡 要點的引文提醒（這次照樣掛好了，但論文改版後會救不回來）：")
         for point, hits in point_fragile:
             print(f"    要點 {point['meta'].get('id')} — {fragile_reason(hits)} — {point['path'].name}")
+
+    linked = sum(len(v) for v in back.values())
+    if catalogs and (linked or broken_links or link_problems):
+        print(f"\n跨論文連結  指進來的 {linked} 條")
+    for name, message in link_problems:
+        print(f"  ⚠️  {name} — {message}")
+    for name, target, why in broken_links:
+        print(f"  ⚠️  {name} 指向 {target} — {why}")
+    if broken_links:
+        print("      連結解不到就是解不到，不會猜。修掉目標或先 build 那一篇。")
 
     companions = drifted_companions(paper_root, config)
     if companions:
