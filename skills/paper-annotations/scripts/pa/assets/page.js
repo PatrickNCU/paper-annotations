@@ -261,6 +261,14 @@
   var hlItems=[], hlOn=true, hlPick=-1, hlMaps={}, hlZone=null;
   // set once the page knows whether serve.py is behind it
   var paToken='', paMark=function(){};
+  // Which paper this page is, taken from where it was served rather than baked
+  // in at build time: serving several papers mounts each under /p/<slug>/, and
+  // a slug written into the file would be wrong the moment the folder is
+  // renamed. Empty when served alone, which the server reads as "the only one".
+  var paSlug=(function(){
+    var m=/^\/p\/([^\/]+)\//.exec(location.pathname);
+    try{ return m?decodeURIComponent(m[1]):''; }catch(e){ return m?m[1]:''; }
+  })();
 
   function hlNorm(s){ return (s||'').replace(/\s+/g,' ').trim(); }
   function hlSec(node){
@@ -752,7 +760,7 @@
       fetch('/_pa/mark',{
         method:'POST',
         headers:{'Content-Type':'application/json','X-PA-Token':paToken},
-        body:JSON.stringify({id:it.id,action:action,
+        body:JSON.stringify({paper:paSlug,id:it.id,action:action,
           color:{'1':'yellow','2':'green','3':'blue','4':'red'}[it.color]||'yellow',
           note:it.note||''})
       }).then(function(r){ return r.json(); }).then(function(d){
@@ -773,7 +781,7 @@
       fetch('/_pa/marks',{
         method:'POST',
         headers:{'Content-Type':'application/json','X-PA-Token':paToken},
-        body:JSON.stringify({marks:list.map(function(it){
+        body:JSON.stringify({paper:paSlug,marks:list.map(function(it){
           return {file:it.file||'',color:{'1':'yellow','2':'green','3':'blue','4':'red'}[it.color]||'yellow',
                   exact:hlPlain(it.exact),prefix:hlPlain(it.prefix),
                   suffix:hlPlain(it.suffix),note:it.note||''};
@@ -828,7 +836,7 @@
         hlSay('刪除中…');
         fetch('/_pa/mark',{method:'POST',
           headers:{'Content-Type':'application/json','X-PA-Token':paToken},
-          body:JSON.stringify({action:'clear'})
+          body:JSON.stringify({paper:paSlug,action:'clear'})
         }).then(function(r){ return r.json(); }).then(function(d){
           if(d.ok&&d.rebuilt){ location.reload(); return; }
           hlSay('刪除失敗：'+(d.error||'重建沒有成功'));
@@ -966,7 +974,7 @@
       fetch('/_pa/review',{
         method:'POST',
         headers:{'Content-Type':'application/json','X-PA-Token':srsToken},
-        body:JSON.stringify({id:id,grade:grade})
+        body:JSON.stringify({paper:paSlug,id:id,grade:grade})
       }).then(function(r){ return r.json(); }).then(function(d){
         srsBusy=false;
         if(d.error){ if(say) say.textContent='沒記錄成功：'+d.error; return; }
@@ -991,7 +999,8 @@
       .then(function(d){
         if(!d||!d.token) return;
         srsToken=d.token;
-        return fetch('/_pa/reviews').then(function(r){ return r.ok?r.json():null; })
+        return fetch('/_pa/reviews?p='+encodeURIComponent(paSlug))
+          .then(function(r){ return r.ok?r.json():null; })
           .then(function(s){ if(s) srsState=s; srsDraw(); });
       })
       .catch(function(){});

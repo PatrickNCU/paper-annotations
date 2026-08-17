@@ -26,7 +26,11 @@ $ARGUMENTS
 4. 登記的位置找不到筆記時（資料夾被搬走），照實說是哪一篇、原本登記在哪，
    並說明修法是改 `papers.yml` 的 `work` 或重跑 `probe.py`。**不要自動改。**
 
-5. 使用者想看的是關聯而不只是清單時，接著跑 `/paper-annotations:digest` 的
+5. **想要一頁能點的**：跑 `build_library.py` 產生書房頁，再用
+   `serve.py --library` 開。告訴他多論文模式下每篇掛在各自的路徑底下，
+   而既有的單篇啟動器完全不受影響。
+
+6. 使用者想看的是關聯而不只是清單時，接著跑 `/paper-annotations:digest` 的
    `connections` 模式。
 
 完成條件：使用者知道自己讀過哪幾篇、哪幾篇互相引用、還有哪些疑問沒解決。

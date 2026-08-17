@@ -7,16 +7,22 @@ its highlights back, writing them into notes/marks/ and rebuilding the page.
 
     python serve.py <work> [--port 8975] [--no-open]
     python serve.py <work> --launcher        # 只放一個點兩下就能開的啟動器
+    python serve.py --library [<起點>]        # 登記簿裡的每一篇，加上書房頁
 
 Without it everything still works; highlights simply stay in the browser until
-they are copied out by hand. Nothing else about the page changes.
+they are copied out by hand, and grading is unavailable (docs/adr/0003).
 
 Safety, in the order it matters:
 
   * Bound to 127.0.0.1 only. Never 0.0.0.0 -- that would let anyone on the
     same network write files onto this machine.
-  * Writes are confined to notes/marks/, and filenames are generated here.
-    Nothing in a request is ever used as a path.
+  * Each paper is mounted under /p/<slug>/ and resolved inside ITS OWN root.
+    There is deliberately no shared root: commonpath over papers scattered
+    across a disk collapses to the drive letter, which would put everything on
+    the machine behind an HTTP server.
+  * Writes are confined to notes/, and filenames are generated here. A request
+    names a paper by slug, looked up in a table built at startup; nothing in a
+    request is ever used as a path.
   * Saving requires a custom header carrying a token minted at startup. A page
     on another origin cannot send a custom header without a CORS preflight,
     and the preflight is refused; it cannot read the token either, because no
@@ -37,11 +43,11 @@ import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from datetime import date
 
-from . import cli, marks as marklib, notes, srs, workspace
+from . import cli, library, marks as marklib, notes, srs, workspace
 
 cli.bootstrap()
 
@@ -53,10 +59,64 @@ MAX_BODY = 4 << 20  # a paper's worth of highlights is kilobytes; this is slack
 
 class Handler(SimpleHTTPRequestHandler):
     token = ""
-    work = Path(".")
-    paper_root = Path(".")
-    notes = Path(".")
+    # slug -> Paper. Every path and every write is resolved through this map,
+    # which is built once at startup from the registry. A request names a paper
+    # by slug and never by path -- see _paper().
+    papers = {}
+    default = ""
+    shelf = None  # the one library.html file, served by name and never by folder
     lock = threading.Lock()
+
+    # ---- routing ---------------------------------------------------------
+
+    def _route(self, path: str):
+        """Split "/p/<slug>/rest" into (slug, rest). (None, path) otherwise."""
+        parts = path.split("/", 3)
+        if len(parts) >= 3 and parts[1] == "p":
+            slug = unquote(parts[2])
+            if slug in self.papers:
+                return slug, (parts[3] if len(parts) > 3 else "")
+        return None, path
+
+    def _paper(self, slug):
+        """The paper a request is about, or None.
+
+        A missing slug means the single-paper case, which is what every
+        existing launcher produces. Anything else has to name a paper that was
+        mounted at startup; an unknown name is refused rather than guessed.
+        """
+        slug = str(slug or "") or self.default
+        return self.papers.get(slug)
+
+    def translate_path(self, path: str) -> str:
+        """Map a URL onto disk inside ONE paper's root.
+
+        Never a shared root. The obvious implementation -- commonpath over
+        every mounted paper -- collapses to C:\\ the moment two papers live on
+        different branches of the disk, which would put the whole drive behind
+        an HTTP server. Each paper is resolved against its own root instead, so
+        the worst a traversal can reach is the paper it was already allowed to
+        read.
+        """
+        slug, rest = self._route(path.split("?")[0].split("#")[0])
+        paper = self._paper(slug)
+        if paper is None:
+            # Nothing is mounted here. A path no file can occupy, so send_head
+            # answers 404 for GET and HEAD alike -- os.devnull would not: it
+            # opens fine and would serve an empty 200.
+            return os.path.join(os.path.dirname(__file__), "__no_such_paper__", "x")
+        # Same filtering the stdlib applies: drop empties, "." and "..", and
+        # anything carrying a path separator or a drive letter.
+        parts = []
+        for word in unquote(rest, errors="surrogatepass").split("/"):
+            if not word or word in (".", ".."):
+                continue
+            _, word = os.path.splitdrive(word)
+            _, word = os.path.split(word)
+            if word in (".", ".."):
+                continue
+            parts.append(word)
+        return str(paper["root"].joinpath(*parts))
 
     # Quieter than the default, but str() first: log_error passes an HTTPStatus
     # here, not a string, and testing it for membership raised inside the
@@ -83,36 +143,105 @@ class Handler(SimpleHTTPRequestHandler):
         return origin in (f"http://{host}", f"https://{host}")
 
     def do_GET(self):
-        path = self.path.split("?")[0]
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
+        want = (query.get("p") or [""])[0]
+
         if path == "/_pa/hello":
             if not self._same_origin():
                 self._json(403, {"error": "cross-origin"})
                 return
-            # the paper is named so that a second run can tell "already serving
-            # this one" from "something else has the port" -- see main()
-            self._json(200, {"ok": True, "token": self.token, "paper": self.work.name})
+            # the papers are named so that a second run can tell "already
+            # serving this one" from "something else has the port" -- see main()
+            self._json(200, {
+                "ok": True,
+                "token": self.token,
+                "paper": self.papers[self.default]["work"].name if self.default else "",
+                "papers": sorted(self.papers),
+            })
             return
         if path == "/":
             self.send_response(302)
-            self.send_header("Location", self.index_url)
+            self.send_header("Location", self.home_url)
             self.end_headers()
             return
         if path == "/_pa/reviews":
             if not self._same_origin():
                 self._json(403, {"error": "cross-origin"})
                 return
+            paper = self._paper(want)
+            if paper is None:
+                self._json(404, {"error": f"沒有這篇論文：{want}"})
+                return
             # Read-only, so no token: it says which of the reader's own cards
             # are due, which is no more than the page already shows.
-            self._json(200, self._schedule())
+            self._json(200, self._schedule(paper))
+            return
+        if path == "/_pa/library":
+            if not self._same_origin():
+                self._json(403, {"error": "cross-origin"})
+                return
+            self._json(200, self._library())
+            return
+        if path == "/_pa/shelf":
+            # One named file, read and returned here. Mounting its folder as a
+            # paper would put the whole workspace -- papers.yml, every package,
+            # anything else sitting there -- behind the server, which is the
+            # exact thing the per-paper roots exist to prevent.
+            if self.shelf and self.shelf.is_file():
+                body = self.shelf.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_error(404, "no shelf page")
             return
         if path == "/favicon.ico":  # browsers always ask; there is not one
             self.send_response(204)
             self.end_headers()
             return
+        slug, rest = self._route(path)
+        if slug is not None and rest in ("", "/"):
+            self.send_response(302)
+            self.send_header("Location", self.papers[slug]["index_url"])
+            self.end_headers()
+            return
+        if self._paper(slug) is None:
+            # Serving several papers there is no default, so a bare path names
+            # nothing. Say so rather than let it fall through to a file lookup.
+            self.send_error(404, "no such paper")
+            return
         super().do_GET()
 
-    def _schedule(self):
-        return srs.schedule(self.notes, notes.load_cards(self.notes), date.today().isoformat())
+    def _schedule(self, paper):
+        return srs.schedule(
+            paper["notes"], notes.load_cards(paper["notes"]), date.today().isoformat()
+        )
+
+    def _library(self):
+        """Live counts for the library page, so it is never stale while served."""
+        today = date.today().isoformat()
+        out = []
+        for slug, paper in sorted(self.papers.items()):
+            cards = notes.load_cards(paper["notes"])
+            tally = {"open": 0, "half": 0, "resolved": 0}
+            for card in cards:
+                key = str(card["meta"].get("status", "open"))
+                tally[key] = tally.get(key, 0) + 1
+            plan = srs.schedule(paper["notes"], cards, today)
+            out.append({
+                "slug": slug,
+                "title": paper["title"],
+                "url": paper["index_url"],
+                "cards": len(cards),
+                "points": len(notes.load_points(paper["notes"])),
+                "open": tally["open"], "half": tally["half"], "resolved": tally["resolved"],
+                "due": plan["due"], "tracked": plan["tracked"],
+            })
+        return {"today": today, "papers": out}
 
     def do_POST(self):
         path = self.path.split("?")[0]
@@ -131,39 +260,32 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/_pa/review":
             self._grade()
             return
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-        except ValueError:
-            length = 0
-        if length <= 0 or length > MAX_BODY:
-            self._json(400, {"error": "bad length"})
-            return
-        try:
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            records = payload["marks"]
-            if not isinstance(records, list):
-                raise ValueError
-        except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+        payload = self._body()
+        if not isinstance(payload, dict) or not isinstance(payload.get("marks"), list):
             self._json(400, {"error": "bad payload"})
+            return
+        paper = self._paper(payload.get("paper"))
+        if paper is None:
+            self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
             return
 
         clean = []
-        for item in records:
+        for item in payload["marks"]:
             if not isinstance(item, dict):
                 continue
             rec = {k: str(item.get(k) or "") for k in
                    ("file", "color", "exact", "prefix", "suffix", "note")}
             # a path from the network is never trusted; it only has to name one
             # of the sources this paper already declares
-            if rec["exact"] and rec["file"] in self.sources:
+            if rec["exact"] and rec["file"] in paper["sources"]:
                 clean.append(rec)
         if not clean:
             self._json(400, {"error": "沒有可用的畫記"})
             return
 
         with self.lock:  # one writer at a time: ids are handed out by scanning
-            result = marklib.write_marks(self.paper_root, self.notes, clean)
-            rebuilt, log = self._rebuild() if result["written"] else (True, "")
+            result = marklib.write_marks(paper["paper_root"], paper["notes"], clean)
+            rebuilt, log = self._rebuild(paper) if result["written"] else (True, "")
         self._json(200, {
             "written": result["written"],
             "skipped": result["skipped"],
@@ -196,15 +318,19 @@ class Handler(SimpleHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._json(400, {"error": "bad payload"})
             return
+        paper = self._paper(payload.get("paper"))
+        if paper is None:
+            self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
+            return
         wanted = str(payload.get("id") or "")
         action = str(payload.get("action") or "")
         if action == "clear":
             with self.lock:
                 gone = 0
-                for mark in notes.load_marks(self.notes):
+                for mark in notes.load_marks(paper["notes"]):
                     mark["path"].unlink()
                     gone += 1
-                rebuilt, log = self._rebuild()
+                rebuilt, log = self._rebuild(paper)
             self._json(200, {"ok": True, "action": "clear", "deleted": gone,
                              "rebuilt": rebuilt, "log": log})
             return
@@ -214,7 +340,7 @@ class Handler(SimpleHTTPRequestHandler):
 
         with self.lock:
             found = None
-            for mark in notes.load_marks(self.notes):
+            for mark in notes.load_marks(paper["notes"]):
                 if str(mark["meta"].get("id")) == wanted:
                     found = mark
                     break
@@ -229,7 +355,7 @@ class Handler(SimpleHTTPRequestHandler):
                     str(payload.get("color") or found["color"]),
                     str(payload.get("note") or ""),
                 )
-            rebuilt, log = self._rebuild()
+            rebuilt, log = self._rebuild(paper)
         self._json(200, {"ok": True, "action": action, "rebuilt": rebuilt, "log": log})
 
     def _grade(self):
@@ -246,6 +372,10 @@ class Handler(SimpleHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._json(400, {"error": "bad payload"})
             return
+        paper = self._paper(payload.get("paper"))
+        if paper is None:
+            self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
+            return
         wanted = str(payload.get("id") or "")
         grade = str(payload.get("grade") or "")
         if grade not in srs.GRADES:
@@ -253,7 +383,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
 
         with self.lock:
-            cards = notes.load_cards(self.notes)
+            cards = notes.load_cards(paper["notes"])
             card = next(
                 (c for c in cards if str(c["meta"].get("id")) == wanted), None
             )
@@ -263,17 +393,17 @@ class Handler(SimpleHTTPRequestHandler):
             if not srs.eligible(card["meta"]):
                 self._json(400, {"error": f"Q{wanted} 不在排程裡（只有你自己問過、且已解決的卡才排程）"})
                 return
-            srs.append(self.notes, wanted, grade, date.today().isoformat())
-            state = self._schedule()
+            srs.append(paper["notes"], wanted, grade, date.today().isoformat())
+            state = self._schedule(paper)
         self._json(200, {"ok": True, "id": wanted, "grade": grade, "schedule": state})
 
-    def _rebuild(self):
+    def _rebuild(self, paper):
         """Only the HTML: marks never touch the annotated Markdown."""
         # encoding spelled out: text=True decodes with the console codepage,
         # which on a zh-TW Windows is cp950 and cannot read the build's UTF-8
         # output at all -- the reader thread died and took the log with it.
         run = subprocess.run(
-            [sys.executable, str(SCRIPTS / "build_html.py"), str(self.work)],
+            [sys.executable, str(SCRIPTS / "build_html.py"), str(paper["work"])],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         out = (run.stdout or "") + (run.stderr or "")
@@ -378,33 +508,93 @@ def probe(port: int):
         return ""
 
 
-def main(argv) -> int:
-    # --port takes a value: skip it, or "--port 9000 <work>" reads 9000 as work
-    args = cli.positionals(argv, value_flags={"--port"})
-    work = Path(args[0] if args else ".").resolve()
+def mount(work: Path, slug: str):
+    """Everything the handler needs to serve one paper, resolved once.
+
+    The root is per paper and is the folder holding both the review page and
+    the package it points at -- the page's images live next door, so serving
+    annotated/ alone gives a page with every figure missing.
+    """
     config, paper_root, notes_dir, annotated = workspace.load_workspace(work)
     if not (annotated / "index.html").is_file():
         raise SystemExit(f"找不到 {annotated / 'index.html'}，請先執行 build_html.py")
+    root = Path(os.path.commonpath([str(annotated), str(paper_root)]))
+    inside = (annotated / "index.html").relative_to(root).as_posix()
+    # percent-encoded: http.server writes headers in latin-1, so a Chinese
+    # directory name in the redirect target would crash the redirect handlers
+    return {
+        "slug": slug,
+        "work": work,
+        "paper_root": paper_root,
+        "notes": notes_dir,
+        "annotated": annotated,
+        "root": root,
+        "title": library.paper_title(paper_root)[0],
+        "sources": {Path(p).as_posix() for p in (config.get("sources") or [])},
+        "index_url": f"/p/{quote(slug)}/{quote(inside)}",
+    }
 
+
+def collect(argv, args):
+    """Which papers this run serves, and which is the default.
+
+    Two modes, and the single-paper one is unchanged on purpose: every launcher
+    already written points at `serve.py <work>`, and those must keep working
+    exactly as they did.
+    """
+    if "--library" in argv:
+        start = Path(args[0]).resolve() if args else Path(".").resolve()
+        registry = library.find_registry(start)
+        if registry is None:
+            raise SystemExit(
+                f"從 {start} 往上找不到 papers.yml。\n"
+                "對任何一篇論文執行 probe.py 就會建立一份，或改用 serve.py <論文路徑>。"
+            )
+        papers, skipped = {}, []
+        for entry in library.entries(registry):
+            if not entry["alive"]:
+                skipped.append((entry["slug"], "登記的位置找不到筆記"))
+                continue
+            try:
+                papers[entry["slug"]] = mount(entry["work"], entry["slug"])
+            except SystemExit as why:
+                skipped.append((entry["slug"], str(why)))
+        if not papers:
+            raise SystemExit("登記簿裡沒有任何一篇是可以服務的（都還沒 build？）")
+        return papers, "", registry, skipped
+
+    work = Path(args[0] if args else ".").resolve()
+    slug = library.paper_name(work)
+    return {slug: mount(work, slug)}, slug, None, []
+
+
+def main(argv) -> int:
+    # --port takes a value: skip it, or "--port 9000 <work>" reads 9000 as work
+    args = cli.positionals(argv, value_flags={"--port"})
     port = int(cli.flag(argv, "port", "8975"))
+
     if "--launcher" in argv:
+        work = Path(args[0] if args else ".").resolve()
+        _, _, _, annotated = workspace.load_workspace(work)
         print(f"啟動器       {write_launcher(work, annotated, port)}")
         print("             點兩下就會起 server 並開複習頁")
         return 0
 
+    papers, default, registry, skipped = collect(argv, args)
     Handler.token = secrets.token_urlsafe(24)
-    Handler.work, Handler.paper_root, Handler.notes = work, paper_root, notes_dir
-    Handler.sources = {Path(p).as_posix() for p in (config.get("sources") or [])}
-
-    # The review page points at images that live in the package next door, so
-    # serving annotated/ alone gives a page with every figure missing. Root at
-    # the folder holding both and let the links resolve exactly as they do on
-    # disk; "/" redirects to wherever the page actually sits. The stdlib
-    # handler still refuses to walk above whatever root it is given.
-    root = Path(os.path.commonpath([str(annotated), str(paper_root)]))
-    # percent-encoded: http.server writes headers in latin-1, so a Chinese
-    # directory name in the redirect target would crash the "/" handler
-    Handler.index_url = "/" + quote((annotated / "index.html").relative_to(root).as_posix())
+    Handler.papers = papers
+    Handler.default = default
+    # One paper goes straight to its page; a shelf full of them lands on the
+    # shelf. Either way "/" is somewhere useful rather than a directory listing.
+    Handler.home_url = papers[default]["index_url"] if default else "/_pa/shelf"
+    if not default:
+        shelf = registry.parent / "library.html"
+        if not shelf.is_file():
+            raise SystemExit(
+                f"找不到書房頁 {shelf}，請先執行：\n"
+                f"    python <scripts>/build_library.py"
+            )
+        Handler.shelf = shelf
 
     url = f"http://127.0.0.1:{port}/"
     # Double-clicking the launcher twice is the common case, and "address
@@ -412,7 +602,7 @@ def main(argv) -> int:
     # they are before deciding what to say.
     if taken(port):
         holder = probe(port)
-        if holder == work.name:
+        if default and holder == papers[default]["work"].name:
             print(f"複習頁       {url}")
             print("             這篇已經在跑了，直接用這條網址就好")
             if "--no-open" not in argv:
@@ -425,12 +615,23 @@ def main(argv) -> int:
             )
         raise SystemExit(f"port {port} 被其他程式佔用了，請換一個，例如 --port {port + 1}")
 
-    server = ThreadingHTTPServer(
-        ("127.0.0.1", port), partial(Handler, directory=str(root))
-    )
-    print(f"複習頁       {url}")
-    print(f"             畫記會直接寫進 {notes_dir / 'marks'}，並重建複習頁")
-    print(f"             檔案根目錄 {root}（只有本機連得到）")
+    # No shared directory= is passed: translate_path resolves every request
+    # inside the one paper it names, and never against a root spanning them.
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    if default:
+        paper = papers[default]
+        print(f"複習頁       {url}")
+        print(f"             畫記會直接寫進 {paper['notes'] / 'marks'}，並重建複習頁")
+        print(f"             檔案根目錄 {paper['root']}（只有本機連得到）")
+    else:
+        real = [s for s in papers if s != "_shelf"]
+        print(f"書房         {url}")
+        print(f"             {len(real)} 篇論文，各自只開放自己的資料夾")
+        for slug in sorted(real):
+            print(f"               {slug:<16} {papers[slug]['root']}")
+        for slug, why in skipped:
+            print(f"             🟡 略過 {slug}：{why}")
+    print("             評分與畫記存檔都需要這個視窗開著")
     print("             Ctrl+C 結束")
     if "--no-open" not in argv:
         webbrowser.open(url)

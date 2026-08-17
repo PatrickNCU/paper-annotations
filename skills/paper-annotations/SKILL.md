@@ -20,10 +20,12 @@ python <scripts>/build_annotated.py <work>             # 改卡片後：重建 M
 python <scripts>/build_html.py <work>                  # 接著：重建複習用的 index.html
 python <scripts>/library.py [<起點>] [--json]          # 讀過哪些論文、疑問與要點、互相引用
 python <scripts>/build_digest.py <work> [--only <前綴>] # 把整理的 .md 渲染成可直接開的 .html
+python <scripts>/build_library.py [<起點>]             # 產生書房頁 library.html
 python <scripts>/reanchor.py <work>                    # 原文重新轉檔／切分後：把卡片接回去
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
 python <scripts>/import_marks.py <work> --from <檔>   # 複習頁「複製畫記」的輸出
 python <scripts>/serve.py <work> [--port 8975]        # 複習頁的畫記可直接存檔
+python <scripts>/serve.py --library [<起點>]          # 一次服務所有論文，首頁是書房
 python <scripts>/build_html.py <work> --embed-assets --to <檔>   # 寄給別人的單檔
 ```
 
@@ -288,6 +290,18 @@ anchor:
 
 有判斷成分的關係（共識、矛盾、同一概念的不同講法）由你寫成整理，見下一節的 `connections`
 模式。不要把判斷寫進 `references.json` 或 `catalog.json`，那兩個是產生物。
+
+### 書房頁
+
+`build_library.py` 產生 `library.html`（放在 `papers.yml` 旁邊）：每篇論文一張卡，帶疑問
+統計、要點數、今天要複習幾張，底下列出互相引用。**用 `serve.py --library` 開**，論文連結
+才通得了；直接雙擊也開得起來，只是連結點不動。
+
+多論文模式下每篇掛在 `/p/<代號>/` 底下，**各自只開放自己的資料夾**。不要試圖給 server 一個
+橫跨所有論文的根目錄——論文散在硬碟各處時那會退化成整顆磁碟。同理，寫入請求帶的是論文代號，
+由 server 端查表得到路徑；任何情況下都不要讓請求裡的字串變成路徑。
+
+單篇模式（`serve.py <work>`）完全沒變，既有的啟動器照舊可用。
 
 ## 整理
 
