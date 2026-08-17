@@ -65,6 +65,7 @@ class Handler(SimpleHTTPRequestHandler):
     papers = {}
     default = ""
     shelf = None  # the one library.html file, served by name and never by folder
+    registry = None  # papers.yml, only in --library mode
     lock = threading.Lock()
 
     # ---- routing ---------------------------------------------------------
@@ -245,7 +246,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
-        if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review"):
+        if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/topic"):
             self._json(404, {"error": "unknown endpoint"})
             return
         if not self._same_origin():
@@ -259,6 +260,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/_pa/review":
             self._grade()
+            return
+        if path == "/_pa/topic":
+            self._topic()
             return
         payload = self._body()
         if not isinstance(payload, dict) or not isinstance(payload.get("marks"), list):
@@ -396,6 +400,50 @@ class Handler(SimpleHTTPRequestHandler):
             srs.append(paper["notes"], wanted, grade, date.today().isoformat())
             state = self._schedule(paper)
         self._json(200, {"ok": True, "id": wanted, "grade": grade, "schedule": state})
+
+    def _topic(self):
+        """Put one paper into a topic, or take it out of one.
+
+        Both the paper and the topic are names checked against things that
+        already exist -- the registry's papers and its declared vocabulary --
+        so neither can turn into a path or invent a category. Rebuilds the
+        shelf afterwards, unlike grading: this one does change the page.
+        """
+        if self.registry is None:
+            self._json(400, {"error": "這個 server 不是用 --library 起的，沒有登記簿"})
+            return
+        payload = self._body()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "bad payload"})
+            return
+        paper = self._paper(payload.get("paper"))
+        if paper is None:
+            self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
+            return
+        action = str(payload.get("action") or "")
+        if action not in ("add", "remove"):
+            self._json(400, {"error": "action 只能是 add 或 remove"})
+            return
+
+        with self.lock:
+            ok, why = library.set_topic(
+                self.registry, paper["slug"], str(payload.get("topic") or ""),
+                action == "add",
+            )
+            if not ok:
+                self._json(400, {"error": why})
+                return
+            rebuilt, log = self._rebuild_shelf()
+        self._json(200, {"ok": True, "note": why, "rebuilt": rebuilt, "log": log})
+
+    def _rebuild_shelf(self):
+        run = subprocess.run(
+            [sys.executable, str(SCRIPTS / "build_library.py"), str(self.registry.parent)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        out = (run.stdout or "") + (run.stderr or "")
+        sys.stderr.write(out)
+        return run.returncode == 0, out.strip().splitlines()[:6]
 
     def _rebuild(self, paper):
         """Only the HTML: marks never touch the annotated Markdown."""
@@ -622,6 +670,7 @@ def main(argv) -> int:
                 f"    python <scripts>/build_library.py"
             )
         Handler.shelf = shelf
+        Handler.registry = registry
 
     url = f"http://127.0.0.1:{port}/"
     # Double-clicking the launcher twice is the common case, and "address

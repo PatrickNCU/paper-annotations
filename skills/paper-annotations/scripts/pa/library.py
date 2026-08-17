@@ -43,6 +43,9 @@ REGISTRY_SCHEMA = 1
 CATALOG_NAME = "catalog.json"
 REFS_NAME = "references.json"
 
+# "Index Terms—Analytic placement, electrostatic analogy, …"
+INDEX_TERMS = re.compile(r"^Index Terms\s*[—\-–:]\s*(.+)$", re.M)
+
 # "[12] A. Author et al., “Title,” in Proc. …, 2015, pp. 1-6."
 REF_LINE = re.compile(r"^\[(\d+)\]\s+(.+)$")
 REF_TITLE = re.compile("[“\"]([^”\"]{8,})[”\"]")
@@ -107,16 +110,43 @@ def load_registry(path):
     return data
 
 
+DEFAULT_HEADER = (
+    "# 論文登記簿：paper-annotations 靠它知道你讀過哪些論文。\n"
+    "# probe.py 會自動登記；可以手改。路徑相對於這個檔案，所以整包 clone 到\n"
+    "# 另一台機器仍然成立。\n"
+    "#\n"
+    "# topics 是分類的詞彙表，先定義才能使用（避免 3D-IC 和 3d-ic 變成兩個分類）。\n"
+    "# 每篇論文底下：topics 是你自己定的、topics_auto 是 AI 建議的、\n"
+    "# topics_off 是你移除過的（AI 不會再建議）。\n"
+)
+
+
+def _header(path: Path) -> str:
+    """Whatever comment block the file already opens with.
+
+    This file is meant to be edited by hand, and the server rewrites it every
+    time a topic is added from the shelf. Stamping the canned header back over
+    the top would quietly delete whatever the reader wrote to explain his own
+    categories -- a comment is the one part of a config nobody expects a
+    program to throw away.
+    """
+    if not path.is_file():
+        return DEFAULT_HEADER
+    kept = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("#") or not line.strip():
+            kept.append(line)
+            continue
+        break
+    text = "\n".join(kept).rstrip("\n")
+    return (text + "\n") if text.strip() else DEFAULT_HEADER
+
+
 def save_registry(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    header = _header(path)
     path.write_text(
-        "# 論文登記簿：paper-annotations 靠它知道你讀過哪些論文。\n"
-        "# probe.py 會自動登記；可以手改。路徑相對於這個檔案，所以整包 clone 到\n"
-        "# 另一台機器仍然成立。\n"
-        + miniyaml.dump(data)
-        + "\n",
-        encoding="utf-8",
-        newline="\n",
+        header + miniyaml.dump(data) + "\n", encoding="utf-8", newline="\n"
     )
 
 
@@ -192,6 +222,56 @@ def register(work_root: Path, paper_root: Path, config: dict):
     return path, slug
 
 
+def vocabulary(registry_path):
+    """slug -> display name. The controlled list of topics.
+
+    Define-before-use, deliberately: without it "3D-IC" and "3d-ic" become two
+    categories that look identical on screen, and by the time anyone notices,
+    half the papers are filed under each.
+    """
+    data = load_registry(registry_path)
+    raw = data.get("topics")
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): str(v or k) for k, v in raw.items()}
+
+
+def set_topic(registry_path: Path, slug: str, topic: str, add: bool):
+    """Add or remove one topic for one paper. Returns (ok, message).
+
+    Removing takes it out of both lists and records it in topics_off, so a
+    later session does not helpfully suggest it right back.
+    """
+    data = load_registry(registry_path)
+    entry = (data.get("papers") or {}).get(slug)
+    if not isinstance(entry, dict):
+        return False, f"登記簿裡沒有 {slug}"
+    if topic not in vocabulary(registry_path):
+        return False, f"分類 {topic} 還沒有定義，請先加進 papers.yml 的 topics"
+
+    mine, auto, off = topics_of(entry)
+    if add:
+        if topic in mine or topic in auto:
+            return True, "已經在這個分類裡了"
+        mine.append(topic)
+        off = [t for t in off if t != topic]
+    else:
+        if topic not in mine and topic not in auto:
+            return True, "本來就不在這個分類裡"
+        mine = [t for t in mine if t != topic]
+        auto = [t for t in auto if t != topic]
+        if topic not in off:
+            off.append(topic)
+
+    for key, value in (("topics", mine), ("topics_auto", auto), ("topics_off", off)):
+        if value:
+            entry[key] = value
+        else:
+            entry.pop(key, None)
+    save_registry(registry_path, data)
+    return True, ""
+
+
 def entries(registry_path):
     """Every registered paper, paths resolved, dead entries flagged not dropped."""
     if registry_path is None:
@@ -201,6 +281,7 @@ def entries(registry_path):
         if not isinstance(entry, dict):
             continue
         work = _resolve_path(registry_path, str(entry.get("work") or ""))
+        mine, auto, off = topics_of(entry)
         out.append(
             {
                 "slug": slug,
@@ -209,6 +290,9 @@ def entries(registry_path):
                 "year": entry.get("year"),
                 "tier": entry.get("tier"),
                 "added": entry.get("added"),
+                "topics": mine,
+                "topics_auto": auto,
+                "topics_off": off,
                 # A folder the reader moved is a fact worth saying out loud,
                 # not a row to quietly omit.
                 "alive": (work / "notes" / "paper.yml").is_file(),
@@ -226,6 +310,45 @@ def _question_of(card) -> str:
     sections = notes.card_sections(card["body"])
     text = sections.get("問題") or sections.get("Question") or ""
     return " ".join(text.split()) or "(未填問題)"
+
+
+def keywords(paper_root: Path, source_list):
+    """The paper's own Index Terms, as printed.
+
+    Raw material for proposing topics, never topics themselves. Two papers
+    where one directly succeeds the other were observed to share not one index
+    term, so keywords used as categories would give every paper its own bucket
+    and say nothing. A useful topic is coarser than a keyword, and getting from
+    one to the other is judgement -- which is why it happens in a reading
+    session and not in here.
+    """
+    for rel in source_list:
+        path = paper_root / rel
+        if not path.is_file():
+            continue
+        found = INDEX_TERMS.search(path.read_text(encoding="utf-8"))
+        if found:
+            terms = [t.strip(" .;") for t in found.group(1).split(",")]
+            return [t for t in terms if t]
+    return []
+
+
+def topics_of(entry):
+    """(mine, agent-suggested, refused) for one registry entry.
+
+    Three lists rather than one with a marker: miniyaml has no sequences of
+    mappings, and a magic prefix inside the values would be unreadable in the
+    file the reader is meant to be able to edit by hand. `off` exists so a
+    topic he removed is not proposed again next session -- a suggestion that
+    keeps coming back is worse than no suggestion.
+    """
+    def names(key):
+        raw = entry.get(key)
+        return [str(t).strip() for t in raw if str(t or "").strip()] if isinstance(raw, list) else []
+
+    mine = names("topics")
+    auto = [t for t in names("topics_auto") if t not in mine]
+    return mine, auto, names("topics_off")
 
 
 def _links_of(meta):
@@ -263,6 +386,9 @@ def write_catalog(notes_dir: Path, paper_root: Path, config: dict, cards, points
         # of notes/reviews/, and this is only here so the library page can show
         # counts without opening every paper's log.
         "review": review or {"due": 0, "half": 0, "tracked": 0},
+        # The paper's own Index Terms: raw material for proposing topics, kept
+        # here so a cross-paper reader has it without opening the abstract.
+        "keywords": keywords(paper_root, [Path(p) for p in (config.get("sources") or [])]),
         "cards": [
             {
                 "id": str(card["meta"].get("id")),
@@ -545,6 +671,10 @@ def main(argv):
                 f"  複習 排程 {review.get('tracked', 0)} 張，"
                 f"上次建置時到期 {review.get('due', 0)} 張"
             )
+        shown = [f"{t}" for t in paper["topics"]] + [f"{t}（建議）" for t in paper["topics_auto"]]
+        print("  分類 " + ("、".join(shown) if shown else "未分類"))
+        if catalog.get("keywords"):
+            print("  關鍵字 " + "、".join(catalog["keywords"]))
         for card in cards:
             flag = " 💡" if card.get("origin") == "suggested" else ""
             tags = ", ".join(card.get("tags") or [])
