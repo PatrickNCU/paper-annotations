@@ -1,10 +1,14 @@
 ---
-description: 你讀過哪些論文、疑問與要點、彼此怎麼引用
+description: 跨論文盤點：還有哪些疑問沒解決、哪幾篇互相引用、引用時原文怎麼說
 argument-hint: "[起點資料夾]"
 allowed-tools: Bash, Read, Glob, Grep, Skill
 ---
 
 先載入 `paper-annotations` skill（`Skill` 工具），照它的規則走。
+
+這支指令的重點**不是產生書房頁**（那是 `:setup` 的第 7、8 步），而是**讀**——把整個
+登記簿看過一遍講給使用者聽。書房頁給的是統計數字，這裡給的是頁面上沒有的東西：每張卡
+的問題原文、每則要點、以及引用發生在哪一節、當下那句話怎麼說的。
 
 使用者輸入：
 $ARGUMENTS
@@ -29,8 +33,9 @@ $ARGUMENTS
 4. 登記的位置找不到筆記時（資料夾被搬走），照實說是哪一篇、原本登記在哪，
    並說明修法是改 `papers.yml` 的 `work` 或重跑 `probe.py`。**不要自動改。**
 
-5. **想要一頁能點的**：跑 `build_library.py` 產生書房頁，再跑
-   `serve.py --library --launcher` 放一個 `開啟書房.cmd`，最後背景執行
+5. **想要一頁能點的**：`build_library.py` 重建書房頁（數字每天都會變，重跑很便宜且
+   冪等），確認 `papers.yml` 旁邊有 `開啟書房.cmd`、沒有才補 `serve.py --library
+   --launcher`——`:setup` 通常已經放好了，不要當成每次都要重做的事。接著背景執行
    `serve.py --library`。告訴他這是**一個 server 掛所有論文**（不是每篇一個），
    每篇只開放自己的資料夾，而既有的單篇啟動器完全不受影響。
 
