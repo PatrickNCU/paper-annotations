@@ -1,6 +1,6 @@
 ---
-description: 開一個本機 server，讓複習頁上的畫記可以直接存檔
-argument-hint: "[論文或筆記資料夾] [--port 8975]"
+description: 開一個本機 server，讓畫記可以存檔、複習可以評分
+argument-hint: "[論文或筆記資料夾｜--library] [--port 8975]"
 allowed-tools: Bash, Read, Glob, Skill
 ---
 
@@ -11,8 +11,14 @@ $ARGUMENTS
 
 ## 步驟
 
-1. 找出 `notes/paper.yml` 所在的目錄。沒給路徑就從目前目錄往下找，多於一個時列出來讓
-   他選——**一個 server 只服務一篇論文**。
+0. **他想一次開全部論文嗎？** 使用者說了「書房」「全部論文」「一次開」，或帶了
+   `--library`，就走書房模式：跑 `build_library.py` 產生書房頁、
+   `serve.py --library --launcher` 放啟動器（在 `papers.yml` 旁邊的 `開啟書房.cmd`），
+   再背景執行 `serve.py --library`。首頁就是書房，點論文直接進去，**不需要另外開
+   任何 server**——是一個 server 掛多篇，不是每篇一個。以下步驟改讀那一篇的路徑。
+
+1. 單篇模式：找出 `notes/paper.yml` 所在的目錄。沒給路徑就從目前目錄往下找，
+   多於一個時列出來讓他選。
 
 2. 確認 `annotated/index.html` 存在；不在就先跑 `build_annotated.py` 與 `build_html.py`。
 
@@ -23,8 +29,8 @@ $ARGUMENTS
    使用者指定了 port 就帶 `--port`；沒指定就用預設 8975。同一篇已經在跑就不要重開，
    直接把網址給他。
 
-5. 把網址告訴他，並說明這條網址底下才有「💾 存檔」——直接開 `index.html` 那顆按鈕
-   不會出現。
+5. 把網址告訴他，並說明這條網址底下才有「💾 存檔」與**複習評分**——直接開
+   `index.html` 那兩者都不會出現（複習紀錄寫不了檔，見 skill 的「複習排程」）。
 
 6. 講清楚**畫記不會跨 `file://` 和 `http://`**：瀏覽器把兩者當成不同來源，各有各的
    儲存空間。他先前直接開檔案時畫、還沒落檔的畫記，要先在原本那個分頁按「複製畫記」

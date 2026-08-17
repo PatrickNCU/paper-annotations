@@ -50,10 +50,34 @@ margin:0 0 10px}
 .cite{margin:0 0 8px;font-size:14px}
 .cite code{font-size:12.5px}
 .note{margin-top:26px;font-size:12.5px;color:var(--muted);line-height:1.75}
+/* Above the list, not under it: this is the thing to read before clicking. */
+#offline{margin:0 0 20px;padding:13px 16px;border-radius:10px;line-height:1.8;
+border:1px solid var(--half);background:var(--sec-stuck);font-size:14px}
+#offline b{color:var(--half)}
+#offline code{display:inline-block;margin-top:6px;padding:3px 9px;border-radius:6px;
+background:var(--plate);color:#22201d;font-size:13px}
+a.paper.dead{cursor:default}
+a.paper.dead:hover{border-color:var(--line)}
 """
 
 JS = """
 (function(){
+  // Opened by double-click, every paper link is dead: they are absolute /p/…
+  // paths that only a running server can answer, and from file:// they resolve
+  // to nowhere. Saying so in a footnote is saying so too late -- you click
+  // first and read the small print afterwards. So the page checks where it is
+  // and puts the answer above everything else, with the command to run.
+  var live=(location.protocol==='http:'||location.protocol==='https:');
+  if(!live){
+    var warn=document.getElementById('offline');
+    if(warn) warn.hidden=false;
+    [].slice.call(document.querySelectorAll('a.paper')).forEach(function(a){
+      a.classList.add('dead');
+      a.removeAttribute('href');
+      a.setAttribute('title','需要 serve.py --library 才打得開');
+    });
+  }
+
   var b=document.getElementById('theme');
   var modes=[['system','🌗 跟隨系統'],['light','☀️ 淺色'],['dark','🌙 深色']];
   var mode='system';
@@ -180,6 +204,12 @@ def render(registry: Path) -> str:
 <h1>書房</h1>
 <div class="lmeta">{alive} 篇論文 · 產生於 {date.today().isoformat()} ·
 <span id="stamp">數字為上次建置時的快照</span></div>
+</div>
+<div id="offline" hidden>
+<b>這是從磁碟直接開的，下面的論文連結點不動。</b><br>
+論文各自掛在 server 的路徑底下，要有 server 在跑才連得過去。點兩下同一層的
+<b>開啟書房</b>，或執行：<br>
+<code>python &lt;scripts&gt;/serve.py --library</code>
 </div>
 {''.join(cards) or '<div class="qempty">登記簿裡還沒有論文。</div>'}
 {cite_html}

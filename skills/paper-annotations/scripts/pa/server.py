@@ -411,20 +411,14 @@ class Handler(SimpleHTTPRequestHandler):
         return run.returncode == 0, out.strip().splitlines()[:6]
 
 
-def write_launcher(work: Path, annotated: Path, port: int) -> Path:
-    """Drop a double-clickable launcher beside the review page.
+def _launcher(home: Path, stem: str, tag: str, target: str, port: int) -> Path:
+    """Write a double-clickable launcher that runs serve.py with `target`.
 
     The body is ASCII only, deliberately: cmd.exe parses a .cmd in the OEM
     codepage, so UTF-8 text inside breaks the script itself rather than merely
     printing badly. The filename is free to be Chinese -- that goes through the
     filesystem, not the parser.
     """
-    home = annotated.parent
-    try:
-        target = work.relative_to(home).as_posix().replace("/", os.sep)
-    except ValueError:
-        target = str(work)
-    tag = "".join(c for c in work.name if c.isascii() and (c.isalnum() or c in "-_")) or "paper"
     script = str(SCRIPTS / "serve.py")
     # Installed as a plugin, this file sits under .../<plugin>/<version>/…, and
     # that version directory changes every time the plugin is updated -- a
@@ -435,7 +429,7 @@ def write_launcher(work: Path, annotated: Path, port: int) -> Path:
         versioned = str(SCRIPTS.parents[3])
 
     if os.name == "nt":
-        path = home / "開啟複習頁.cmd"
+        path = home / f"{stem}.cmd"
         # backslashes throughout: "for /d" will not glob a mixed-separator path
         win = script.replace("/", "\\")
         find = ""
@@ -452,17 +446,17 @@ def write_launcher(work: Path, annotated: Path, port: int) -> Path:
             "rem ASCII only: cmd.exe parses this file in the OEM codepage.\n"
             "chcp 65001 >nul\n"
             'cd /d "%~dp0"\n'
-            f"title {tag} review page\n"
+            f"title {tag}\n"
             "echo Close this window to stop the server.\n"
             "echo.\n"
             + find
-            + f'python "{run}" "{target}" --port {port}\n'
+            + f'python "{run}" {target} --port {port}\n'
             "echo.\n"
             "echo Server stopped.\n"
             "pause\n"
         )
     else:
-        path = home / "開啟複習頁.command"
+        path = home / f"{stem}.command"
         body = (
             "#!/bin/sh\n"
             "# Close this window to stop the server.\n"
@@ -471,15 +465,38 @@ def write_launcher(work: Path, annotated: Path, port: int) -> Path:
                 f'PA="$(ls -d "{versioned}"/*/skills/paper-annotations/scripts/serve.py'
                 ' 2>/dev/null | sort -V | tail -1)"\n'
                 f'[ -f "$PA" ] || PA="{script}"\n'
-                f'exec python3 "$PA" "{target}" --port {port}\n'
+                f'exec python3 "$PA" {target} --port {port}\n'
                 if versioned
-                else f'exec python3 "{script}" "{target}" --port {port}\n'
+                else f'exec python3 "{script}" {target} --port {port}\n'
             )
         )
     path.write_text(body, encoding="ascii", newline="\r\n" if os.name == "nt" else "\n")
     if os.name != "nt":
         path.chmod(0o755)
     return path
+
+
+def write_launcher(work: Path, annotated: Path, port: int) -> Path:
+    """One paper's launcher, beside its review page."""
+    home = annotated.parent
+    try:
+        target = work.relative_to(home).as_posix().replace("/", os.sep)
+    except ValueError:
+        target = str(work)
+    tag = "".join(c for c in work.name if c.isascii() and (c.isalnum() or c in "-_")) or "paper"
+    return _launcher(home, "開啟複習頁", f"{tag} review page", f'"{target}"', port)
+
+
+def write_library_launcher(registry: Path, port: int) -> Path:
+    """The shelf's launcher, beside papers.yml.
+
+    No path argument at all: --library finds the registry by walking up from
+    the working directory, and the launcher has already cd'd to the folder it
+    sits in. So this file keeps working if the whole workspace is moved or
+    cloned onto another machine -- which is the point of the registry living in
+    the repository in the first place.
+    """
+    return _launcher(registry.parent, "開啟書房", "paper library", "--library", port)
 
 
 def taken(port: int) -> bool:
@@ -574,6 +591,16 @@ def main(argv) -> int:
     port = int(cli.flag(argv, "port", "8975"))
 
     if "--launcher" in argv:
+        if "--library" in argv:
+            start = Path(args[0]).resolve() if args else Path(".").resolve()
+            registry = library.find_registry(start)
+            if registry is None:
+                raise SystemExit(
+                    f"從 {start} 往上找不到 {library.REGISTRY_NAME}，還沒有任何論文登記。"
+                )
+            print(f"啟動器       {write_library_launcher(registry, port)}")
+            print("             點兩下就會起 server 並開書房頁")
+            return 0
         work = Path(args[0] if args else ".").resolve()
         _, _, _, annotated = workspace.load_workspace(work)
         print(f"啟動器       {write_launcher(work, annotated, port)}")
