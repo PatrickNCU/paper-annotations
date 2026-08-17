@@ -275,15 +275,29 @@
     var el=node&&node.nodeType===3?node.parentElement:node;
     return el&&el.closest?el.closest('#main .chunk'):null;
   }
-  // Text index over one section. The MathML twin is skipped for the same
-  // reason it is unselectable: it repeats every formula, and counting it would
-  // put every offset after a formula in the wrong place.
+  // Our own writing on the page: question cards and points. Excluding them from
+  // the index is not enough on its own -- a selection inside one collapses to a
+  // zero-length range and the reader gets told 「選取太短」, which is both wrong
+  // and unactionable. Name the real reason instead.
+  function hlOurs(node){
+    var el=node&&node.nodeType===3?node.parentElement:node;
+    return !!(el&&el.closest&&el.closest('.qcard,.pnote'));
+  }
+  // Text index over one section, counting ONLY the source text. Three kinds of
+  // node are skipped, all for the same reason: a highlight is resolved against
+  // sections/*.md, so anything on the page that is not in that file must not
+  // enter the index. The MathML twin repeats every formula. Cards (.qcard) and
+  // points (.pnote) are our writing, not the paper's -- and because they sit
+  // inline between paragraphs, counting them would not merely allow a dead
+  // highlight on our own prose, it would leak that prose into the 48-character
+  // prefix/suffix of a perfectly good highlight on the source beside it.
   function hlMap(sec){
     if(hlMaps[sec.id]) return hlMaps[sec.id];
     var walk=document.createTreeWalker(sec,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
       var p=n.parentElement;
       if(!p||!n.nodeValue) return NodeFilter.FILTER_REJECT;
-      return p.closest('.katex-mathml,.qcard')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
+      return p.closest('.katex-mathml,.qcard,.pnote')
+        ?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
     }});
     var m={txt:'',nodes:[],offs:[],at:new Map()},n;
     while((n=walk.nextNode())){
@@ -446,6 +460,8 @@
     var r=sel.getRangeAt(0), sec=hlSec(r.startContainer);
     if(!sec){ hlSay('只能在正文裡畫記'); return -1; }
     if(hlSec(r.endContainer)!==sec){ hlSay('畫記不能跨章節，請分兩次'); return -1; }
+    if(hlOurs(r.startContainer)||hlOurs(r.endContainer)){
+      hlSay('這是筆記不是原文，畫記只能畫在論文內容上'); return -1; }
     var map=hlMap(sec);
     var a=hlIndex(map,r.startContainer,r.startOffset);
     var b=hlIndex(map,r.endContainer,r.endOffset);
