@@ -1,42 +1,69 @@
-# 錨點：一律對實際內容解析，不信任宣告的 metadata
+# Anchors: always resolved against real content, never trusted from metadata
 
-這是整套工具的核心設計決定。改動 `pa/anchors.py` 的 `resolve_anchor` 之前先讀完這頁。
+The core design decision of this tool. Read this page before changing
+`resolve_anchor` in `pa/anchors.py`.
 
-疑問卡必須知道自己屬於原文的哪個位置，而論文轉檔套件通常已經帶了現成的定位資訊（`chunk_id`、`INDEX.md` 的公式索引、檔名編號）。我們決定**不把這些當成真實來源**：卡片只描述「要找什麼」，每次建置都拿它去比對當下的原文內容，解得到才放，解不到就標成未錨定。為此每張卡都必須存一段引文，即使它已經有公式編號之類的結構參照。
+A card must know where in the source it belongs, and a conversion package usually
+ships positioning data already (`chunk_id`, the equation index in `INDEX.md`,
+numbered filenames). We deliberately **do not treat any of that as truth**: a
+card only describes *what to look for*, and every build matches that against the
+live source. Resolved → placed; unresolved → marked as unanchored. That is why
+every card must store a quote even when it already has a structural reference
+such as an equation number.
 
-## Considered Options
+## Considered options
 
-- **信任 `chunk_id` 直接定位**：最省事，但假設了每份論文都用同一套切分邏輯。使用者可能拿沒切過的單檔 Markdown，或用別的工具切成完全不同的 chunk；換一版轉檔，`chunk_id` 就整批失效且無法復原。
-- **只存引文，不用結構參照**：夠通用，但公式與圖表的引文往往是 LaTeX 或圖片語法，比對脆弱且可讀性差；有 `\tag{7}` 可用時不用是浪費。
-- **解析階梯＋引文冗餘（採用）**：結構參照 → heading → 引文，每階都對實際文字驗證。
+- **Trust `chunk_id` directly.** Least work, but assumes every paper was split by
+  the same logic. He may bring an unsplit single-file Markdown, or use a tool
+  that chunks completely differently; one reconversion invalidates every
+  `chunk_id` at once, irrecoverably.
+- **Quotes only, no structural reference.** General enough, but quotes for
+  equations and figures are LaTeX or image syntax — fragile to match and
+  unreadable. Ignoring a usable `\tag{7}` is waste.
+- **Resolution ladder + redundant quote (adopted).** Structural reference →
+  heading → quote, every rung verified against actual text.
 
 ## Consequences
 
-- 每張卡多存約 100 字的引文，且引文與結構參照可能重複描述同一個位置。這是刻意的冗餘。
-- 原文被重新轉檔或重新切分後仍可復原：`reanchor.py` 用引文在新結構中全域搜尋。但**只有全文唯一命中才自動修改**——論文重複句子極多，掛到相似但錯誤的段落比明顯壞掉更糟。
-- 建置永遠不會「猜」位置。解不到就是未錨定，並在 `QUESTIONS.md` 頂端列出。系統的失敗模式是吵，不是靜默。
-- `notes/paper.yml` 的能力探測結果因此只有加速與提示的地位，可以手改、也可以是錯的，不影響正確性。
+- Each card stores ~100 extra characters of quote, and the quote may describe the
+  same position the structural reference already does. The redundancy is
+  deliberate.
+- Reconversion or re-splitting is recoverable: `reanchor.py` searches the quote
+  globally in the new structure. But **it only edits automatically on a unique
+  whole-document hit** — papers repeat sentences constantly, and landing on a
+  similar-but-wrong passage is worse than being visibly broken.
+- The build never guesses a position. Unresolved is unresolved, and it is listed
+  at the top of `QUESTIONS.md`. This system's failure mode is noisy, not silent.
+- The capability probe in `notes/paper.yml` is therefore only a speedup and a
+  hint. It can be hand-edited, it can be wrong, and correctness does not depend
+  on it.
 
-## 要點走的是引文，不是階梯
+## Points use the quote, not the ladder
 
-`notes/points/` 的要點**只用引文定位**，不爬 `ref → heading → quote`。理由是兩者描述的東西不同：卡片講的是論證裡的一個位置，退到小節開頭仍然成立；要點轉述的是**特定那一句**，掛到半頁之外就會變成對錯誤的文字說錯誤的話。要點的 `heading` 欄位純粹是索引上的標籤，不參與定位。
+Points in `notes/points/` are **located by quote alone**; they do not climb
+`ref → heading → quote`. The two describe different things: a card marks a
+position in an argument and still holds if it falls back to the top of a section,
+whereas a point paraphrases **one specific sentence**, and landing half a page
+away means saying the wrong thing about the wrong text. A point's `heading` field
+is purely an index label and takes no part in locating it.
 
-其餘規則完全相同：解不到就不掛並回報，`reanchor.py` 也只在全文唯一命中時才自動修。
+Every other rule is identical: unresolved means not placed and reported, and
+`reanchor.py` still only auto-fixes on a unique hit.
 
-## 失敗一定要出聲
+## Failure must be loud
 
-系統的失敗模式是吵，不是靜默。以下每一種都會回報，不會默默跳過：
+Each of the following is reported, never silently skipped:
 
-| 情況 | 行為 |
+| Situation | Behaviour |
 |---|---|
-| 卡片沒有 YAML frontmatter | 明講這張卡沒有被使用（否則使用者寫的筆記等於憑空消失） |
-| 兩張卡編號重複 | 指出跟哪個檔撞號 |
-| 引文找不到／出現多次 | 分開講，因為兩者的修法相反 |
-| 引文不唯一但靠 ref/heading 掛上了 | 🟡 提醒：現在沒事，重新轉檔那天會救不回來 |
-| heading 命中多個標題 | 拒絕猜測，退回引文；寧可報找不到也不要掛錯位置 |
-| 原文多了新檔案 | 停止建置：新檔案不會被納入筆記 |
-| 對著 `annotated/` 建立筆記 | 拒絕，並指出正確目錄 |
-| `status` / `origin` 值不合法 | 列出合法值 |
-| 卡片沒填「問題」 | 建置時就講，不要等到複習才發現是空白卡 |
-| 要點的 `kind` 不合法或內文空白 | 丟掉並列出合法值——掛著論文名義的錯誤主張比沒有更糟 |
-| 登記簿指到的資料夾不見了 | `library.py` 照實列出來，不自動改路徑也不靜默跳過 |
+| Card has no YAML frontmatter | Say outright that this card is unused (otherwise notes he wrote simply vanish) |
+| Two cards share an id | Name the file it collides with |
+| Quote missing / appears several times | Report separately — the fixes are opposite |
+| Quote not unique but anchored via ref/heading | 🟡 warning: fine now, unrecoverable the day he reconverts |
+| heading matches several headings | Refuse to guess, fall back to the quote; better to report not-found than to anchor to the wrong place |
+| A new file appeared in the source | Stop the build: a new file would not be covered by the notes |
+| Notes created against `annotated/` | Refuse, and name the correct directory |
+| Invalid `status` / `origin` | List the valid values |
+| Card has no 問題 | Say so at build time, rather than letting him discover a blank card during review |
+| Point's `kind` invalid or body empty | Drop it and list the valid values — a wrong claim carrying the paper's name is worse than none |
+| Registry points at a missing folder | `library.py` lists it plainly: no automatic path fixing, no silent skipping |

@@ -200,9 +200,9 @@ anchor:
 python serve.py <論文路徑>
 ```
 
-或 `/paper-annotations:serve`——它會在背景跑起來、把網址給你，並在論文資料夾裡放一個
-**點兩下就能開**的啟動器（Windows `開啟複習頁.cmd`，其他系統 `.command`），之後不必開
-對話也能自己開。那個視窗就是 server，關掉它就停。
+平常不必自己打這行：`/paper-annotations:setup` 會在論文資料夾裡放一個**點兩下就能開**的
+啟動器（Windows `開啟複習頁.cmd`，其他系統 `.command`），書房則是 `開啟書房.cmd`。
+那個視窗就是 server，關掉它就停。
 
 差別只有一個：從這條網址開的複習頁多一顆「💾 存檔」，畫記按下去直接寫進 `notes/marks/`
 並重建；已落檔的畫記也能就地換顏色、改註解、刪掉。**其餘功能完全相同。**
@@ -319,7 +319,6 @@ python export_cards.py <論文路徑> --format anki --status resolved,half
 | `/paper-annotations:review [路徑]` | 盤點還有哪裡沒懂 |
 | `/paper-annotations:digest [路徑] [模式]` | 把疑問與原文合成一份整理：回顧單、主題聚合、或前提盤點 |
 | `/paper-annotations:export-cards [路徑] [格式]` | 把卡片資料匯給別的程式：Anki 匯入檔、CSV 或 JSON |
-| `/paper-annotations:serve [路徑]` | 開本機 server，複習頁上的畫記可以直接存檔 |
 | `/paper-annotations:marks [貼上畫記]` | 把「複製畫記」的內容存成 `notes/marks/` 並重建 |
 | `/paper-annotations:share-page [路徑]` | 把複習頁打包成單一 HTML 檔寄給別人（圖片全部內嵌） |
 

@@ -4,24 +4,31 @@ argument-hint: "[論文或筆記資料夾]"
 allowed-tools: Bash, Read, Glob, Skill
 ---
 
-先載入 `paper-annotations` skill（`Skill` 工具），照它的規則走。
+Load the `paper-annotations` skill (`Skill` tool) first and follow its rules.
+Speak to the user in Traditional Chinese.
 
-使用者輸入：
+User input:
 $ARGUMENTS
 
-## 步驟
+## Steps
 
-1. 找出 `notes/paper.yml` 所在的目錄。使用者沒給路徑就從目前目錄往下找，
-   多於一個時列出來讓他選。
+1. Find the directory holding `notes/paper.yml`. No path given → search downward
+   from the current directory; more than one → list them and let him pick.
 
-2. 依序執行 `build_annotated.py` 與 `build_html.py`。
+2. Run `build_annotated.py`, then `build_html.py`.
 
-3. **把每一則警告都轉述給使用者**，不要只說「建置完成」：
-   - 「找不到位置」的卡片不會出現在複習頁裡，逐張說明原因與修法
-   - 「🟡 引文提醒」現在沒事但論文改版後會救不回來，當場修掉
-   - 「卡片本身有問題」代表那張卡沒被使用，內容還在檔案裡但不會顯示
-   - 原文變動而停止建置時，先講清楚可能的後果，再照指示處理
+3. **Relay every warning**; never just say it built:
+   - 「找不到位置」 cards do not appear on the review page — explain each one's
+     cause and fix
+   - 「🟡 引文提醒」 is harmless today but unrecoverable once the source is
+     reconverted; fix it now
+   - 「卡片本身有問題」 means that card is unused: the file still holds the
+     content but nothing displays it
+   - If the build stopped because the source changed, explain the possible
+     consequences first, then follow its instructions
 
-4. 回報複習頁路徑與目前的疑問統計（未解決／半懂／已解決各幾則）。
+4. Report the review page path and current question counts (open / half /
+   resolved).
 
-完成條件：警告數為 0，或每一則都已向使用者說明並取得處置方式。
+Done when warnings are zero, or every one has been explained and he has decided
+what to do about it.

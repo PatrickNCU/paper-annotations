@@ -4,83 +4,108 @@ argument-hint: "<論文資料夾> [筆記要放哪]"
 allowed-tools: Bash, Read, Glob, AskUserQuestion, Skill
 ---
 
-先載入 `paper-annotations` skill（`Skill` 工具），照它的規則走。
+Load the `paper-annotations` skill (`Skill` tool) first and follow its rules.
+Speak to the user in Traditional Chinese.
 
-使用者輸入：
+User input:
 $ARGUMENTS
 
-## 步驟
+## Steps
 
-0. **確認工作區**。只在「這個資料夾還沒有 `papers.yml`」時做，也就是他第一次在這裡
-   放論文的時候；已經有登記簿就整步跳過，不要每次都問。
+0. **Check the workspace.** Only when this folder has no `papers.yml` yet, i.e.
+   the first paper he puts here. Skip the whole step once a registry exists; do
+   not ask every time.
 
-   檢查放論文的那一層有沒有這四樣東西，缺的**列出來問他要不要建**——那是在他的
-   資料夾裡留下東西，先問過。**他說要就直接做完**（`git init`、寫檔案都算），
-   不要問完又把工作丟回去給他；他跑 `:setup` 就是不想自己處理這些：
+   Check the level holding the papers for these four, **list whichever are
+   missing and ask** — they leave things in his folder, so ask first. **If he
+   says yes, do it** (`git init` and writing files included); never ask and then
+   hand the work back. He ran `:setup` precisely so as not to deal with this.
 
-   | 檔案 | 沒有的話會怎樣 |
+   | File | What goes wrong without it |
    |---|---|
-   | `.git` | **最重要的一個**。登記簿優先放在 git repo 根目錄；沒有 repo 就退而放在你執行指令的那層。兩者通常一樣，但只要有人從別的目錄跑一次工具，登記簿就會落在論文套件裡，第二篇論文找不到它、會自己再開一份，書房從此裂成兩半 |
-   | `.gitattributes` | 建議寫 `* text=auto eol=lf`。git 若把原文的行尾換成 CRLF，指紋就變了，build 會報出根本沒發生的原文漂移 |
-   | `.gitignore` | 建議至少 `*.html`。複習頁和書房頁都是產生出來的、又大，進版控每次重建都是一大包假 diff |
-   | `AGENTS.md` | 一句「問到論文相關的事就用 paper-annotations skill」。沒有它，使用者得每次打 `/paper-annotations:…`，直接問問題不會自動走到這套工具 |
+   | `.git` | **The important one.** The registry prefers the git repo root; with no repo it falls back to the directory the command ran from. Those usually agree, but one run from another directory drops the registry inside the paper package, the second paper never finds it and starts its own, and the shelf splits in two |
+   | `.gitattributes` | Suggest `* text=auto eol=lf`. If git rewrites the source's line endings to CRLF the fingerprint changes and the build reports source drift that never happened |
+   | `.gitignore` | Suggest at least `*.html`. Review and shelf pages are generated and large; in version control every rebuild is a big fake diff |
+   | `AGENTS.md` | One line: questions about papers go through the paper-annotations skill. Without it he has to type `/paper-annotations:…` every time, and simply asking a question does not reach this tool |
 
-   順帶提一次**用一個私有 GitHub repo 存筆記**這個選項：登記簿裡的路徑都是相對的，
-   筆記、卡片、複習紀錄也都是純文字，所以 clone 到另一台機器就直接能用。
-   建 repo 和第一次 commit 都是本機的事，他同意就做；**推上遠端是另一回事，
-   他沒有明確開口就不要 push**，也不要自己去建 GitHub repo。
+   Mention once the option of keeping the notes in a **private GitHub repo**: the
+   registry stores relative paths and the notes, cards and review logs are all
+   plain text, so a clone on another machine works immediately. Creating the repo
+   and the first commit are local — do them if he agrees. **Pushing to a remote
+   is a separate matter: do not push unless he asks explicitly**, and do not
+   create a GitHub repo for him.
 
-1. **確認論文位置**。使用者沒給路徑就先看看目前目錄裡有什麼像論文的資料夾，
-   列出來讓他選；找不到就直接問。
+1. **Locate the paper.** No path given → look at what in the current directory
+   resembles a paper folder and list the candidates; nothing found → just ask.
 
-2. **確認筆記要放哪**。使用者沒指定就用預設：疑問卡放在論文套件內（整包可攜），
-   複習頁放在套件**旁邊**（跟 PDF 同一層，不必進套件翻）。要**明講這件事**，
-   不要默默決定。他想改就用 `probe.py --out <筆記路徑>` 或 `--review <複習頁路徑>`。
+2. **Confirm where the notes go.** Default unless he says otherwise: cards inside
+   the package (so it travels as one unit), review page **beside** it (same level
+   as the PDF, no digging). **Say this explicitly**; never decide it silently. To
+   change it he uses `probe.py --out <notes path>` or `--review <page path>`.
 
-3. **執行 `probe.py`**，把結果翻譯成人話回報：
-   - **第一次提到「Tier」時必須先解釋它是什麼**：這是這份論文轉檔完整度的分級，
-     A／B／C 三級，決定疑問能掛得多精準。使用者是第一次用這個工具，看到「Tier A」
-     不會知道那是好是壞。同理，「錨點」「引文」這些詞也要用白話講。
-   - 這份論文疑問可以掛在哪些東西上（公式編號？圖表？只有小節標題？）
-   - Tier B/C 時說明升到 Tier A 能多拿到什麼、要花多少時間，讓他自己決定
-   - 只有 PDF 時 `probe.py` 會印出完整轉檔指引，照著轉述，**務必包含耗時與模型
-     選擇會影響品質這兩點**。指引裡的規則檔路徑是 probe.py 依實際位置算出來的，
-     直接照抄，不要自己推測路徑。
+3. **Run `probe.py`** and translate the result into plain language:
+   - **The first time you say "Tier", explain what it is**: a grade of how
+     complete this paper's conversion is, A/B/C, which decides how precisely a
+     question can be anchored. He is meeting this tool for the first time and
+     「Tier A」 tells him nothing about good or bad. Same for 錨點 and 引文 —
+     explain them in plain words.
+   - What questions can be anchored to in this paper (equation numbers? figures
+     and tables? only section headings?)
+   - At Tier B/C, explain what reaching Tier A buys and what it costs, and let
+     him decide
+   - With only a PDF, `probe.py` prints full conversion instructions — relay
+     them, and **be sure to include both the time cost and that model choice
+     affects quality**. The rules-file path in those instructions is computed by
+     probe.py from the actual location: copy it exactly, never guess a path.
 
-4. **講引用關係**。`probe.py` 會把這篇登記進 `papers.yml`，並比對出它和使用者
-   讀過的哪幾篇互相引用。有的話**主動講**——那是他最想知道的第一件事，而且是
-   機械判定的事實，不是推測。一篇都沒有時不必特別提。
+4. **Say who cites whom.** `probe.py` registers the paper in `papers.yml` and
+   works out which of the papers he has read cite it or are cited by it. If there
+   are any, **say so unprompted** — it is the first thing he wants to know, and
+   it is mechanical fact rather than inference. If there are none, no need to
+   mention it.
 
-5. **開卷一次**，抽出這篇的要點（主張／方法／假設／定義／結果／限制）。掃摘要、
-   引言、結論、各節標題與標了貢獻的段落，**不要讀全文**。做完把新增的要點列給他，
-   讓他當場否決。規則見 skill 的「要點」那節。
+5. **One pass through**, extracting this paper's points (claim / method /
+   assumption / definition / result / limitation). Scan the abstract,
+   introduction, conclusion, section headings and any paragraph marked as
+   contributions — **do not read the whole paper**. Then list what you added so
+   he can veto on the spot. Rules in the skill's Points section.
 
-6. **提議分類**。這是分類該發生的地方——新論文第一次進來就分好，不要等他哪天
-   想到才跑 library。看它的 Index Terms 與剛抽出的要點，提 2～4 個**比關鍵字粗**
-   的分類寫進 `papers.yml` 的 `topics_auto`，新分類同時加進 `topics:` 詞彙表。
-   已經有別篇論文時優先沿用既有分類，不要每篇都發明新的——分類是拿來把論文
-   分開的，每篇自成一類等於沒分。規則見 skill 的「分類」那節。
-   列出來讓他當場否決，並告訴他書房頁上可以自己增刪、也可以自訂像「已讀過」
-   這種他自己的分類。
+6. **Propose categories.** This is where categorisation belongs — a new paper
+   gets filed as it arrives, rather than waiting for him to think of running
+   library one day. From its Index Terms and the points you just extracted,
+   propose 2–4 categories **coarser than keywords** into `topics_auto` in
+   `papers.yml`, adding each new one to the `topics:` vocabulary at the same time.
+   When other papers already exist, reuse their categories rather than inventing
+   new ones per paper — categories exist to separate papers, and one bucket each
+   separates nothing. Rules in the skill's Categories section. List them for
+   on-the-spot veto, and tell him he can add and remove them on the shelf page
+   himself, including his own categories like 「已讀過」.
 
-7. **首次建置**：`build_annotated.py` 再 `build_html.py`，接著 `build_library.py`
-   更新書房頁。
+7. **First build**: `build_annotated.py`, then `build_html.py`, then
+   `build_library.py` to update the shelf page.
 
-8. **放好啟動器，兩個都要**。第 7 步已經產生了書房頁，但 `library.html` 雙擊打不開
-   （論文連結是 server 路徑），所以只寫單篇的啟動器等於留下一個開不了的檔案：
+8. **Place both launchers.** Step 7 produced the shelf page, but `library.html`
+   cannot be opened by double-clicking (paper links are server paths), so writing
+   only the single-paper launcher leaves behind a file that will not open:
 
-   - `serve.py --library --launcher` → `papers.yml` 旁邊的 **`開啟書房.cmd`**。
-     **這是他平常的入口**：一個 server 掛所有論文，從書房點進任何一篇。
-   - `serve.py <work> --launcher` → 論文資料夾裡的 **`開啟複習頁.cmd`**，只開這一篇。
-     論文多起來之後多半用不到，但單獨讀一篇時比較直接。
+   - `serve.py --library --launcher` → **開啟書房.cmd** beside `papers.yml`.
+     **This is his everyday entry point**: one server mounting every paper, click
+     into any of them from the shelf.
+   - `serve.py <work> --launcher` → **開啟複習頁.cmd** in the paper folder, this
+     paper only. Mostly unused once he has several papers, but more direct when
+     reading just one.
 
-   兩個都要說明**為什麼要從它們開**：從 server 開的頁面才有「存檔」，畫記寫得進筆記、
-   複習評得了分；直接開 `index.html` 也讀得了，只是畫記留在瀏覽器裡。
+   For both, explain **why to open from them**: only a page served this way has
+   「存檔」, so highlights reach the notes and reviews can be graded. Opening
+   `index.html` directly still reads fine, but highlights stay in the browser.
 
-   **收尾前確認這兩個檔案真的在**，並把路徑列給他。使用者看不到入口就等於這一步沒做，
-   而他不會知道要去哪裡找。
+   **Before finishing, verify both files actually exist** and give him the paths.
+   An entry point he cannot see is a step that did not happen, and he has no way
+   to know where to look.
 
-9. **告訴他接下來怎麼用**：直接問論文問題就好，疑問會自動累積成卡片；不必記任何指令。
+9. **Tell him how to use it from here**: just ask questions about the paper;
+   doubts accumulate into cards by themselves. No commands to remember.
 
-完成條件：使用者知道自己在第幾層、筆記會產生在哪、`開啟書房.cmd` 與 `開啟複習頁.cmd`
-分別在哪裡而且**確實已經存在**，而且知道下一步只要開口問問題。
+Done when he knows which Tier he is on, where the notes will be produced, where
+開啟書房.cmd and 開啟複習頁.cmd are and that they **really exist**, and that the
+next step is simply to ask a question.

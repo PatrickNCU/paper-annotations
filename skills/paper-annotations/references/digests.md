@@ -1,107 +1,135 @@
-# 整理（digest）
+# Digests
 
-把卡片和原文合起來，產生一份給這位讀者的整理。**由 agent 撰寫，不是腳本產生的。**
+Cards plus source text, combined into something written for this particular
+reader. **Written by the agent, not produced by a script.** Written in
+Traditional Chinese — the user reads it.
 
-## 不要做的事：論文摘要
+## What not to make: a paper summary
 
-SciSpace、Scholarcy、Elicit 都能把一篇論文摘要得很好，而且對「還沒讀的人」有用。
-對讀完並且卡過的人沒用——他要的不是這篇論文在講什麼，是**他自己哪裡沒通**。
+SciSpace, Scholarcy and Elicit all summarise a paper well, and that is useful to
+someone who has not read it. It is useless to someone who has read it and got
+stuck: he does not want to know what the paper says, he wants to know **where he
+personally did not get through**.
 
-這套工具唯一獨有的資料就是那些卡片。整理必須圍著它們做，否則產出的東西任何一個
-AI 摘要工具都給得出來，而且給得比較好。
+The cards are the only data this tool uniquely has. A digest must be built around
+them, or the output is something any AI summariser would give — and give better.
 
-## 四種模式
+## The four modes
 
-使用者沒指定就先讀完卡片再推薦，**依據是卡片之間有沒有真的線索，不是卡片數量**：
+If he did not name one, read the cards first and then recommend, **based on
+whether there is a real thread between cards, not on how many there are**:
 
-- 卡片各自獨立、分散在不同章節 → 回顧單
-- 有兩張以上的卡其實在問同一件事沒通 → 主題聚合（四張卡就可能成立，別用張數擋掉）
-- 「卡點」欄位反覆指向同幾個概念 → 前提盤點
-- **手上不只一篇論文** → 接線（前三種都是單篇的，這一種橫跨論文）
+- Cards independent, scattered across sections → 回顧單
+- Two or more cards actually asking the same unresolved thing → 主題聚合 (four
+  cards can qualify; do not gate this on a count)
+- The 卡點 fields repeatedly pointing at the same few concepts → 前提盤點
+- **He has more than one paper** → 接線 (the first three are single-paper; this
+  one spans papers)
 
-判斷不出來就照回顧單，它對任何卡片組合都成立。
+If you cannot tell, use 回顧單: it holds for any set of cards.
 
 ### 1. 回顧單 `review-sheet`
 
-按論文順序，一節一行的表格：小節、這節在做什麼（一句，出自原文）、你在這裡的疑問
-（**只列問題本身，不給答案**）、狀態。
+In paper order, a table with one row per section: section, what it does (one
+sentence, from the source), your questions here (**question only, no answer**),
+status.
 
-用在重讀之前：五分鐘掃過去就知道還有哪幾節沒通。沒有疑問的小節也要列，那一行留白
-本身就是資訊——代表這節你當時沒卡住。
+For use before rereading: five minutes of scanning shows which sections are still
+unresolved. Include sections with no questions — a blank row is itself
+information, meaning he did not get stuck there.
 
 ### 2. 主題聚合 `theme-map`
 
-把散在不同小節、但其實是同一個誤解的疑問併成一組。每組寫：
+Merge questions that sit in different sections but are one misunderstanding. Per
+group write:
 
-- 主題名稱（用讀者的話，不是論文的術語）
-- 涉及哪幾張卡（`[Q0004]` 這種標記）
-- **共同的卡點**：這幾個問題底下其實是同一件事沒通，是哪一件
-- 建議的重讀順序，以及為什麼是這個順序
+- A theme name in the reader's words, not the paper's terminology
+- Which cards are involved (markers like `[Q0004]`)
+- **The shared 卡點**: the one thing underneath all of these questions
+- A suggested rereading order, and why that order
 
-這是三種裡最有價值的一種，因為它是讀者自己最難做的——當下每個問題都像獨立事件。
-但也最容易寫成空話：**如果找不出真正的共同點，就說沒有，不要硬湊主題。**
+The most valuable of the three, because it is the hardest thing for the reader to
+do himself — at the time, each question looked like an isolated event. Also the
+easiest to write as empty words: **if there is no real common thread, say so
+rather than manufacturing a theme.**
 
 ### 3. 前提盤點 `prerequisites`
 
-從所有「卡點」欄位反推讀者缺的背景知識。每一項寫：概念、因它而卡住的卡片、一句話
-說明、去哪補（論文的哪一節，或註明是論文預設你已經會的外部知識）。
+Work backwards from every 卡點 to the background he was missing. Per item:
+concept, the cards it blocked, a one-sentence explanation, and where to get it
+(which section of this paper, or noted as outside knowledge the paper assumes).
 
-用在同一個概念反覆出現在不同卡點時——那代表要補的是那個概念，不是逐題補洞。
+For use when one concept keeps reappearing across different 卡點 — that means the
+thing to fix is the concept, not each question individually.
 
 ### 4. 接線 `connections`
 
-**唯一橫跨論文的模式。** 使用者開始讀一篇新論文、或讀完一輪時跑，把這篇接回他已經讀過的
-那些。跑之前先跑 `library.py`——沒有它你不知道他讀過什麼。
+**The only cross-paper mode.** Run it when he starts a new paper or finishes a
+round, to connect this one back to what he has already read. Run `library.py`
+first — without it you do not know what he has read.
 
-先講**引用關係**，因為它是機械判定的事實而不是你的推論：這篇引用了他讀過的哪幾篇、引用出現
-在哪一節、當下那句話怎麼說的。作者自己寫的「我們沿用 [29] 的靜電模型，但把…換掉」，比任何
-事後推論都準確。
+Lead with the **citations**, because they are mechanical fact rather than your
+inference: which of his papers this one cites, which section the citation is in,
+and what that sentence says. The authors' own "we adopt the electrostatic model
+of [29] but replace …" beats any after-the-fact reasoning.
 
-然後是三類需要判斷的關係，每一條都要指得出是哪篇的哪張卡、哪則要點或哪一句原文：
+Then the three judgement-bearing relationships, each pointing at a specific card,
+point, or sentence in a named paper:
 
-- **關聯**：這篇的哪一段，對應到他在哪篇的哪張卡或哪則要點
-- **共識**：兩篇主張同一件事但講法不同。往往正是他重複卡住的原因——同一個東西換個名字出現，
-  第二次看還是新的
-- **矛盾**：兩篇說法對不上。最有價值的一類，通常代表領域裡有真正的爭議，或者他誤讀了其中
-  一篇。**分清楚是哪一種**：真爭議要說「作者們沒有共識」，誤讀要直接指出他哪張卡的前提錯了
+- **關聯**: which passage here corresponds to which card or point, in which paper
+- **共識**: the two papers claim the same thing in different words. Often exactly
+  why he got stuck twice — the same object under a new name reads as new again
+- **矛盾**: the two disagree. The most valuable kind, usually meaning either a
+  genuine dispute in the field or that he misread one of them. **Separate the
+  two**: a real dispute is "the authors do not agree"; a misreading means naming
+  which card of his rests on a wrong premise
 
-三類都可能是空的。**接不上就說接不上**，硬湊出來的關聯比沒有更糟——他會照著錯的地圖去讀。
+All three may be empty. **If it does not connect, say it does not** — a
+manufactured connection is worse than none, because he will read by a wrong map.
 
-**寫完之後把值得留的固化成連結。** 整理是散文，他得想起來才會回來翻；連結會自己出現在
-它所談的那一句旁邊。三個型別 `answers` / `contradicts` / `same-as` 只涵蓋得了一部分，
-涵蓋不到的就留在整理裡，不要為了填格子而扭曲關係。格式見 skill 的「卡片與要點之間的連結」。
+**Afterwards, harden what is worth keeping into links.** A digest is prose he has
+to remember to come back to; a link appears next to the sentence it is about. The
+three types `answers` / `contradicts` / `same-as` only cover part of what you
+find — leave the rest in the digest rather than distorting a relationship to fit
+a slot. Format is in the skill's "Typed links between cards and points".
 
-要點（`notes/points/`）是這個模式的主要材料。要點稀薄的論文接不出什麼東西來，這時候先補
-要點，不要用卡片硬湊。
+Points (`notes/points/`) are this mode's main material. A paper with thin points
+connects to nothing; add points first rather than forcing it with cards.
 
-輸出 `notes/digests/connections-<日期>.md`，寫在**新讀的那一篇**的 notes 底下，
-frontmatter 的 `cards` 之外多列一個 `papers:`，寫出這份整理涉及哪幾篇（用 `papers.yml`
-的代號）。
+Output to `notes/digests/connections-<date>.md`, under the notes of the **newly
+read** paper, with a `papers:` key in the frontmatter alongside `cards:` naming
+every paper involved (by `papers.yml` slug).
 
-## 共同規則
+## Shared rules
 
-**每一條都要有出處。** 借 Elicit 的規矩：任何一句判斷都要指得出是哪張卡、哪一節、
-或哪一句原文。指不出來的句子就不要寫。
+**Everything must have a source.** Borrowed from Elicit: every judgement must
+point at a card, a section, or a sentence. If you cannot point, do not write it.
 
-**分清楚誰說的。** 論文說的、卡片裡使用者自己說的、你現在補的推論，三者要能分辨。
-補的推論標「（推論）」。使用者三個月後不會記得哪句是作者的。
+**Attribute clearly.** What the paper says, what the user said in his own card,
+and the inference you are adding now must be distinguishable. Mark your additions
+「（推論）」. In three months he will not remember which sentence was the author's.
 
-**不給答案，除非模式要求。** 回顧單和主題聚合都只列問題——整理是拿來複習的，
-先自己想過才有用。答案在卡片裡，展開就看得到。
+**No answers unless the mode calls for them.** 回顧單 and 主題聚合 list questions
+only — a digest is for reviewing, which only works if he thinks first. The answers
+are in the cards, one expand away.
 
-**只讀不改。** 不動原文、不動卡片、不動 `annotated/`。整理是額外產物。
+**Read-only.** Do not touch the source, the cards, or `annotated/`. A digest is an
+extra artifact.
 
-## 輸出
+## Output
 
-寫到 `notes/digests/<模式>-<日期>.md`，例如 `notes/digests/theme-map-2026-08-15.md`。
-放在 `notes/` 底下但**不是** `notes/cards/`，build 不會碰它。
+Write to `notes/digests/<mode>-<date>.md`, e.g.
+`notes/digests/theme-map-2026-08-15.md`. Under `notes/` but **not** in
+`notes/cards/`; the build does not touch it.
 
-**接著跑 `build_digest.py <work>`**，它會在旁邊產生同名的 `.html`：同一份樣式、同一份
-離線 KaTeX，公式直接渲染。**回報給使用者的是 `.html` 的路徑**——整理裡多半有公式，
-`$\lambda$` 在文字編輯器裡讀不了，而且不能假設他裝了 Markdown 編輯器。
+**Then run `build_digest.py <work>`**, which produces a same-named `.html`
+alongside: same stylesheet, same offline KaTeX, formulas rendered. **Report the
+`.html` path to the user** — digests usually contain formulas, `$\lambda$` is
+unreadable in a text editor, and you cannot assume he has a Markdown editor.
 
-`.md` 仍是可編輯的來源，`.html` 是衍生檔，改完重跑一次就好。KaTeX 內嵌讓每份約 650 KB，
-這是換取「離線、不必裝任何東西就打得開」的代價，跟複習頁同一個取捨。
+The `.md` stays the editable source and the `.html` is derived; edit and re-run.
+Embedded KaTeX makes each one about 650 KB, the price of "offline, opens with
+nothing installed" — the same trade-off as the review page.
 
 ```yaml
 ---
@@ -110,14 +138,16 @@ mode: theme-map
 generated: 2026-08-15
 built_by: agent
 cards: ["0001", "0003", "0004"]
-papers: [replace, eplace-ms]     # 只有 connections 需要，用 papers.yml 的代號
+papers: [replace, eplace-ms]     # connections only; papers.yml slugs
 ---
 ```
 
-正文第一行放這句話，不要省略：
+The first line of the body is this sentence, never omitted:
 
 > 這份整理由 AI 依卡片與原文產生，不是論文內容。真實來源是 `notes/cards/` 與原文。
 
-同一天重跑同一個模式會覆蓋前一份。想保留舊版就先改檔名——整理跟 `annotated/`
-不一樣，**它不是冪等的**，同樣的卡片再跑一次不會得到一模一樣的文字。這件事要讓
-使用者知道，否則他會以為可以隨時重生而把舊的丟掉。
+Re-running the same mode on the same day overwrites the previous one. To keep the
+old version, rename it first — unlike `annotated/`, **a digest is not
+idempotent**: the same cards run again will not produce identical text. Tell the
+user this, or he will assume it can be regenerated at will and throw the old one
+away.

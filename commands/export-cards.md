@@ -4,24 +4,29 @@ argument-hint: "[論文或筆記資料夾] [anki|csv|json] [狀態]"
 allowed-tools: Bash, Read, Glob, AskUserQuestion, Skill
 ---
 
-先載入 `paper-annotations` skill（`Skill` 工具），照它的規則走。
+Load the `paper-annotations` skill (`Skill` tool) first and follow its rules.
+Speak to the user in Traditional Chinese.
 
-使用者輸入：
+User input:
 $ARGUMENTS
 
-## 步驟
+## Steps
 
-1. 找出 `notes/paper.yml` 所在的目錄。
+1. Find the directory holding `notes/paper.yml`.
 
-2. **決定要匯出哪些卡**。使用者沒說就預設 `--status resolved,half`，並說明理由：
-   `open` 的卡還沒有解答，做成問答卡背面是空的。他想全部匯出就照做。
+2. **Decide which cards.** If he did not say, default to
+   `--status resolved,half` and explain why: an `open` card has no answer yet, so
+   as a Q&A card its back is blank. If he wants everything, do that.
 
-3. 執行 `export_cards.py`，格式預設 `anki`。
+3. Run `export_cards.py`; format defaults to `anki`.
 
-4. **回報**：檔案路徑、匯出幾張、以及匯入方式——Anki 的「檔案 → 匯入」，欄位依序是
-   Front／Back／Extra／Source／Tags，第一次匯入時要把這五欄對到筆記類型的欄位。
-   公式已經轉成 Anki 認得的 MathJax 寫法（`\(…\)`），不必再處理。
+4. **Report**: file path, how many cards, and how to import — Anki's
+   「檔案 → 匯入」, with columns in the order Front / Back / Extra / Source /
+   Tags, which have to be mapped to the note type's fields on first import.
+   Formulas are already converted to the MathJax form Anki understands
+   (`\(…\)`), so nothing more to do.
 
-5. 提醒這是**唯讀**操作：卡片本身沒有被改動，重跑會覆蓋同一個匯出檔。
+5. Remind him this is **read-only**: the cards themselves are untouched, and
+   re-running overwrites the same export file.
 
-完成條件：使用者拿到檔案路徑，而且知道匯入時欄位怎麼對。
+Done when he has the file path and knows how to map the columns on import.

@@ -4,34 +4,40 @@ argument-hint: "[論文或筆記資料夾] [review-sheet|theme-map|prerequisites
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion, Skill, Write
 ---
 
-先載入 `paper-annotations` skill（`Skill` 工具），再讀
-`references/digests.md`，照它的規則寫。
+Load the `paper-annotations` skill (`Skill` tool), then read
+`references/digests.md` and write by its rules. The digest itself is written in
+Traditional Chinese — the user reads it.
 
-使用者輸入：
+User input:
 $ARGUMENTS
 
-## 步驟
+## Steps
 
-1. 找出 `notes/paper.yml` 所在的目錄，讀 `notes/QUESTIONS.md`、`notes/cards/`
-   與 `notes/points/`。
+1. Find the directory holding `notes/paper.yml`; read `notes/QUESTIONS.md`,
+   `notes/cards/` and `notes/points/`.
 
-2. **決定模式**。使用者指定了就照做；沒指定就依卡片的實際樣子推薦一種，說明理由，
-   讓他改。四種模式與各自適用的情況見 `references/digests.md`。
+2. **Pick the mode.** If he named one, use it. Otherwise recommend one from what
+   the cards actually look like, say why, and let him change it. The four modes
+   and when each fits are in `references/digests.md`.
 
-3. **`connections` 模式先跑 `library.py`**，其餘三種不用。沒有它你不知道使用者
-   讀過哪些論文，也拿不到引用關係。
+3. **`connections` runs `library.py` first**; the other three do not need it.
+   Without it you do not know which papers he has read, and have no citations.
 
-4. **讀原文**。整理要靠原文，不能只靠卡片——卡片裡的引文只有一句，不足以判斷兩個
-   疑問是不是同一件事沒通。遵守論文套件自己的 `AGENTS.md` 閱讀政策。
+4. **Read the source text.** A digest cannot be built from cards alone — a card
+   carries one quoted sentence, not enough to judge whether two questions are the
+   same misunderstanding. Follow the package's own `AGENTS.md` reading policy.
 
-5. **寫**。輸出位置、frontmatter 與開頭的免責句都照 `references/digests.md`。
-   寫不出來的部分就說沒有，不要為了填滿版面硬湊。
+5. **Write it.** Output location, frontmatter and the opening disclaimer all
+   follow `references/digests.md`. Where you have nothing, say so; never pad.
 
-6. **跑 `build_digest.py`** 產生同名的 `.html`。這一步不可略過。
+6. **Run `build_digest.py`** to produce the same-named `.html`. Not skippable.
 
-7. **回報**：**`.html` 的路徑**（那才是他要開的檔案，公式已渲染好）、用了哪個模式、
-   涵蓋哪幾張卡，以及**這份整理不是冪等的**——同一天重跑會覆蓋，重跑也不會得到
-   一樣的文字。`.md` 是可編輯的來源，改完重跑 `build_digest.py`。
+7. **Report**: the **`.html` path** (the file he opens, formulas already
+   rendered), which mode you used, which cards it covers, and that **a digest is
+   not idempotent** — re-running the same day overwrites it, and will not produce
+   the same text. The `.md` is the editable source; edit it and re-run
+   `build_digest.py`.
 
-完成條件：整理裡的每一條判斷都指得出是哪張卡或哪一節，而且使用者知道這份檔案是
-AI 產物、真實來源仍是卡片與原文。
+Done when every judgement in the digest can point at a specific card or section,
+and he knows this file is an AI artifact whose sources of truth remain the cards
+and the paper.

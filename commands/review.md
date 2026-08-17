@@ -4,34 +4,42 @@ argument-hint: "[論文或筆記資料夾] [主題關鍵字]"
 allowed-tools: Bash, Read, Glob, Grep, Skill
 ---
 
-先載入 `paper-annotations` skill（`Skill` 工具），照它的規則走。
+Load the `paper-annotations` skill (`Skill` tool) first and follow its rules.
+Speak to the user in Traditional Chinese.
 
-使用者輸入：
+User input:
 $ARGUMENTS
 
-## 步驟
+## Steps
 
-1. 找出 `notes/paper.yml` 所在的目錄，讀 `notes/QUESTIONS.md`。
+1. Find the directory holding `notes/paper.yml`; read `notes/QUESTIONS.md`.
 
-2. **依論文順序**列出狀態為 `open`（未解決）與 `half`（半懂）的疑問，附上所在小節。
-   使用者給了主題關鍵字就只列相關的。
+2. **In paper order**, list the questions with status `open` and `half`, each
+   with its section. If he gave a topic keyword, list only matching ones.
 
-3. 對每一則，只給**問題本身與當初的卡點**，不要直接給答案——複習的重點是他先自己
-   想過。他說想不起來或想確認時，再展開該張卡的解答。
+3. For each, give **only the question and its 卡點** — never hand over the answer.
+   The point of reviewing is that he tries first. Expand a card's answer when he
+   says he cannot recall it or wants to check.
 
-4. 順帶指出值得注意的模式，例如某一節集中了多則未解決的疑問，通常代表那整節需要
-   重讀而不是逐題補洞。
+4. Point out patterns worth noticing: one section concentrating several
+   unresolved questions usually means that whole section needs rereading rather
+   than patching question by question.
 
-5. 最後給他複習頁的實際路徑（看 `notes/paper.yml` 的 `annotated_root`，預設在論文
-   套件旁邊而不是裡面），並提醒側邊欄可以用狀態篩選。
+5. Give him the real path of the review page (see `annotated_root` in
+   `notes/paper.yml`; by default beside the package, not inside it), and remind
+   him the sidebar filters by status.
 
-6. **介紹側欄的「複習」**：已解決的卡會排進間隔重複，到期時自動出現在那裡，點開卡片
-   底部就能評分。**評分需要 `serve.py` 在跑**，所以順帶提 `/paper-annotations:serve`。
-   規則與限制見 skill 的「複習排程」那節。
+6. **Introduce the sidebar's 複習 panel**: resolved cards enter spaced
+   repetition, surface there when due, and are graded at the bottom of the card.
+   **Grading needs `serve.py` running**, so tell him to open the page from
+   開啟書房.cmd rather than by double-clicking `index.html`. Rules and limits in
+   the skill's Review scheduling section.
 
-回答完之後，若使用者確認某則已經懂了，把該卡的 `status` 改成 `resolved`、更新
-`updated` 日期，然後重新建置——改成 `resolved` 的那一刻它就進了排程，下次就會自己
-回來找他。這件事要講，否則他不知道改狀態還有這個效果。
+Afterwards, if he confirms he now understands one, set that card's `status` to
+`resolved`, update `updated`, and rebuild. **Say this out loud**: the moment it
+becomes `resolved` it enters the schedule and will come back to him on its own —
+otherwise he has no idea that changing a status does that.
 
-**永遠不要用程式去改或刪 `notes/reviews/`。** 那是他按按鈕累積出來的紀錄，是這套系統
-裡唯一重建不回來的東西。
+**Never modify or delete `notes/reviews/` in code.** That log is what he
+accumulated by pressing buttons, and it is the only thing here that cannot be
+rebuilt.

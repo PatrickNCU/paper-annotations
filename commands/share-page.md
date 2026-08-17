@@ -4,53 +4,66 @@ argument-hint: "[論文或筆記資料夾]"
 allowed-tools: Bash, Read, Glob, Skill
 ---
 
-先載入 `paper-annotations` skill（`Skill` 工具），照它的規則走。
+Load the `paper-annotations` skill (`Skill` tool) first and follow its rules.
+Speak to the user in Traditional Chinese.
 
-使用者輸入：
+User input:
 $ARGUMENTS
 
-## 步驟
+## Steps
 
-1. 找出 `notes/paper.yml` 所在的目錄。沒給路徑就從目前目錄往下找，多於一個時列出來讓
-   他選。
+1. Find the directory holding `notes/paper.yml`. No path given → search downward
+   from the current directory; more than one → list them and let him pick.
 
-2. 先跑 `build_annotated.py` 與 `build_html.py`（不帶旗標），確保內容是最新的。
+2. Run `build_annotated.py` and `build_html.py` first (no flags), so the content
+   is current.
 
-3. 產生分享檔：
+3. Produce the shareable file:
 
    ```bash
-   python <scripts>/build_html.py <work> --embed-assets --to "<論文資料夾>/<論文名>-複習頁.html"
+   python <scripts>/build_html.py <work> --embed-assets --to "<paper folder>/<paper>-複習頁.html"
    ```
 
-   `--to` **不可省略**。少了它會就地覆寫 `annotated/index.html`，把使用者自己在讀的
-   頁面換成內嵌版；下一次普通 build 又換回來，白忙一場。`<論文資料夾>` 用放 PDF 的
-   那一層，檔案就跟論文擺在一起，要寄的時候找得到。
+   `--to` **is not optional**. Without it this overwrites `annotated/index.html`
+   in place, replacing the page he reads with the embedded version; the next
+   ordinary build swaps it back, and the whole thing was for nothing. Use the
+   level holding the PDF as `<paper folder>`, so the file sits with the paper and
+   is findable when he wants to send it.
 
-4. **回報**：檔案完整路徑、大小、內嵌了幾張圖。建置訊息裡若出現「🔴 有 N 張圖片找不到
-   檔案」，一定要轉述——收件人會看到破圖。
+4. **Report**: full path, size, and how many images were embedded. If the build
+   printed 「🔴 有 N 張圖片找不到檔案」, relay it — the recipient will see broken
+   images.
 
-5. 檔案超過 20 MB 就提醒他：多數郵件附件上限在 20–25 MB，太大就改用雲端硬碟連結。
+5. Over 20 MB, warn him: most mail attachment limits are 20–25 MB, so beyond that
+   use a cloud drive link.
 
-## 教他自己做一次
+## Teach him to do it himself
 
-**這段要完整寫出來，不要只說「跑那個指令」。** 使用者之後想自己產生，不必開對話：
+**Write this out in full; do not just say "run that command".** He should be able
+to regenerate it later without opening a conversation.
 
-- 給一段**可以直接複製貼上**的完整指令，路徑全部填成實際的絕對路徑，不要留 `<work>`
-  這種佔位符。
-- 說清楚**在哪裡執行**：Windows 在檔案總管的網址列打 `cmd` 按 Enter，就會在那個資料夾
-  開終端機；或開終端機後用 `cd` 切過去。指令裡的路徑若已是絕對路徑，在哪個資料夾執行
-  其實都可以——這點也要講，免得他以為位置錯了就不能跑。
-- 提醒**重新產生就是再跑一次同一行**，會直接覆蓋舊的分享檔。
+- Give a **copy-pasteable** complete command with every path filled in as a real
+  absolute path — no `<work>`-style placeholders.
+- Say **where to run it**: on Windows, type `cmd` in File Explorer's address bar
+  and press Enter to get a terminal in that folder, or `cd` there from a terminal.
+  Also say that since the paths in the command are absolute, the working
+  directory does not actually matter — otherwise he will think a wrong location
+  means it cannot run.
+- Note that **regenerating is just re-running the same line**, which overwrites
+  the old shareable file.
 
-## 收件人那邊會怎樣
+## What the recipient gets
 
-一併告訴使用者，他才知道該怎麼跟對方說：
+Tell him this too, so he knows what to say to the other person:
 
-- 點兩下就能用瀏覽器開，不用裝任何東西，手機平板也行
-- 論文、卡片、篩選、搜尋、明暗主題、公式都正常
-- 對方可以自己畫螢光筆、寫註解，存在他自己的瀏覽器；想回饋就按側欄「複製畫記」把
-  內容傳回來，你再用 `/paper-annotations:marks` 收進 `notes/marks/`
-- 「💾 存檔」不會出現——那需要 server，而對方手上沒有筆記資料夾可以寫
+- Double-click opens it in a browser, nothing to install, phones and tablets
+  included
+- Paper, cards, filtering, search, light/dark theme and formulas all work
+- They can highlight and comment themselves, stored in their own browser; to send
+  feedback back they press 「複製畫記」 in the sidebar and return the content, and
+  you take it in with `/paper-annotations:marks`
+- 「💾 存檔」 will not appear — that needs a server, and they have no notes folder
+  to write to
 
-完成條件：使用者拿到檔案路徑與大小，手上有一行可以直接貼的指令，而且知道要在哪裡跑、
-收件人會看到什麼。
+Done when he has the path and size, a line he can paste directly, and knows where
+to run it and what the recipient will see.

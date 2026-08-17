@@ -1,40 +1,51 @@
-# 輸入分層與轉檔
+# Input tiers and conversion
 
-`probe.py` 掃描論文套件，判定它實際支援哪些定位方式，結果寫進 `notes/paper.yml`。
-探測結果只是「先試哪一階」的提示，不是保證——build 仍會對實際內容重新驗證。
+`probe.py` scans the paper package and decides which anchoring methods it
+actually supports, recording the result in `notes/paper.yml`. That result is only
+a hint about which rung to try first, never a guarantee — the build still
+re-verifies against actual content.
 
-| Tier | 條件 | 疑問能掛在哪 |
+| Tier | Condition | What a question can anchor to |
 |---|---|---|
-| A | 有 `sections/` 與 `INDEX.md` 的完整轉檔套件 | 公式 `\tag{n}`、圖、表、小節標題、指定的一句原文 |
-| B | 有章節標題的一般 Markdown（單檔或多檔） | 小節標題、指定的一句原文 |
-| C | 無章節標題的純文字 | 只剩指定的一句原文 |
+| A | Full conversion package with `sections/` and `INDEX.md` | Equation `\tag{n}`, figures, tables, section headings, a named sentence |
+| B | Ordinary Markdown with section headings (one file or many) | Section headings, a named sentence |
+| C | Plain text with no section headings | A named sentence only |
 
-Tier B/C 也能正常使用，只是定位較脆弱：原文一改版就比較容易對不上位置。
+B and C work fine; they are just more fragile — a revised source is more likely to
+lose its positions.
 
-## 使用者只有 PDF 時
+## When he only has a PDF
 
-`probe.py` 會直接印出完整指引，照著轉述即可。要點：
+`probe.py` prints the full instructions; relay them. In short:
 
-1. 開 ChatGPT 網頁版，上傳 [pdf2md_rules.md](pdf2md_rules.md) 與那份 PDF
-2. 貼上規則檔 §0「使用方式」裡的指令
-3. 把回傳的 ZIP 解壓到論文資料夾，重新執行 `probe.py`
+1. Open the ChatGPT web app and upload [pdf2md_rules.md](pdf2md_rules.md) and the
+   PDF
+2. Paste the prompt from §0 「使用方式」 of the rules file
+3. Unzip the returned archive into the paper folder and re-run `probe.py`
 
-**務必先講清楚成本**，不要讓使用者以為是一鍵完成：
+**Always state the cost up front** so he does not expect one click:
 
-- 轉檔很花時間，一篇 IEEE 期刊論文通常需要多次來回
-- 模型與推理強度會顯著影響結果；實測 GPT-5.6 Sol + 高推理較佳
-- 想用自己的 pdf2md 工具也可以：只要轉出來的 Markdown 有章節標題就能用（Tier B）
+- Conversion takes real time; an IEEE journal paper usually needs several rounds
+- Model and reasoning effort visibly change the result; GPT-5.6 Sol with high
+  reasoning tested best
+- His own pdf2md tool is fine too: any Markdown with section headings works
+  (Tier B)
 
-選 AI 轉檔而非程式 parser 的理由：程式做不到「積極篩掉頁首頁尾、判斷哪張圖只是
-期刊 logo」這類需要判斷的取捨。這也是這套工具假設的輸入形狀。
+Why AI conversion rather than a program parser: a parser cannot make the
+judgement calls — aggressively dropping headers and footers, deciding an image is
+just the journal's logo. That judgement is the input shape this tool assumes.
 
-## 原文換版本時
+## When the source is replaced
 
-`probe.py` 會記下每個正文檔的指紋。之後 build 若發現內容變動、檔案消失或多出新
-檔案，會**停止建置**並說明原因——原文可能被重新轉檔或重新切分，筆記有掛錯位置的
-風險。`document.md`、`INDEX.md`、`manifest.json` 的變動只軟提醒不擋，它們不影響
-筆記位置，但通常代表套件內部不一致。
+`probe.py` records a fingerprint per body file. If a later build finds content
+changed, a file gone, or a new file present, it **stops** and explains why: the
+source may have been reconverted or re-split, and the notes risk pointing at the
+wrong places. Changes to `document.md`, `INDEX.md` and `manifest.json` only warn
+softly — they do not affect note positions, but usually mean the package is
+internally inconsistent.
 
-復原用 `reanchor.py`：拿卡片的引文在新結構中全域搜尋，**只有全文唯一命中才自動
-修改**。多重命中與零命中一律列進報告等人裁決——論文重複句子極多，掛到相似但錯誤
-的段落比明顯壞掉更糟。
+Recovery is `reanchor.py`: it searches each card's quote globally in the new
+structure and **only edits automatically on a unique whole-document hit**.
+Multiple hits and zero hits both go into the report for a human to settle —
+papers repeat sentences constantly, and landing on a similar-but-wrong passage is
+worse than being visibly broken.

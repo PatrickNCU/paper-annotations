@@ -118,7 +118,8 @@ so a clone works immediately. Local `git init` and commit once he agrees;
 5. **End of round**: list new cards **and points** for on-the-spot veto. Silence
    means keep.
 6. **Build** (`build_annotated.py`, then `build_html.py`), report warnings. If he
-   is reading with no server, mention `/paper-annotations:serve` once.
+   is reading with no server, mention 開啟書房.cmd once — from there highlights
+   save themselves.
 
 Done when every question answered this round has a card, the build reports zero
 「找不到位置」, and no 「🟡 引文提醒」 remains unexplained.
@@ -197,8 +198,10 @@ remember which sentence was the author's.
 
 **Normally you are not involved**: he runs `serve.py`, presses 「存檔」, and it
 lands in `notes/marks/` and rebuilds. Editing a comment, recolouring, deleting all
-work the same way. If he is still copy-pasting by hand, introduce
-`/paper-annotations:serve`.
+work the same way. If he is still copy-pasting by hand, point him at
+開啟書房.cmd. There is no slash command for the server: the launchers cover the
+everyday case, and when he asks you to start one, run `serve.py` yourself in the
+background.
 
 Only **without a server** (usually someone sent him a review page) do highlights
 stay in the browser. When he presses 「複製畫記」 and pastes the result, **save the
