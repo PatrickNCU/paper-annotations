@@ -1,8 +1,9 @@
 """Export the question cards to a file some other tool can read.
 
-This tool deliberately has no scheduling algorithm -- Anki and friends have
-spent decades on that. What it owes them is a clean way out, so the cards stay
-the user's data rather than something locked in one HTML page.
+Scheduling lives in pa/srs.py now, so this is no longer the only way to get a
+review loop -- it is the way out. The cards stay the reader's data rather than
+something locked inside one HTML page, and anyone who prefers Anki's scheduler
+to ours can take them there. The local review state travels with them.
 
 Nothing here writes to notes/ or annotated/: export is read-only.
 
@@ -18,7 +19,9 @@ import json
 import sys
 from pathlib import Path
 
-from . import anchors, cli, notes, workspace
+from datetime import date
+
+from . import anchors, cli, notes, srs, workspace
 
 cli.bootstrap()
 
@@ -39,6 +42,10 @@ def card_rows(work_root: Path, statuses, tags):
         sections = notes.card_sections(card["body"])
         anchor = meta.get("anchor") or {}
         quote = anchor.get("quote")
+        # The local review history goes along: taking the cards elsewhere
+        # should not mean starting the schedule from zero. Replayed rather than
+        # read, because the schedule is never stored (docs/adr/0003).
+        state = srs.replay(srs.read_log(notes_dir, str(meta.get("id") or "")))
         rows.append(
             {
                 "id": str(meta.get("id") or ""),
@@ -53,6 +60,11 @@ def card_rows(work_root: Path, statuses, tags):
                 "status": status,
                 "tags": " ".join(card_tags),
                 "updated": str(meta.get("updated") or ""),
+                "reviews": len(srs.read_log(notes_dir, str(meta.get("id") or ""))),
+                "interval": state["interval"],
+                "ease": state["ease"],
+                "lapses": state["lapses"],
+                "due": srs.due_date(state),
             }
         )
     rows.sort(key=lambda r: r["id"])
@@ -107,7 +119,8 @@ def write_anki(rows, out: Path):
 
 
 def write_csv(rows, out: Path):
-    cols = ["id", "front", "back", "stuck", "intuition", "quote", "source", "status", "tags", "updated"]
+    cols = ["id", "front", "back", "stuck", "intuition", "quote", "source", "status", "tags",
+            "updated", "reviews", "interval", "ease", "lapses", "due"]
     with out.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=cols)
         writer.writeheader()
@@ -150,7 +163,11 @@ def main(argv):
     if fmt == "anki":
         print("Anki：檔案 → 匯入，欄位依序是 Front／Back／Extra／Source／Tags。")
         print("已解答的卡才適合拿去背；只想匯出這些的話加 --status resolved。")
-    print("匯出是唯讀的，卡片本身沒有被改動。")
+        print("排程狀態不在 Anki 格式裡（它只吃五個欄位），要帶走請用 --format csv。")
+    else:
+        graded = sum(1 for row in rows if row["reviews"])
+        print(f"其中 {graded} 張有本地的複習紀錄，已附上 reviews／interval／ease／lapses／due。")
+    print("匯出是唯讀的，卡片與複習紀錄都沒有被改動。")
     return 0
 
 

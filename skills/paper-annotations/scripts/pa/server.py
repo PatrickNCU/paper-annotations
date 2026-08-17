@@ -39,7 +39,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote
 
-from . import cli, marks as marklib, notes, workspace
+from datetime import date
+
+from . import cli, marks as marklib, notes, srs, workspace
 
 cli.bootstrap()
 
@@ -95,15 +97,26 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Location", self.index_url)
             self.end_headers()
             return
+        if path == "/_pa/reviews":
+            if not self._same_origin():
+                self._json(403, {"error": "cross-origin"})
+                return
+            # Read-only, so no token: it says which of the reader's own cards
+            # are due, which is no more than the page already shows.
+            self._json(200, self._schedule())
+            return
         if path == "/favicon.ico":  # browsers always ask; there is not one
             self.send_response(204)
             self.end_headers()
             return
         super().do_GET()
 
+    def _schedule(self):
+        return srs.schedule(self.notes, notes.load_cards(self.notes), date.today().isoformat())
+
     def do_POST(self):
         path = self.path.split("?")[0]
-        if path not in ("/_pa/marks", "/_pa/mark"):
+        if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review"):
             self._json(404, {"error": "unknown endpoint"})
             return
         if not self._same_origin():
@@ -114,6 +127,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/_pa/mark":
             self._one_mark()
+            return
+        if path == "/_pa/review":
+            self._grade()
             return
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -215,6 +231,41 @@ class Handler(SimpleHTTPRequestHandler):
                 )
             rebuilt, log = self._rebuild()
         self._json(200, {"ok": True, "action": action, "rebuilt": rebuilt, "log": log})
+
+    def _grade(self):
+        """Record one grading of one card.
+
+        The card id is looked up among the cards actually on disk and the log
+        path is built from that id -- nothing in the request ever becomes a
+        path. Deliberately does NOT rebuild: grading changes the schedule, not
+        the page, and a reader working through a dozen cards should not pay for
+        a dozen rebuilds. The page asks for the fresh schedule instead, and it
+        is returned right here (see docs/adr/0003).
+        """
+        payload = self._body()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "bad payload"})
+            return
+        wanted = str(payload.get("id") or "")
+        grade = str(payload.get("grade") or "")
+        if grade not in srs.GRADES:
+            self._json(400, {"error": f"grade 只能是 {' / '.join(srs.GRADES)}"})
+            return
+
+        with self.lock:
+            cards = notes.load_cards(self.notes)
+            card = next(
+                (c for c in cards if str(c["meta"].get("id")) == wanted), None
+            )
+            if card is None:
+                self._json(404, {"error": f"找不到卡片 {wanted}"})
+                return
+            if not srs.eligible(card["meta"]):
+                self._json(400, {"error": f"Q{wanted} 不在排程裡（只有你自己問過、且已解決的卡才排程）"})
+                return
+            srs.append(self.notes, wanted, grade, date.today().isoformat())
+            state = self._schedule()
+        self._json(200, {"ok": True, "id": wanted, "grade": grade, "schedule": state})
 
     def _rebuild(self):
         """Only the HTML: marks never touch the annotated Markdown."""

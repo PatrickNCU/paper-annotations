@@ -27,7 +27,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import cli, katex, links, minimd, notes, page_transforms as transforms, workspace
+from . import cli, katex, links, minimd, notes, page_transforms as transforms, srs, workspace
 
 cli.bootstrap()
 
@@ -90,6 +90,17 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     point_toggle = (
         '\n    <button id="showpt" class="on">論文要點</button>' if points else ""
     )
+    # A build-time snapshot so the tab has something to show before the server
+    # answers -- and so a page opened straight off disk can still say what is
+    # waiting, even though it cannot let you grade it (docs/adr/0003).
+    plan = srs.schedule(notes_dir, cards, date.today().isoformat())
+    srs_json = json.dumps(plan, ensure_ascii=False).replace("</", "<\\/")
+    srs_block = ""
+    if plan["tracked"] or plan["half"]:
+        srs_block = (
+            '\n  <h2>複習 <span id="srscount"></span></h2>'
+            '\n  <div id="srslist"></div>'
+        )
     marks, placed, mark_bad, mark_soft = transforms.collect_marks(notes_dir, paper_root)
     # "</" would end the script element early whatever it sits inside
     mark_json = json.dumps(placed, ensure_ascii=False).replace("</", "<\\/")
@@ -169,7 +180,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     <button id="hlcopy">複製畫記</button>
     <button id="hlclear">清空</button>
   </div>
-  <div id="hlstat"></div>
+  <div id="hlstat"></div>{srs_block}
   <h2>疑問（{len(questions)}）</h2>
   <div id="qlist">{qlist}</div>
   <h2>目錄</h2>
@@ -205,6 +216,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 </section>
 </div>
 <script id="pa-marks" type="application/json">{mark_json}</script>
+<script id="pa-srs" type="application/json">{srs_json}</script>
 <div id="hltip" hidden></div>
 <section id="hlnote" hidden>
   <div class="nhead">畫記註解 <span class="nhint">存在瀏覽器，複製後交給 agent 落檔</span></div>
@@ -242,6 +254,14 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     print(f"            演算法區塊 {len(algos)} 個、圖表交叉引用 {xrefs} 處已可點擊")
     if points:
         print(f"            要點 {len(points)} 則（側欄可一鍵隱藏）")
+    if plan["tracked"] or plan["half"]:
+        print(
+            f"            複習 排程中 {plan['tracked']} 張，今天到期 {plan['due']} 張、"
+            f"待攻克（半懂）{plan['half']} 張"
+        )
+        print("                 評分需要 serve.py 在跑，複習紀錄才寫得進 notes/reviews/")
+    for name in plan["orphans"]:
+        print(f"  🟡 複習紀錄 {name} 找不到對應的卡片（卡片被刪了？紀錄保留著）")
     if marks:
         noted = sum(1 for mark in marks if mark["note"])
         print(f"            畫記 {len(marks)} 條：已定位 {len(placed)}、有註解 {noted}")

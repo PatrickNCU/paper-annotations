@@ -66,7 +66,7 @@
 
 **現成的例子**（寫作時工作區裡就有）：RePlAce `0002-preconditioner-vs-local-density` 與 ePlace-MS `0003-why-macros-oscillate-without-preconditioner` 顯然在講同一件事的兩面；RePlAce `0001-what-replace-changed-over-eplace` 整張卡就是一個跨論文關係，現在只能寫成散文塞在卡片正文裡，從 ePlace-MS 那一側完全看不到。
 
-### 3. 內建間隔重複
+### 3. 內建間隔重複 ✅ 1.5.0
 
 **目的**：複習動線由工具自己負責。Anki 匯出降為「想用的人可以用」的附加選項，不再是這項功能的實作方式。
 

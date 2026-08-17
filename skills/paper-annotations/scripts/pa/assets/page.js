@@ -883,5 +883,119 @@
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',hlInit);
   else setTimeout(hlInit,0);
 
+  // ---- 間隔重複 ---------------------------------------------------------
+  // The embedded schedule is a snapshot taken at build time; the live one comes
+  // from the server. Grading appends to a file, and only serve.py can write
+  // files -- so without it the tab says so rather than pretending. Review
+  // history is the one thing here that cannot be rebuilt (docs/adr/0003), and
+  // stashing it in localStorage would put it one "clear browsing data" away
+  // from gone.
+  var srsList=document.getElementById('srslist');
+  if(srsList){
+    var srsCount=document.getElementById('srscount');
+    var srsState=null, srsToken='', srsBusy=false;
+    try{ srsState=JSON.parse(document.getElementById('pa-srs').textContent); }catch(e){}
+
+    function srsFind(id){
+      if(!srsState) return null;
+      var all=(srsState.scheduled||[]).concat(srsState.queue||[]);
+      for(var i=0;i<all.length;i++){ if(all[i].id===id) return all[i]; }
+      return null;
+    }
+    function srsDays(n){ return n>=365?'1 年':(n+' 天'); }
+
+    function srsDraw(){
+      if(!srsState){ srsList.innerHTML=''; return; }
+      var q=srsState.queue||[];
+      srsCount.textContent='('+q.length+')';
+      if(!q.length){
+        srsList.innerHTML='<div class="qempty">'+
+          (srsState.tracked?'今天沒有到期的卡':'還沒有排程中的卡')+'</div>';
+      } else {
+        srsList.innerHTML=q.map(function(it){
+          var tag=it.kind==='half'?'<span class="srstag half">半懂</span>'
+                                 :'<span class="srstag due">到期</span>';
+          return '<a class="qlink srsitem" href="#card-'+it.id+'" data-id="'+it.id+'">'+
+                 tag+'<span class="qtext">'+
+                 it.question.replace(/[&<>]/g,function(c){
+                   return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];
+                 })+'</span></a>';
+        }).join('');
+      }
+      if(!srsToken){
+        srsList.insertAdjacentHTML('beforeend',
+          '<div class="srshint">評分需要 <code>serve.py</code> 在跑——'+
+          '複習紀錄要寫成檔案，這頁自己寫不了。</div>');
+      }
+      [].slice.call(srsList.querySelectorAll('.srsitem')).forEach(function(a){
+        a.addEventListener('click',function(e){
+          e.preventDefault();
+          openCard(a.dataset.id);
+        });
+      });
+    }
+
+    // The grading bar lives at the foot of the open card: you read the
+    // question, try to answer it, open the card to check, and only then say
+    // how it went. Anywhere else and you would be grading from memory of a
+    // memory.
+    function srsBar(id){
+      // openCard bails out on a filtered-out card, leaving the panel shut or
+      // showing something else -- a bar bolted on then would grade the wrong
+      // question.
+      if(panel.hidden||current!==id) return;
+      var item=srsFind(id);
+      if(!srsToken||!item||item.kind!=='scheduled'||!item.preview) return;
+      var labels=[['again','重來'],['hard','困難'],['good','良好'],['easy','簡單']];
+      var html='<div class="srsbar" id="srsbar"><b>這題答得如何？</b><div class="srsbtns">'+
+        labels.map(function(p){
+          return '<button data-g="'+p[0]+'">'+p[1]+
+                 '<sub>'+srsDays(item.preview[p[0]])+'</sub></button>';
+        }).join('')+'</div><span id="srssay"></span></div>';
+      panelIn.insertAdjacentHTML('beforeend',html);
+      [].slice.call(panelIn.querySelectorAll('#srsbar button')).forEach(function(b){
+        b.addEventListener('click',function(){ srsGrade(id,b.dataset.g); });
+      });
+    }
+
+    function srsGrade(id,grade){
+      if(srsBusy||!srsToken) return;
+      srsBusy=true;
+      var say=document.getElementById('srssay');
+      if(say) say.textContent='記錄中…';
+      fetch('/_pa/review',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-PA-Token':srsToken},
+        body:JSON.stringify({id:id,grade:grade})
+      }).then(function(r){ return r.json(); }).then(function(d){
+        srsBusy=false;
+        if(d.error){ if(say) say.textContent='沒記錄成功：'+d.error; return; }
+        srsState=d.schedule;
+        srsDraw();
+        // straight on to the next one: stopping to admire the confirmation is
+        // how a review session turns into three cards and a closed tab
+        var next=(srsState.queue||[])[0];
+        if(next&&next.id!==id) openCard(next.id); else closeCard();
+      }).catch(function(){
+        srsBusy=false;
+        if(say) say.textContent='沒記錄成功，server 可能停了';
+      });
+    }
+
+    var srsOpen=openCard;
+    openCard=function(id){ srsOpen(id); srsBar(id); };
+
+    srsDraw();
+    fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(d){
+        if(!d||!d.token) return;
+        srsToken=d.token;
+        return fetch('/_pa/reviews').then(function(r){ return r.ok?r.json():null; })
+          .then(function(s){ if(s) srsState=s; srsDraw(); });
+      })
+      .catch(function(){});
+  }
+
   apply();
 })();

@@ -14,7 +14,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import anchors, cli, library, links, notes, sources, workspace
+from . import anchors, cli, library, links, notes, sources, srs, workspace
 
 cli.bootstrap()
 
@@ -321,7 +321,8 @@ def build(work_root: Path, allow_drift: bool = False):
 
     write_index(paper_root, notes_dir, annotated_root, config, rows, unanchored, cards,
                 fragile, card_problems, point_rows, point_lost)
-    catalog = library.write_catalog(notes_dir, paper_root, config, cards, points)
+    review = srs.counts(notes_dir, cards, date.today().isoformat())
+    catalog = library.write_catalog(notes_dir, paper_root, config, cards, points, review)
 
     print(f"註記檢視    {len(source_list)} 個檔案 → {annotated_root}")
     print(f"疑問卡      {len(cards)} 張：已定位 {len(rows)}，找不到位置 {len(unanchored)}")

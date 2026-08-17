@@ -251,6 +251,31 @@ anchor:
 **要點不是卡片也不是畫記**：沒有 status、不進疑問清單、不算進「疑問 N 則」。使用者提出
 需要回答的問題 → 卡片；他自己標起一段 → 畫記；**論文自己主張了什麼 → 要點**。
 
+## 複習排程
+
+複習頁側欄的「複習」是內建的間隔重複，不需要 Anki。**評分必須有 `serve.py` 在跑**——
+複習紀錄要寫成檔案，而複習歷史是這套系統裡唯一無法重生的資料，設計理由見
+[docs/adr/0003](../../docs/adr/0003-review-history-is-the-first-irreplaceable-data.md)。
+沒跑 server 時頁面照樣列出待複習的卡，但不給評分按鈕，也會說明原因。
+
+哪些卡進排程，由狀態決定，你不需要也不應該手動干預：
+
+| 狀態 | 進排程嗎 |
+|---|---|
+| `resolved` ＋ `origin: asked` | 進。他懂了，接下來是別忘掉 |
+| `half` | 不排程，但永遠排在佇列最前面。半懂不是記憶問題，是還沒讀完 |
+| `open` | 不進。它本來就在疑問清單裡 |
+| `origin: suggested` | 不進。那是你標的，不是他問的 |
+
+紀錄放在 `notes/reviews/<卡片編號>.md`，一行一次評分。**build 絕對不寫這個目錄**，
+唯一的寫入者是 server 的評分端點。排程狀態不儲存，每次由紀錄重放算出來——所以日後換
+演算法不需要任何遷移。
+
+卡片被刪除後紀錄會留著，build 回報成孤兒。**不要自動清掉**，那是使用者的資料。
+
+`export_cards.py --format csv` 會帶上 `reviews / interval / ease / lapses / due`，
+想搬去 Anki 的人不必從零開始。
+
 ## 跨論文
 
 `library.py` 是你看見「不只這一篇」的唯一途徑。它讀 `papers.yml`（登記簿，在 git repo
@@ -278,8 +303,10 @@ anchor:
 
 - 原文只讀不寫。有話要說就寫成卡片。
 - `annotated/`（含 `index.html`）、`notes/QUESTIONS.md`、`notes/catalog.json` 由 build
-  產生；`notes/references.json` 與 `papers.yml` 由 probe 產生。要改內容改
-  `notes/cards/`、`notes/marks/`、`notes/points/` 後重建。
+  產生；`notes/references.json` 與 `papers.yml` 由 probe 產生；`notes/digests/*.html`
+  由 build_digest 產生。要改內容改 `notes/cards/`、`notes/marks/`、`notes/points/` 後重建。
+- **`notes/reviews/` 不是產生物，也不可重生。** 只有 server 的評分端點寫它。任何情況下
+  都不要用程式碼去改或刪它。
 - 使用者的複習介面是 `annotated/index.html`；Markdown 版是給你和 git 用的。
 
 ## 沒有 Python 時

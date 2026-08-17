@@ -236,7 +236,7 @@ def _where_of(meta) -> str:
     return Path(str(anchor.get("file") or "")).stem
 
 
-def write_catalog(notes_dir: Path, paper_root: Path, config: dict, cards, points) -> Path:
+def write_catalog(notes_dir: Path, paper_root: Path, config: dict, cards, points, review=None) -> Path:
     """A scannable index of one paper's notes, for cross-paper readers.
 
     Generated, never authoritative: notes/cards/ and notes/points/ remain the
@@ -251,6 +251,10 @@ def write_catalog(notes_dir: Path, paper_root: Path, config: dict, cards, points
         "year": year,
         "tier": config.get("tier"),
         "generated": date.today().isoformat(),
+        # A snapshot, deliberately: the authority on what is due is the replay
+        # of notes/reviews/, and this is only here so the library page can show
+        # counts without opening every paper's log.
+        "review": review or {"due": 0, "half": 0, "tracked": 0},
         "cards": [
             {
                 "id": str(card["meta"].get("id")),
@@ -523,6 +527,12 @@ def main(argv):
             f" 半懂 {tally.get('half', 0)} · 已解決 {tally.get('resolved', 0)}）"
             f" · 要點 {len(points)} 則"
         )
+        review = catalog.get("review") or {}
+        if review.get("tracked") or review.get("due"):
+            print(
+                f"  複習 排程 {review.get('tracked', 0)} 張，"
+                f"上次建置時到期 {review.get('due', 0)} 張"
+            )
         for card in cards:
             flag = " 💡" if card.get("origin") == "suggested" else ""
             tags = ", ".join(card.get("tags") or [])
