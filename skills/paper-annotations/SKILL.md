@@ -321,17 +321,59 @@ marks a position in an argument, so a section heading is fine; a point paraphras
 **one specific sentence**, and landing half a page away says the wrong thing about
 the wrong text. `heading` is an index label only.
 
+### What a point has to say
+
+Points get compared against other papers, so one test decides everything:
+**could this sentence collide with a sentence in another paper?** A true
+sentence nothing can collide with is dead weight.
+
+- **Could it have been otherwise?** If no competent paper here would write the
+  opposite, it is a label. 「是 analytic、nonlinear 的 mixed-size 擺置演算法」 —
+  nobody publishes "ours is ad-hoc and linear". 「macro 與 standard cell 完全一視
+  同仁，不做 macro shifting、soft block」 has a real opposite, and most of the
+  field takes it.
+- **Name the sentence it would argue with** — the sentence, not the paper. No
+  shape in mind, no point.
+
+What passes, most valuable first:
+
+- **假設 and 限制.** Every paper advertises its claims and results; almost none
+  advertise what they took for granted. That is where two papers turn out to
+  disagree, and it is never in the abstract. Hunt them rather than wait.
+- **Mechanism with the paper's own reason.** Not 「提出 nonlinear preconditioner」
+  — that is the contributions list — but 「preconditioner 用 Jacobi 只取 Hessian
+  對角線，因為百萬物件規模下算完整 Hessian 不可行」. The 因為 is the part another
+  paper can dispute, and it has to be the authors' reason, not yours.
+- **A number with the conditions that make it mean something**: benchmark,
+  baseline, what was held fixed. 「線長短 8.22%」 compares with nothing;
+  「在 16 個 MMS benchmark、相同 runtime 下比 NTUplace3 平均短 8.22%」 does.
+- **An ablation or a failure**: 「關掉 preconditioner，16 個 benchmark 有 9 個跑
+  不出來」. What breaks when a piece is removed outranks any contribution bullet.
+
+What fails, and is always tempting because it sits right there in the abstract:
+the paper's self-description, its contribution bullets restated one by one, and
+「第一個做到 X 的工作」 priority claims. **If a paper's points read in the same
+order as its contributions list, they came from the wrong place.**
+
 ### How to gather them
 
-Both routes, neither optional.
+Both routes, neither optional — but they are not equal.
 
-**One pass through**: on first read scan abstract, intro, conclusion, section
-headings, and any paragraph listing contributions. **Do not read the whole
-paper** — the claims are already in those places, so cost is bounded. 5–12 per
-journal paper; prefer few and accurate.
+**One pass through**, on first read: abstract, intro, conclusion, section
+headings, contributions. **Do not read the whole paper** — cost stays bounded.
+This pass only sees what the paper says about itself, so most of what it offers
+fails the collision test: take **3–5**, the ones with a real opposite, drop the
+rest.
 
-**As you go**: whenever you open a chunk to answer a question, record that chunk's
-points. Zero extra reading; coverage grows with how deeply he reads.
+**As you go — the main route.** Whenever you open a chunk to answer a question,
+record that chunk's points. Zero extra reading, and mechanism, assumptions and
+ablations live nowhere but the body. A paper he has questioned should end with
+most of its points anchored outside the abstract and intro.
+
+**A paper with no cards should not have many points.** No questions yet means
+the body was never opened, and points written from the abstract alone are
+labels. Say that instead of filling a quota. 5–12 is a ceiling for a paper he
+has worked through, not a target for one just registered.
 
 ### Guardrails
 
@@ -340,7 +382,6 @@ You generate points on your own initiative, so the risk is not being wrong — i
 correcting it.
 
 - **List new points at the end of every round for veto**, same as cards.
-- The opening pass has a ceiling. Nothing good there → take fewer, never pad.
 - A point is **what the paper claims**, not your commentary. Inferences go in a
   card or a digest.
 - One sentence each. Needing three means two points — or actually a card.
