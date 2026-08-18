@@ -516,14 +516,22 @@ def _launcher(home: Path, stem: str, tag: str, target: str, port: int) -> Path:
 
     if os.name == "nt":
         path = home / f"{stem}.cmd"
-        # backslashes throughout: "for /d" will not glob a mixed-separator path
-        win = script.replace("/", "\\")
+        # backslashes throughout: cmd will not glob a mixed-separator path.
+        # "dir /o-d" rather than a bare wildcard, because cmd orders names as
+        # text -- 1.9.0 sorts after 1.14.1, and the loop keeps the last match,
+        # so a wildcard quietly ran a months-old server. Newest-written wins
+        # instead, which is what installing a version actually produces.
+        sep = chr(92)
+        win = script.replace("/", sep)
         find = ""
         if versioned:
+            root = versioned.replace("/", sep)
+            tail = sep.join(("", "skills", "paper-annotations", "scripts", "serve.py"))
             find = (
                 'set "PA="\n'
-                f'for /d %%d in ("{versioned.replace("/", chr(92))}\\*") do set '
-                '"PA=%%d\\skills\\paper-annotations\\scripts\\serve.py"\n'
+                f"""for /f "delims=" %%d in ('dir /b /ad /o-d "{root}" 2^>nul') do """
+                f'if not defined PA if exist "{root}{sep}%%d{tail}" '
+                f'set "PA={root}{sep}%%d{tail}"\n'
                 f'if not exist "%PA%" set "PA={win}"\n'
             )
         run = "%PA%" if versioned else win
