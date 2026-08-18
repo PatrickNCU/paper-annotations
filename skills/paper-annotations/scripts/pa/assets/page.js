@@ -14,6 +14,19 @@
   var points=[].slice.call(document.querySelectorAll('.pnote'));
   var showPt=document.getElementById('showpt');
 
+  // A link to another paper cannot be one path: opened by double-click the
+  // papers are sibling folders, but under serve.py --library each one is its
+  // own mount at /p/<slug>/. The build puts the file-relative path in href so
+  // the offline case works with no script, and the served path in data-live.
+  // Testing for /p/<slug>/ rather than "not file://": that path only exists
+  // because serve.py mounted it, so a page put behind any other static server
+  // keeps the relative href that actually works there.
+  if(/^\/p\/[^\/]+\//.test(location.pathname)){
+    [].slice.call(document.querySelectorAll('a.xlref[data-live]')).forEach(function(a){
+      a.setAttribute('href',a.getAttribute('data-live'));
+    });
+  }
+
   var themeBtn=document.getElementById('theme');
   var modes=[['system','🌗 跟隨系統'],['light','☀️ 淺色'],['dark','🌙 深色']];
   // memory holds the truth; storage is only persistence. Reading the mode back

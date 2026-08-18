@@ -627,10 +627,9 @@ def mount(work: Path, slug: str):
     annotated/ alone gives a page with every figure missing.
     """
     config, paper_root, notes_dir, annotated = workspace.load_workspace(work)
-    if not (annotated / "index.html").is_file():
-        raise SystemExit(f"找不到 {annotated / 'index.html'}，請先執行 build_html.py")
-    root = Path(os.path.commonpath([str(annotated), str(paper_root)]))
-    inside = (annotated / "index.html").relative_to(root).as_posix()
+    index_file, inside, root = workspace.mount_index(work)
+    if not index_file.is_file():
+        raise SystemExit(f"找不到 {index_file}，請先執行 build_html.py")
     # percent-encoded: http.server writes headers in latin-1, so a Chinese
     # directory name in the redirect target would crash the redirect handlers
     return {

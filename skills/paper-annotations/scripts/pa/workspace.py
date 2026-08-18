@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from . import miniyaml
@@ -28,6 +29,18 @@ def default_annotated(paper_root: Path, work_root: Path) -> Path:
     package = paper_root.name.lower().endswith(("_md", "-md"))
     beside_pdf = any(parent.glob("*.pdf"))
     return parent / "annotated" if (package or beside_pdf) else work_root / "annotated"
+
+
+def mount_index(work_root: Path):
+    """(review page on disk, its path under /p/<slug>/, the mount root).
+
+    server.mount needs this to serve the page and annotate needs it to link to
+    the page; working it out in both places is how the two would drift apart.
+    """
+    _, paper_root, _, annotated = load_workspace(work_root)
+    index = annotated / "index.html"
+    root = Path(os.path.commonpath([str(annotated), str(paper_root)]))
+    return index, index.relative_to(root).as_posix(), root
 
 
 def load_workspace(work_root: Path):

@@ -145,7 +145,12 @@ border-left:3px solid var(--line);background:var(--sec-answer)}
    this", and which file the line happens to live in is not his problem. */
 .xlinks{margin:14px 0 10px;padding:9px 0 1px;border-top:1px dashed var(--line)}
 .xl{margin:0 0 5px;font-size:.9em;line-height:1.6;color:var(--muted)}
-.xl code{font-size:.86em;padding:1px 5px;border-radius:4px;background:var(--sec-answer)}
+/* The chip is the link's other end: paper name plus id, one click away.
+   nowrap so a name never breaks across lines mid-chip. */
+.xlref{font-size:.86em;padding:1px 5px;border-radius:4px;background:var(--sec-answer);
+color:var(--fg);text-decoration:none;white-space:nowrap}
+a.xlref:hover{background:var(--accent);color:var(--accent-ink)}
+.xlref.dead{opacity:.65}
 .xlt{color:var(--accent);font-weight:600}
 .xl.back .xlt{color:var(--done)}
 /* The review queue. Two kinds sit in it and they are not the same thing: a

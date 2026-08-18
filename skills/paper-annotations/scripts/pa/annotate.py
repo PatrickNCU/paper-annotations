@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
 
 from . import anchors, cli, library, links, notes, sources, srs, workspace, xlinks
 
@@ -56,7 +57,8 @@ def summary_text(card) -> str:
     return " ".join(question.split()) or "(未填問題)"
 
 
-def render_card(card, dst_path: Path, out_links=(), in_links=()) -> str:
+def render_card(card, dst_path: Path, out_links=(), in_links=(),
+                dests=None, this_slug="") -> str:
     meta, sections = card["meta"], notes.card_sections(card["body"])
     cid = str(meta.get("id", "?"))
     status = str(meta.get("status", "open"))
@@ -94,7 +96,7 @@ def render_card(card, dst_path: Path, out_links=(), in_links=()) -> str:
                 "",
             ]
 
-    parts += render_links(out_links, in_links)
+    parts += render_links(out_links, in_links, dst_path, dests or {}, this_slug)
 
     meta_bits = [f"狀態 {label}"]
     if meta.get("origin") == "suggested":
@@ -110,7 +112,57 @@ def render_card(card, dst_path: Path, out_links=(), in_links=()) -> str:
     return "\n".join(parts)
 
 
-def render_links(out_links, in_links) -> list:
+def link_destinations(registry_path) -> dict:
+    """slug -> where that paper's review page is, for the link chips.
+
+    A paper that was registered but never built has no page to point at. It
+    gets a plain ref rather than a link into nothing -- same rule as ADR 0001.
+    """
+    out = {}
+    for paper in library.entries(registry_path):
+        if not paper["alive"]:
+            continue
+        try:
+            index, inside, _ = workspace.mount_index(paper["work"])
+        except SystemExit:
+            continue
+        if not index.is_file():
+            continue
+        title = str(paper["title"] or paper["slug"])
+        out[paper["slug"]] = {
+            "name": title.split(":")[0].strip() or paper["slug"],
+            "index": index,
+            "inside": quote(inside),
+        }
+    return out
+
+
+def link_chip(ref, dests, this_slug: str, dst_path: Path) -> str:
+    """The other end of a link, as something readable and clickable.
+
+    `replace#P0003` says nothing three months later, so the chip carries the
+    paper's short name. Two hrefs, because the page has two lives: opened by
+    double-click the papers are sibling folders and only a relative path
+    reaches them, while under serve.py --library each paper is its own mount
+    and only /p/<slug>/ resolves. The relative one goes in href so the offline
+    case needs no script at all; page.js swaps in data-live once it sees the
+    page is being served.
+    """
+    tag = f"{ref['kind']}{ref['id']}"
+    frag = ("#card-" if ref["kind"] == "Q" else "#point-") + ref["id"]
+    if ref["slug"] == this_slug:
+        return f'<a class="xlref" href="{frag}">{tag}</a>'
+    dest = dests.get(ref["slug"])
+    if not dest:
+        return f'<span class="xlref dead">{esc_html(xlinks.ref_text(ref))}</span>'
+    return (
+        f'<a class="xlref" href="{links.rel_href(dst_path, dest["index"])}{frag}" '
+        f'data-live="/p/{quote(ref["slug"])}/{dest["inside"]}{frag}" '
+        f'title="{esc_html(xlinks.ref_text(ref))}">{esc_html(dest["name"])} · {tag}</a>'
+    )
+
+
+def render_links(out_links, in_links, dst_path, dests, this_slug) -> list:
     """Both ends of every link, on the note itself.
 
     Cross-paper targets are not hyperlinked: the other paper lives under its
@@ -123,10 +175,10 @@ def render_links(out_links, in_links) -> list:
     rows = []
     for link in out_links:
         label = xlinks.LINK_TYPES[link["type"]][0]
-        ref = link["ref"]
         rows.append(
             f'<div class="xl"><b class="xlt">{label}</b> '
-            f'<code>{xlinks.ref_text(ref)}</code> {esc_html(link["summary"])}</div>'
+            f'{link_chip(link["ref"], dests, this_slug, dst_path)} '
+            f'{esc_html(link["summary"])}</div>'
         )
     for link in in_links:
         pair = xlinks.LINK_TYPES.get(link["type"])
@@ -134,7 +186,7 @@ def render_links(out_links, in_links) -> list:
         src = link["from"]
         rows.append(
             f'<div class="xl back"><b class="xlt">← {label}</b> '
-            f'<code>{src["slug"]}#{src["kind"]}{src["id"]}</code> '
+            f'{link_chip(src, dests, this_slug, dst_path)} '
             f'{esc_html(link["summary"])}</div>'
         )
     return ['<div class="xlinks">'] + rows + ["</div>", ""]
@@ -146,7 +198,8 @@ def esc_html(text: str) -> str:
     )
 
 
-def render_point(point, dst_path: Path, out_links=(), in_links=()) -> str:
+def render_point(point, dst_path: Path, out_links=(), in_links=(),
+                 dests=None, this_slug="") -> str:
     """A point, rendered as quietly as it can be while still being findable.
 
     Not a <details>: there is nothing to hide behind a summary -- a point is
@@ -187,7 +240,7 @@ def render_point(point, dst_path: Path, out_links=(), in_links=()) -> str:
             point["text"],
             "",
         ]
-        + render_links(out_links, in_links)
+        + render_links(out_links, in_links, dst_path, dests or {}, this_slug)
         + [
             "</div>",
             "",
@@ -254,6 +307,7 @@ def build(work_root: Path, allow_drift: bool = False):
     this_slug = library.paper_name(paper_root).lower()
     registry = library.find_registry(work_root)
     catalogs = xlinks.index(registry) if registry else {}
+    dests = link_destinations(registry) if registry else {}
     back = xlinks.incoming(catalogs, this_slug)
     link_problems, broken_links = [], []
 
@@ -323,11 +377,13 @@ def build(work_root: Path, allow_drift: bool = False):
             quote = (card["meta"].get("anchor") or {}).get("quote")
             out = anchors.highlight_quote(out, anchors.quote_text(quote))
         blocks = [
-            (index, render_card(card, dst, *links_for(card, "Q")).splitlines())
+            (index, render_card(card, dst, *links_for(card, "Q"),
+                                dests=dests, this_slug=this_slug).splitlines())
             for index, _, card in insertions
         ]
         blocks += [
-            (index, render_point(point, dst, *links_for(point, "P")).splitlines())
+            (index, render_point(point, dst, *links_for(point, "P"),
+                                 dests=dests, this_slug=this_slug).splitlines())
             for index, point in point_hits
         ]
         for index, block in sorted(blocks, key=lambda item: -item[0]):
