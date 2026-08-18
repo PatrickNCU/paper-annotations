@@ -177,8 +177,12 @@ bottom:0;font-weight:400}
 color:var(--muted);font-size:.93em}
 .pnote.hidden{display:none}
 .pnote p{margin:3px 0}
-.pnote sub{font-size:11.5px;color:var(--muted)}
-.pk{font-size:.82em;letter-spacing:.06em;color:var(--accent)}
+/* The badge carries what the caption under each point used to: it links to the
+   source file and its tooltip names origin and tags. Weight and colour are the
+   old <b>'s, so nothing on the page moved -- only the line below it went. */
+.pk{font-size:.82em;letter-spacing:.06em;color:var(--accent);
+font-weight:700;text-decoration:none}
+a.pk:hover{text-decoration:underline}
 /* Colour changes ease across; layout and motion are left alone. Scoped to the
    surfaces that actually carry a palette colour rather than "*", so a 30000px
    page does not repaint every node. Nested text inherits the animating value,

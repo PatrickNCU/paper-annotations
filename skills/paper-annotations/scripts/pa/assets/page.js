@@ -78,7 +78,10 @@
       var wantPt=!showPt||showPt.classList.contains('on');
       points.forEach(function(p){
         var ok=wantPt;
-        if(ok&&term&&p.textContent.toLowerCase().indexOf(term)<0) ok=false;
+        // tags no longer print under the point, so match them off the
+        // attribute -- otherwise searching a tag would stop finding anything
+        var hay=p.textContent+' '+(p.dataset.tags||'');
+        if(ok&&term&&hay.toLowerCase().indexOf(term)<0) ok=false;
         p.classList.toggle('hidden',!ok);
       });
     }

@@ -160,27 +160,35 @@ def render_point(point, dst_path: Path, out_links=(), in_links=()) -> str:
     label = notes.KIND_LABEL.get(point["kind"], point["kind"])
     tags = [str(t) for t in (meta.get("tags") or [])]
 
+    # The provenance caption that used to sit under every point is gone: one
+    # line each, repeated down a page of points, cost more room than the paper
+    # it was explaining. What it carried moves onto the kind badge, which was
+    # already on that line and so costs nothing: the badge links to the source
+    # file, and its tooltip still names the origin and the tags. Tags stay in
+    # data-tags because the search box matches on text -- off the page they
+    # would otherwise stop being searchable.
     bits = []
     if point["origin"] == "agent":
         bits.append("AI 讀出的要點，不是你寫的")
     if tags:
         bits.append("標籤 " + ", ".join(tags))
-    bits.append(f'<a href="{links.rel_href(dst_path, point["path"])}">要點原始檔</a>')
+    bits.append("點一下開啟要點原始檔")
+    title = esc_html(" · ".join(bits)).replace('"', "&quot;")
 
     return "\n".join(
         [
             f"<!-- point:{pid} -->",
             f'<div class="pnote" id="point-{pid}" data-id="{pid}" '
             f'data-kind="{point["kind"]}" data-origin="{point["origin"]}" '
-            f'data-tags="{" ".join(tags)}"><b class="pk">{label}</b>',
+            f'data-tags="{" ".join(tags)}">'
+            f'<a class="pk" href="{links.rel_href(dst_path, point["path"])}" '
+            f'title="{title}">{label}</a>',
             "",
             point["text"],
             "",
         ]
         + render_links(out_links, in_links)
         + [
-            "<sub>" + " · ".join(bits) + "</sub>",
-            "",
             "</div>",
             "",
         ]
