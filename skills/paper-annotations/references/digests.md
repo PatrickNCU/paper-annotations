@@ -91,7 +91,7 @@ manufactured connection is worse than none, because he will read by a wrong map.
 
 **Afterwards, harden what is worth keeping into links.** A digest is prose he has
 to remember to come back to; a link appears next to the sentence it is about. The
-three types `answers` / `contradicts` / `same-as` only cover part of what you
+four types `answers` / `contradicts` / `same-as` / `refines` cover part of what you
 find — leave the rest in the digest rather than distorting a relationship to fit
 a slot. Format is in the skill's "Typed links between cards and points".
 

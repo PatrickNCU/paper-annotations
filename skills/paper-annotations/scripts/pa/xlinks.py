@@ -40,6 +40,10 @@ LINK_TYPES = {
     "answers": ("回答了", "答案在"),
     "contradicts": ("牴觸", "牴觸"),
     "same-as": ("同一件事", "同一件事"),
+    # a successor paper improving its predecessor is the single most common
+    # relationship between two papers on a shelf, and calling it contradicts
+    # reads three months later as a dispute that never happened.
+    "refines": ("改進了", "被…改進"),
 }
 
 # "eplace-ms#P0003", "#Q0001" (this paper), case-insensitive on the kind

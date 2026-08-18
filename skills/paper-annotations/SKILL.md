@@ -451,8 +451,10 @@ links:
   - same-as #Q0004            # omitting the slug means this paper
 ```
 
-Three types only: `answers`, `contradicts`, `same-as`. **Do not invent types** —
-the build rejects them. The list is deliberately tiny: an open vocabulary grows
+Four types only: `answers`, `contradicts`, `same-as`, `refines`. **Do not invent
+types** — the build rejects them. `refines` is for a later paper improving an
+earlier one's method; reserve `contradicts` for an actual disagreement, or a
+successor reads as a dispute that never happened. The list is deliberately tiny: an open vocabulary grows
 near-synonyms and then cannot be compared against anything, which was the only
 reason links exist. Extend it when it genuinely runs out, not in advance.
 
