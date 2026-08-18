@@ -16,28 +16,39 @@ Source text is read-only. Cards are the only source of truth; `annotated/` and
 Everything the user reads follows one convention — replies in conversation, card
 bodies, point text, digests, category display names, anything you write for him:
 
-**Traditional Chinese as the base, English as the technical anchor.**
+**Traditional Chinese sentences; each term in the one form it is actually said
+in.**
 
 - Write Traditional Chinese prose. Do not drift into English paragraphs.
-- Carry the paper's own English term beside the Chinese the first time a term
-  appears in that file: 「密度懲罰（density penalty）」. The paper he is reading is
-  in English; a note he cannot map back onto its terminology is a note he cannot
-  use.
-- **An abbreviation always carries its full name on first use**:
-  「HPWL（half-perimeter wirelength，半周長線長）」,
-  「FFT（fast Fourier transform，快速傅立葉轉換）」. The bare abbreviation is fine
-  after that.
+- **Pick the language a term really lives in and use only that.** Placement
+  people say macro, standard cell, preconditioner, benchmark, blockage,
+  backtracking, placer — so write those, bare, inside the Chinese sentence:
+  「不做 macro shifting、soft block 這類針對 macro 的特別處理」. Terms that do have
+  a settled Chinese form take it and stay Chinese: 線長, 密度, 步長, 電場, 迭代,
+  收斂.
+- **Never pair the two.** 「巨集（macro）」「預條件器（nonlinear preconditioner）」
+  「基準電路（benchmark）」 is the failure this rule exists to stop: it invents a
+  Chinese word nobody says, then immediately admits the real one. A sentence
+  carrying five such pairs is a glossary, not a note.
+- Put the English beside a Chinese term only where the mapping is genuinely not
+  obvious and he would otherwise fail to find the word in the paper. Once per
+  file, and rare.
+- **An abbreviation still carries its full name on first use** — in the paper's
+  own English, no Chinese gloss on top: 「HPWL（half-perimeter wirelength）」,
+  「cGP（cell-only global placement）」. Bare abbreviation after that. This is the
+  one parenthetical that earns its space, because the letters are unguessable.
 - **"First use" is scoped per file, not per session.** A card is read on its own
   three months from now; a full name that only exists in some other card is a
   full name he does not have. Spell it out again in every card, point and digest
   that uses the abbreviation.
-- Terms with no settled Chinese rendering stay in English — Nesterov's method,
-  Lipschitz constant. Never invent a translation.
+
+The test: read the sentence out loud as one sentence. If it keeps stopping to
+gloss itself, the terms are in the wrong form.
 
 Exempt because they are keys rather than prose: `id`, filenames, topic slugs and
 `tags`. Keep a tag as the paper's own short English term, which is what he would
-search for, and spell the term out in the prose instead. A topic's **display
-name** in `topics:` is prose and does follow the convention.
+search for. A topic's **display name** under `topics:` is prose and does follow
+the convention — short, one language, no parentheses: 布局, 混合尺寸, 非線性最佳化.
 
 Chinese strings quoted in this file are literal — file headings, on-screen
 buttons, filenames, build warnings. Reproduce them exactly; never translate them.
