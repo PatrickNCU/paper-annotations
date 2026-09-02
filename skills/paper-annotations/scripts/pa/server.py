@@ -246,7 +246,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
-        if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/topic"):
+        if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/card", "/_pa/topic"):
             self._json(404, {"error": "unknown endpoint"})
             return
         if not self._same_origin():
@@ -260,6 +260,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/_pa/review":
             self._grade()
+            return
+        if path == "/_pa/card":
+            self._card()
             return
         if path == "/_pa/topic":
             self._topic()
@@ -382,6 +385,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         wanted = str(payload.get("id") or "")
         grade = str(payload.get("grade") or "")
+        # how sure he said he was before the reveal; optional, and only ever
+        # one of three words -- anything else is dropped, not stored
+        jol = str(payload.get("jol") or "")
+        if jol not in srs.JOLS:
+            jol = ""
         if grade not in srs.GRADES:
             self._json(400, {"error": f"grade 只能是 {' / '.join(srs.GRADES)}"})
             return
@@ -397,9 +405,68 @@ class Handler(SimpleHTTPRequestHandler):
             if not srs.eligible(card["meta"]):
                 self._json(400, {"error": f"Q{wanted} 不在排程裡（只有你自己問過、且已解決的卡才排程）"})
                 return
-            srs.append(paper["notes"], wanted, grade, date.today().isoformat())
+            srs.append(paper["notes"], wanted, grade, date.today().isoformat(), jol)
             state = self._schedule(paper)
-        self._json(200, {"ok": True, "id": wanted, "grade": grade, "schedule": state})
+        self._json(200, {
+            "ok": True, "id": wanted, "grade": grade, "jol": jol,
+            "mismatch": srs.mismatch(jol, grade), "schedule": state,
+        })
+
+    def _card(self):
+        """Close a half-understood card from the page, in the reader's words.
+
+        The only place the server writes into notes/cards/, and it does so
+        with two text edits and nothing else (docs/adr/0004): his sentence is
+        appended verbatim under `## 自己的話`, and on resolve the `status:`
+        and `updated:` lines are replaced in place. The card is never
+        re-serialised, so his comments, quotes and key order survive. Rebuilds
+        both outputs, unlike grading: a status change is on the page.
+        """
+        payload = self._body()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "bad payload"})
+            return
+        paper = self._paper(payload.get("paper"))
+        if paper is None:
+            self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
+            return
+        wanted = str(payload.get("id") or "")
+        action = str(payload.get("action") or "")
+        text = " ".join(str(payload.get("text") or "").split())
+        if action not in ("resolve", "keep"):
+            self._json(400, {"error": "action 只能是 resolve 或 keep"})
+            return
+        if len(text) > 2000:
+            self._json(400, {"error": "一次寫一句就好，超過 2000 字請直接改檔案"})
+            return
+
+        with self.lock:
+            cards = notes.load_cards(paper["notes"])
+            card = next(
+                (c for c in cards if str(c["meta"].get("id")) == wanted), None
+            )
+            if card is None:
+                self._json(404, {"error": f"找不到卡片 {wanted}"})
+                return
+            if str(card["meta"].get("status", "open")) != "half":
+                self._json(400, {"error": f"Q{wanted} 不是半懂的卡；其他狀態請直接改檔案"})
+                return
+            today = date.today().isoformat()
+            if text:
+                notes.append_self_line(card["path"], today, "解釋", text)
+            status = "half"
+            if action == "resolve":
+                notes.set_card_status(card["path"], "resolved", today)
+                status = "resolved"
+            if text or action == "resolve":
+                rebuilt, log = self._rebuild_full(paper)
+            else:
+                rebuilt, log = True, []
+            state = self._schedule(paper)
+        self._json(200, {
+            "ok": True, "id": wanted, "action": action, "status": status,
+            "rebuilt": rebuilt, "log": log, "schedule": state,
+        })
 
     def _topic(self):
         """Everything the shelf can do to a category.
@@ -482,6 +549,21 @@ class Handler(SimpleHTTPRequestHandler):
         out = (run.stdout or "") + (run.stderr or "")
         sys.stderr.write(out)
         return run.returncode == 0, out.strip().splitlines()[:6]
+
+    def _rebuild_full(self, paper):
+        """Both outputs: a card's status is in the annotated Markdown too."""
+        out = ""
+        for script in ("build_annotated.py", "build_html.py"):
+            run = subprocess.run(
+                [sys.executable, str(SCRIPTS / script), str(paper["work"])],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            )
+            out += (run.stdout or "") + (run.stderr or "")
+            if run.returncode != 0:
+                sys.stderr.write(out)
+                return False, out.strip().splitlines()[:6]
+        sys.stderr.write(out)
+        return True, out.strip().splitlines()[:6]
 
     def _rebuild(self, paper):
         """Only the HTML: marks never touch the annotated Markdown."""

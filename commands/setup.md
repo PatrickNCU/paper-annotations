@@ -106,6 +106,14 @@ $ARGUMENTS
 9. **Tell him how to use it from here**: just ask questions about the paper;
    doubts accumulate into cards by themselves. No commands to remember.
 
+   Only if he asks about reading on a phone or tablet: the notes are plain
+   Markdown in a git repo, so a Markdown app that syncs a folder (Obsidian is
+   the usual one) can open `notes/` there for reading and for jotting questions
+   into a draft file. Reviewing and grading stay on the computer — the page
+   needs the server, and the review log must not be forked across devices.
+   Do not suggest this unprompted, and do not move the notes into an Obsidian
+   vault: `notes/` stays where `paper.yml` says it is.
+
 Done when he knows which Tier he is on, where the notes will be produced, where
 開啟書房.cmd and 開啟複習頁.cmd are and that they **really exist**, and that the
 next step is simply to ask a question.

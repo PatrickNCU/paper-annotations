@@ -50,6 +50,10 @@ Exempt because they are keys rather than prose: `id`, filenames, topic slugs and
 search for. A topic's **display name** under `topics:` is prose and does follow
 the convention — short, one language, no parentheses: 布局, 混合尺寸, 非線性最佳化.
 
+Exempt the other way: **`## 自己的話` is his text, verbatim.** Never rewrite a
+line there to fit this convention, fix its grammar, or tidy its terms. The whole
+point of the section is that it is not yours.
+
 Chinese strings quoted in this file are literal — file headings, on-screen
 buttons, filenames, build warnings. Reproduce them exactly; never translate them.
 
@@ -142,7 +146,16 @@ so a clone works immediately. Local `git init` and commit once he agrees;
 
 0. **Run `library.py`.** First thing every round, not just the first. A fresh
    session knows nothing of his reading history, and cross-paper connections are
-   what he is here for.
+   what he is here for. **Its first line is what is due today** — 「今天到期 N 張
+   · 半懂 M 張 · 下一張 …」, replayed live, not read from the last build. Say it
+   before anything else; when N or M is not zero, ask whether he wants to clear
+   those first or read on, and do not decide for him. The queue itself is on the
+   page (`#review`); you never grade in chat.
+
+   Coming back to a paper read before, you may open with one or two questions
+   built from its **points** — those are the paper's own claims, so asking is
+   not giving anything away. Never build a warm-up from a card: that is a
+   review, and reviews happen on the page where they are recorded.
 1. **First contact**: `probe.py`, then tell him the Tier. PDF-only prints
    conversion instructions; at Tier B/C explain what Tier A buys and costs, let
    him decide ([references/tiers.md](references/tiers.md)). probe registers the
@@ -151,13 +164,25 @@ so a clone works immediately. Local `git init` and commit once he agrees;
 2. **One pass through**: structured scan for points (see Points).
 3. **Answer**: follow the package's own `AGENTS.md` reading policy (usually
    `INDEX.md` first, 1–3 chunks). Record any point worth keeping while you are in
-   that chunk.
+   that chunk. **For a 為什麼 / 怎麼會 question, ask for his guess first** — one
+   line, and 「不知道」 is a fine answer — then answer. His guess goes into the
+   card verbatim as a `YYYY-MM-DD 猜：…` line under `## 自己的話`; a guess he
+   later sees next to the answer is worth more than the answer alone.
 4. **Draft the card.**
 5. **End of round**: list new cards **and points** for on-the-spot veto. Silence
-   means keep.
+   means keep. Then three short things, in this order, each once:
+   - Ask him for **one line of his own 一句話直覺** on the card that mattered most
+     this round. If he gives one, it replaces `## 一句話直覺` and the card gets
+     `intuition: user`; the page shows 「你寫的」 on it. If he passes, keep yours.
+   - Ask 「這個機制在你自己的問題裡對應什麼？」. An answer is a `## 自己的話` line
+     on that card (`YYYY-MM-DD 對應：…`), not a new card. No answer, move on.
+   - **At most five cards become `resolved` in one round.** Past five he is
+     nodding, not understanding; the rest stay `half` and come back on the page.
+   Finally offer a local `git commit` of the notes repo; commit only if he says
+   so, and never push.
 6. **Build** (`build_annotated.py`, then `build_html.py`), report warnings. If he
    is reading with no server, mention 開啟書房.cmd once — from there highlights
-   save themselves.
+   save themselves and cards can be reviewed and closed.
 
 Done when every question answered this round has a card, the build reports zero
 「找不到位置」, and no 「🟡 引文提醒」 remains unexplained.
@@ -174,6 +199,7 @@ created: 2026-08-15
 updated: 2026-08-15
 status: open | half | resolved      # half = 半懂
 origin: asked | suggested           # suggested = a doubt you raised, not his
+intuition: agent | user             # optional; user = he wrote 一句話直覺 himself
 tags: [density, poisson]
 anchor:
   file: sections/S400-iv-a-density-function.md
@@ -192,10 +218,24 @@ anchor:
 ## 卡點
 ## 解答
 ## 一句話直覺
+## 自己的話
 ```
 
-Those four headings are literal — write them exactly; build and page both look
-for them.
+Those headings are literal — write them exactly; build and page both look for
+them. The first four are yours to write. **`## 自己的話` is his**: one dated
+line per entry, verbatim, appended and never edited —
+
+```
+2026-09-02 猜：我猜是因為 Neumann 邊界讓總通量為零
+2026-09-05 解釋：總電荷不為零就無解，所以要扣掉平均
+2026-09-05 對應：我的 legalizer 也沒處理這個
+```
+
+`猜` is a guess given before the answer, `解釋` his own explanation when a
+half card is closed, `對應` what the mechanism maps to in his own work. The
+section is optional; create it at the end of the card the first time there is
+something to put in it. The server appends here too when he closes a half card
+from the page.
 
 `anchor` says only *what to look for*. Position is resolved against the live
 source every build, in order `ref` → `heading` → `quote` → unresolved
@@ -241,8 +281,10 @@ remember which sentence was the author's.
 lands in `notes/marks/` and rebuilds. Editing a comment, recolouring, deleting all
 work the same way. If he is still copy-pasting by hand, point him at
 開啟書房.cmd. There is no slash command for the server: the launchers cover the
-everyday case, and when he asks you to start one, run `serve.py` yourself in the
-background.
+everyday case — 開啟書房.cmd beside `papers.yml`, 開啟複習頁.cmd in the paper
+folder — so when he asks you to start one, tell him which file to double-click.
+Run `serve.py` yourself only when a launcher is missing (then write it with
+`--launcher` too) or he explicitly wants it started from here.
 
 Only **without a server** (usually someone sent him a review page) do highlights
 stay in the browser. When he presses 「複製畫記」 and pastes the result, **save the
@@ -254,8 +296,9 @@ python <scripts>/import_marks.py <work> --from <the file you just saved>
 ```
 
 It assigns serials, writes the format below, skips ones already present (safe to
-re-run), then builds. **Highlights need no judgement from you**: passage, colour
-and comment are decisions he already made.
+re-run). **It does not build** — run `build_annotated.py` and `build_html.py`
+after it. **Highlights need no judgement from you**: passage, colour and comment
+are decisions he already made.
 
 🟡 warnings on import need no action. A highlight over a formula carries KaTeX's
 rendered text (e.g. `x1,…,xn`), absent from the raw Markdown; the page searches
@@ -396,8 +439,9 @@ The 複習 panel in the page's sidebar is built-in spaced repetition; Anki not
 required. **Grading needs `serve.py` running** — the log must reach a file, and
 review history is the only data here that cannot be regenerated
 ([docs/adr/0003](../../docs/adr/0003-review-history-is-the-first-irreplaceable-data.md)).
-Without a server the page still lists what is due, shows no grading buttons, and
-says why.
+Without a server the page still lists what is due, reveals in stages, shows no
+grading buttons, and says why. The panel is always there, with one of three
+empty states — never assume he has not noticed it because it was empty.
 
 Status decides what is scheduled. Do not intervene:
 
@@ -408,13 +452,37 @@ Status decides what is scheduled. Do not intervene:
 | `open` | No. Already in the question list |
 | `origin: suggested` | No. You raised it, he did not |
 
-Logs in `notes/reviews/<card id>.md`, one line per grading. **The build never
-writes that directory**; its only writer is the server's grading endpoint. The
-schedule is not stored — it is replayed from the log, so changing the algorithm
-later needs no migration.
+**How a review goes on the page** (so you can describe it, never replace it):
+the question alone → he says how sure he is (想得起來 / 模糊 / 想不起來) → the
+一句話直覺 and the links to other papers → optionally 卡點 and 解答 → a grade
+(重來 / 困難 / 良好 / 簡單). A card graded 重來 is asked again the same day, up
+to three times, then parked until tomorrow. A `half` card is not graded: he
+writes what he thinks it says, sees the answer, and either closes it (status
+becomes `resolved`, his line lands under `## 自己的話`) or leaves it `half`.
+First intervals are 1 / 2 / 4 days for 困難 / 良好 / 簡單; a newly resolved card
+is due at once, so the first check happens while it is still warm.
+
+Logs in `notes/reviews/<card id>.md`, one line per grading:
+`2026-09-02 good sure` — date, grade, and optionally how sure he said he was
+before the reveal (`sure` / `vague` / `blank`). **The build never writes that
+directory**; its only writer is the server's grading endpoint. The schedule is
+not stored — it is replayed from the log, so changing the algorithm later needs
+no migration. Logs written since 1.17.0 may carry the third word; a reader older
+than that drops those lines.
+
+The server also writes **one thing** into `notes/cards/`: closing a half card
+from the page replaces the `status:` and `updated:` lines and appends under
+`## 自己的話`, as text, never by re-serialising the file
+([docs/adr/0004](../../docs/adr/0004-the-server-may-write-a-card-by-text-edit.md)).
+When you change a status yourself, do the same: edit those lines, touch nothing
+else.
 
 A deleted card leaves its log behind and the build reports an orphan. **Never
 clean those up automatically**; they are his data.
+
+You may say **「這張你累計複習 N 次」** when it is useful, and nothing more from
+the log — no streaks, no scores, no charts. `library.py --due` prints only the
+due line, for when that is all you need.
 
 `export_cards.py --format csv` carries `reviews / interval / ease / lapses / due`,
 so moving to Anki does not start from zero.

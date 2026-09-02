@@ -84,17 +84,31 @@ def render_card(card, dst_path: Path, out_links=(), in_links=(),
     # Each part gets its own block so an opened card can be read at a glance:
     # where you were stuck, what the answer was, and the one line that brings it
     # back. Run together as bold-prefixed paragraphs they all looked alike.
-    for key, kind in (("卡點", "stuck"), ("解答", "answer"), ("一句話直覺", "key")):
+    # 自己的話 is the reader's own words, one dated line each; it is rendered
+    # last because in review it is only shown once the answer is.
+    for key, kind in (
+        ("卡點", "stuck"), ("解答", "answer"), ("一句話直覺", "key"), ("自己的話", "self"),
+    ):
         value = (sections.get(key) or "").strip()
-        if value:
-            parts += [
-                f'<div class="csec csec-{kind}"><b class="csec-t">{key}</b>',
-                "",
-                value,
-                "",
-                "</div>",
-                "",
-            ]
+        if not value:
+            continue
+        head = key
+        if kind == "key":
+            # who wrote the one line he will see first when reviewing
+            who = "你寫的" if str(meta.get("intuition") or "agent") == "user" else "AI 寫的"
+            cls = " user" if who == "你寫的" else ""
+            head = f'{key} <sub class="who{cls}">{who}</sub>'
+        if kind == "self":
+            # one paragraph per line, so each dated entry stands on its own
+            value = "\n\n".join(line.strip() for line in value.splitlines() if line.strip())
+        parts += [
+            f'<div class="csec csec-{kind}"><b class="csec-t">{head}</b>',
+            "",
+            value,
+            "",
+            "</div>",
+            "",
+        ]
 
     parts += render_links(out_links, in_links, dst_path, dests or {}, this_slug)
 
@@ -108,7 +122,7 @@ def render_card(card, dst_path: Path, out_links=(), in_links=(),
         meta_bits.append("標籤 " + ", ".join(str(t) for t in tags))
     link = links.rel_href(dst_path, card["path"])
     meta_bits.append(f'<a href="{link}">卡片原始檔</a>')
-    parts += ["<sub>" + " · ".join(meta_bits) + "</sub>", "", "</details>", ""]
+    parts += ['<sub class="qmeta">' + " · ".join(meta_bits) + "</sub>", "", "</details>", ""]
     return "\n".join(parts)
 
 
@@ -172,13 +186,28 @@ def render_links(out_links, in_links, dst_path, dests, this_slug) -> list:
     """
     if not out_links and not in_links:
         return []
+
+    def other_end(ref, summary):
+        # A link into another paper is a comparison, and a comparison only
+        # teaches if he does the aligning himself: ask first, and keep what
+        # the other paper says behind a click. Within one paper there is
+        # nothing to align, so the sentence is simply shown.
+        if ref["slug"] == this_slug or ref["slug"] not in dests:
+            return f" {esc_html(summary)}"
+        name = esc_html(dests[ref["slug"]]["name"])
+        return (
+            f'<div class="think">先想：{name} 對同一件事怎麼做？</div>'
+            f'<details class="xlsum"><summary>另一篇怎麼說？</summary>'
+            f"<p>{esc_html(summary)}</p></details>"
+        )
+
     rows = []
     for link in out_links:
         label = xlinks.LINK_TYPES[link["type"]][0]
         rows.append(
             f'<div class="xl"><b class="xlt">{label}</b> '
-            f'{link_chip(link["ref"], dests, this_slug, dst_path)} '
-            f'{esc_html(link["summary"])}</div>'
+            f'{link_chip(link["ref"], dests, this_slug, dst_path)}'
+            f'{other_end(link["ref"], link["summary"])}</div>'
         )
     for link in in_links:
         pair = xlinks.LINK_TYPES.get(link["type"])
@@ -186,8 +215,8 @@ def render_links(out_links, in_links, dst_path, dests, this_slug) -> list:
         src = link["from"]
         rows.append(
             f'<div class="xl back"><b class="xlt">← {label}</b> '
-            f'{link_chip(src, dests, this_slug, dst_path)} '
-            f'{esc_html(link["summary"])}</div>'
+            f'{link_chip(src, dests, this_slug, dst_path)}'
+            f'{other_end(src, link["summary"])}</div>'
         )
     return ['<div class="xlinks">'] + rows + ["</div>", ""]
 

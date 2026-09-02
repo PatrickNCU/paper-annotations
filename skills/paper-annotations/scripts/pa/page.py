@@ -95,12 +95,14 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     # waiting, even though it cannot let you grade it (docs/adr/0003).
     plan = srs.schedule(notes_dir, cards, date.today().isoformat())
     srs_json = json.dumps(plan, ensure_ascii=False).replace("</", "<\\/")
-    srs_block = ""
-    if plan["tracked"] or plan["half"]:
-        srs_block = (
-            '\n  <h2>複習 <span id="srscount"></span></h2>'
-            '\n  <div id="srslist"></div>'
-        )
+    # Always present, even with nothing scheduled: a block that only appears
+    # once there is something in it is a feature the reader never learns exists.
+    # The script fills in one of three empty states instead.
+    srs_block = (
+        '\n  <h2>複習 <span id="srscount"></span></h2>'
+        '\n  <div id="dueline" class="dueline"></div>'
+        '\n  <div id="srslist"></div>'
+    )
     marks, placed, mark_bad, mark_soft = transforms.collect_marks(notes_dir, paper_root)
     # "</" would end the script element early whatever it sits inside
     mark_json = json.dumps(placed, ensure_ascii=False).replace("</", "<\\/")
@@ -258,6 +260,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
         print(
             f"            複習 排程中 {plan['tracked']} 張，今天到期 {plan['due']} 張、"
             f"待攻克（半懂）{plan['half']} 張"
+            + (f"、下一張 {plan['next']}" if plan["next"] else "")
         )
         print("                 評分需要 serve.py 在跑，複習紀錄才寫得進 notes/reviews/")
     for name in plan["orphans"]:

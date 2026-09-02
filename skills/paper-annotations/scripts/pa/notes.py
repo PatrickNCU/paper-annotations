@@ -21,6 +21,12 @@ from .anchors import normalize
 
 VALID_STATUS = ("open", "half", "resolved")
 VALID_ORIGIN = ("asked", "suggested")
+# Who wrote 一句話直覺. The reader's own line beats ours, and the page says
+# which it is showing, so the two must never be confused in the file.
+VALID_INTUITION = ("agent", "user")
+# The one section of a card that is his verbatim: guesses before the answer,
+# his explanation when a half card is closed. The agent never writes prose here.
+SELF_HEADING = "自己的話"
 # Highlights the reader drew. Named rather than numbered: a file saying
 # color: yellow survives being read by a human, "3" does not.
 VALID_COLOR = ("yellow", "green", "blue", "red")
@@ -104,6 +110,9 @@ def load_cards(notes_dir: Path, problems=None):
         origin = str(meta.get("origin", "asked"))
         if origin not in VALID_ORIGIN:
             complain(path, f"origin 是「{origin}」，只能是 {' / '.join(VALID_ORIGIN)}")
+        intuition = str(meta.get("intuition") or "agent")
+        if intuition not in VALID_INTUITION:
+            complain(path, f"intuition 是「{intuition}」，只能是 {' / '.join(VALID_INTUITION)}")
 
         if not card_sections(body).get("問題", "").strip():
             complain(path, "沒有寫「## 問題」，複習時只會看到一張沒有問題的卡")
@@ -244,6 +253,61 @@ def load_points(notes_dir: Path, problems=None):
     return points
 
 
+_STATUS_LINE = re.compile(r"^status:[ \t]*.*$", re.M)
+_UPDATED_LINE = re.compile(r"^updated:[ \t]*.*$", re.M)
+
+
+def set_card_status(path: Path, status: str, today: str) -> None:
+    """Change `status:` and `updated:` in place and touch nothing else.
+
+    A card is the reader's file. Re-dumping its frontmatter would drop his
+    comments, collapse his block quotes and reorder his keys -- so this is a
+    two-line text replacement, never miniyaml.dump (docs/adr/0004).
+    """
+    if status not in VALID_STATUS:
+        raise ValueError(status)
+    text = path.read_text(encoding="utf-8")
+    match = FRONTMATTER_RE.match(text)
+    if not match:
+        raise ValueError("no frontmatter")
+    head, rest = text[: match.end()], text[match.end():]
+    if _STATUS_LINE.search(head):
+        head = _STATUS_LINE.sub(f"status: {status}", head, count=1)
+    else:
+        # status defaults to open when absent; make it explicit at the end of
+        # the block, just above the closing ---
+        head = head.rstrip()[:-3].rstrip("\n") + f"\nstatus: {status}\n---\n"
+    if _UPDATED_LINE.search(head):
+        head = _UPDATED_LINE.sub(f"updated: {today}", head, count=1)
+    else:
+        head = _STATUS_LINE.sub(f"status: {status}\nupdated: {today}", head, count=1)
+    path.write_text(head + rest, encoding="utf-8", newline="\n")
+
+
+def append_self_line(path: Path, today: str, kind: str, text: str) -> None:
+    """Add one dated line of the reader's own words under `## 自己的話`.
+
+    Verbatim, one line, appended -- the section is created at the end of the
+    card if it is not there yet, and nothing above it is touched.
+    """
+    line = f"{today} {kind}：{' '.join(str(text).split())}"
+    body = path.read_text(encoding="utf-8")
+    if not body.endswith("\n"):
+        body += "\n"
+    heading = re.compile(rf"^## {re.escape(SELF_HEADING)}[ \t]*$", re.M)
+    found = heading.search(body)
+    if not found:
+        path.write_text(body + f"\n## {SELF_HEADING}\n{line}\n", encoding="utf-8", newline="\n")
+        return
+    following = re.compile(r"^## ", re.M).search(body, found.end())
+    if following is None:
+        path.write_text(body.rstrip("\n") + "\n" + line + "\n", encoding="utf-8", newline="\n")
+        return
+    cut = following.start()
+    before = body[:cut].rstrip("\n") + "\n" + line + "\n\n"
+    path.write_text(before + body[cut:], encoding="utf-8", newline="\n")
+
+
 def card_sections(body: str):
     """Split a card body on '## ' headings into {heading: text}."""
     sections, current, buf = {}, None, []
@@ -263,7 +327,7 @@ def card_sections(body: str):
 # import for the one normalize() they use alongside.
 __all__ = [
     "VALID_STATUS", "VALID_ORIGIN", "VALID_COLOR", "COLOR_SLOT",
-    "VALID_KIND", "KIND_LABEL", "VALID_POINT_ORIGIN",
+    "VALID_KIND", "KIND_LABEL", "VALID_POINT_ORIGIN", "VALID_INTUITION", "SELF_HEADING",
     "FRONTMATTER_RE", "read_doc", "read_doc_text", "write_doc", "load_cards", "load_marks",
-    "load_points", "card_sections", "normalize",
+    "load_points", "card_sections", "set_card_status", "append_self_line", "normalize",
 ]

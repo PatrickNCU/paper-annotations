@@ -12,6 +12,13 @@ derived from the old one was ever written down.
     ---
     2026-08-17 good
     2026-08-24 again
+    2026-09-02 good sure
+
+The optional third word is how sure the reader said he was BEFORE seeing the
+answer (sure / vague / blank). It never touches the schedule; it exists so the
+page can say "你說想得起來，結果按了重來" and so a later reader of the log can
+see where his confidence and his memory disagreed. Readers older than 1.17.0
+drop a three-word line entirely, so a log written here is not readable by them.
 
 Which cards take part is the reader's decision, recorded here:
 
@@ -32,19 +39,28 @@ from pathlib import Path
 from . import notes
 
 GRADES = ("again", "hard", "good", "easy")
+# How sure he said he was before the reveal. Not a grade: it changes nothing
+# about when the card comes back.
+JOLS = ("sure", "vague", "blank")
 
 # Anki's SM-2 defaults, which is what the reader compared this against.
 EASE_START = 2.5
 EASE_MIN = 1.3
 EASE_STEP = {"again": -0.20, "hard": -0.15, "good": 0.0, "easy": 0.15}
-FIRST_INTERVAL = {"hard": 1, "good": 1, "easy": 4}
+# good is 2 rather than Anki's 1 so the three buttons on a first review do not
+# all promise the same day -- a button that cannot differ from its neighbour
+# carries no information.
+FIRST_INTERVAL = {"hard": 1, "good": 2, "easy": 4}
 HARD_FACTOR = 1.2
 EASY_BONUS = 1.3
 # A year is enough for a paper you may re-read. Anki allows a century, but a
 # note that will not resurface until 2031 is a note you have thrown away.
 MAX_INTERVAL = 365
+# A card failed three times in one sitting is not going to be learned by a
+# fourth try tonight. It comes back tomorrow like any other lapse.
+RETRIES_PER_DAY = 3
 
-LINE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\w+)\s*$")
+LINE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\w+)(?:\s+(\w+))?\s*$")
 
 
 def log_path(notes_dir: Path, card_id: str) -> Path:
@@ -54,7 +70,11 @@ def log_path(notes_dir: Path, card_id: str) -> Path:
 
 
 def read_log(notes_dir: Path, card_id: str):
-    """Every grading of this card, oldest first. Unparseable lines are dropped."""
+    """Every grading of this card, oldest first, as (date, grade, jol).
+
+    jol is None on the two-word lines every log started with. Unparseable
+    lines are dropped.
+    """
     path = log_path(notes_dir, card_id)
     if not path.is_file():
         return []
@@ -63,19 +83,23 @@ def read_log(notes_dir: Path, card_id: str):
     for line in body.splitlines():
         match = LINE.match(line.strip())
         if match and match.group(2) in GRADES:
-            out.append((match.group(1), match.group(2)))
+            jol = match.group(3) if match.group(3) in JOLS else None
+            out.append((match.group(1), match.group(2), jol))
     return out
 
 
-def append(notes_dir: Path, card_id: str, grade: str, today: str) -> Path:
+def append(notes_dir: Path, card_id: str, grade: str, today: str, jol: str = "") -> Path:
     """Add one grading. Append-only: nothing here ever rewrites a past line."""
     if grade not in GRADES:
         raise ValueError(grade)
+    if jol and jol not in JOLS:
+        raise ValueError(jol)
+    line = f"{today} {grade}" + (f" {jol}" if jol else "")
     path = log_path(notes_dir, card_id)
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            f'---\ncard: "{card_id}"\n---\n\n{today} {grade}\n',
+            f'---\ncard: "{card_id}"\n---\n\n{line}\n',
             encoding="utf-8",
             newline="\n",
         )
@@ -83,7 +107,7 @@ def append(notes_dir: Path, card_id: str, grade: str, today: str) -> Path:
     text = path.read_text(encoding="utf-8")
     if not text.endswith("\n"):
         text += "\n"
-    path.write_text(text + f"{today} {grade}\n", encoding="utf-8", newline="\n")
+    path.write_text(text + line + "\n", encoding="utf-8", newline="\n")
     return path
 
 
@@ -94,7 +118,7 @@ def replay(entries):
     An empty history is a card that has never been seen: interval 0, due now.
     """
     interval, ease, lapses, last = 0, EASE_START, 0, ""
-    for when, grade in entries:
+    for when, grade, *_ in entries:
         last = when
         ease = max(EASE_MIN, ease + EASE_STEP[grade])
         if grade == "again":
@@ -132,7 +156,8 @@ def preview(entries, today: str):
     the kind of quiet mismatch nobody notices until the schedule is wrong.
     """
     return {
-        grade: replay(list(entries) + [(today, grade)])["interval"] for grade in GRADES
+        grade: replay(list(entries) + [(today, grade, None)])["interval"]
+        for grade in GRADES
     }
 
 
@@ -144,15 +169,43 @@ def eligible(meta) -> bool:
     )
 
 
+def mismatch(jol, grade) -> str:
+    """The one sentence worth saying after a grade: only when what he expected
+    and what happened disagree. Everything else is noise."""
+    if jol == "sure" and grade == "again":
+        return "你說想得起來，結果按了重來。"
+    if jol == "blank" and grade in ("good", "easy"):
+        return "你說想不起來，結果按了" + ("良好" if grade == "good" else "簡單") + "。"
+    return ""
+
+
+def _days_since(meta, today: str):
+    """How long a half card has sat there, from `updated` (or `created`)."""
+    for key in ("updated", "created"):
+        raw = str(meta.get(key) or "")
+        try:
+            return (date.fromisoformat(today) - date.fromisoformat(raw)).days
+        except ValueError:
+            continue
+    return None
+
+
 def schedule(notes_dir: Path, cards, today: str):
     """The full picture the review tab and the library page both read.
 
     `queue` is what to do now, in the order to do it: half-understood cards
-    first because they are the ones that are actually unfinished, then whatever
-    is due, oldest due date first.
+    first because they are the ones that are actually unfinished (oldest
+    first, so the one that has waited longest is on top), then whatever is
+    due, oldest due date first, then today's failures last -- a card graded
+    重來 stays in today's queue to be answered once more before the day ends,
+    and after RETRIES_PER_DAY failures it is parked until tomorrow.
     """
     scheduled, standing, orphans = [], [], []
     known = {str(card["meta"].get("id")) for card in cards}
+    try:
+        tomorrow = (date.fromisoformat(today) + timedelta(days=1)).isoformat()
+    except ValueError:
+        tomorrow = today
 
     for card in cards:
         meta = card["meta"]
@@ -161,13 +214,22 @@ def schedule(notes_dir: Path, cards, today: str):
             (notes.card_sections(card["body"]).get("問題") or "").split()
         ) or "(未填問題)"
         if str(meta.get("status", "open")) == "half":
-            standing.append({"id": cid, "question": question, "kind": "half"})
+            standing.append({
+                "id": cid, "question": question, "kind": "half",
+                "since": _days_since(meta, today),
+            })
             continue
         if not eligible(meta):
             continue
         entries = read_log(notes_dir, cid)
         state = replay(entries)
         due = due_date(state)
+        again_today = sum(
+            1 for when, grade, *_ in entries if when == today and grade == "again"
+        )
+        failed_last = bool(entries) and entries[-1][0] == today and entries[-1][1] == "again"
+        parked = failed_last and again_today >= RETRIES_PER_DAY
+        retry = failed_last and not parked
         scheduled.append(
             {
                 "id": cid,
@@ -179,7 +241,10 @@ def schedule(notes_dir: Path, cards, today: str):
                 "lapses": state["lapses"],
                 "last": state["last"],
                 # never reviewed -> due today, so a newly resolved card shows up
-                "ready": (not due) or due <= today,
+                "ready": retry or (not parked and ((not due) or due <= today)),
+                "retry": retry,
+                "parked": parked,
+                "again_today": again_today,
                 "preview": preview(entries, today),
             }
         )
@@ -190,17 +255,32 @@ def schedule(notes_dir: Path, cards, today: str):
             if path.stem not in known:
                 orphans.append(path.name)
 
+    standing.sort(key=lambda item: (-(item["since"] or 0), item["id"]))
     ready = sorted(
-        (item for item in scheduled if item["ready"]),
+        (item for item in scheduled if item["ready"] and not item["retry"]),
         key=lambda item: (item["due"] or "", item["id"]),
     )
+    retries = sorted((item for item in scheduled if item["retry"]), key=lambda item: item["id"])
+    parked_items = [item for item in scheduled if item["parked"]]
+    later = sorted(
+        (item for item in scheduled if not item["ready"] and not item["parked"] and item["due"] > today),
+        key=lambda item: item["due"],
+    )
+    next_due = later[0]["due"] if later else ""
+    if parked_items and (not next_due or tomorrow < next_due):
+        next_due = tomorrow
     return {
         "today": today,
-        "queue": standing + ready,
+        "queue": standing + ready + retries,
         "scheduled": sorted(scheduled, key=lambda item: (item["due"] or "", item["id"])),
         "half": len(standing),
-        "due": len(ready),
+        "due": len(ready) + len(retries),
         "tracked": len(scheduled),
+        # what the opening line says after "今天到期 N 張"
+        "next": next_due,
+        "tomorrow": len(parked_items) + sum(1 for item in later if item["due"] <= tomorrow),
+        "parked": [{"id": item["id"], "question": item["question"]} for item in parked_items],
+        "done_today": any(item["last"] == today for item in scheduled),
         # A card the reader deleted leaves its history behind on purpose:
         # silently discarding it is the one thing ADR 0003 refuses to do.
         "orphans": orphans,

@@ -5,6 +5,7 @@
 --sidebar:#f2efe8;--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;
 --plate:#fff;--shadow:rgba(0,0,0,.05);--mark:#f7e3a9;
 --sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;--algo:#eef1f6;
+--sec-again:#fbe9e6;
 --sel:rgba(138,79,36,.20);
 --hl1:rgba(244,201,63,.45);--hl2:rgba(96,190,136,.36);--hl3:rgba(114,164,235,.34);
 --hl4:rgba(240,124,120,.36)}
@@ -13,6 +14,7 @@
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
 --sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
+--sec-again:#2b1b1a;
 --sel:rgba(224,167,106,.26);
 --hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34);
 --hl4:rgba(206,96,92,.34)}}
@@ -21,6 +23,7 @@
 --sidebar:#191b20;--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
 --plate:#e9e7e2;--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
 --sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;
+--sec-again:#2b1b1a;
 --sel:rgba(224,167,106,.26);
 --hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34);
 --hl4:rgba(206,96,92,.34)}
@@ -161,8 +164,60 @@ a.xlref:hover{background:var(--accent);color:var(--accent-ink)}
 .srstag{flex:0 0 auto;padding:1px 6px;border-radius:4px;font-size:11px;line-height:1.6}
 .srstag.half{background:var(--sec-stuck);color:var(--half)}
 .srstag.due{background:var(--sec-key);color:var(--done)}
+.srstag.retry{background:var(--sec-again);color:var(--open)}
 .srshint{margin:8px 2px 0;font-size:12px;line-height:1.6;color:var(--muted)}
 .srshint code{font-size:11.5px}
+.srshint.said{margin:0 2px 8px;color:var(--done)}
+/* The opening line: the numbers a reader decides by before opening anything. */
+.dueline{margin:-4px 2px 8px;font-size:12.5px;line-height:1.6;color:var(--muted);
+font-variant-numeric:tabular-nums}
+.srsahead{display:block;width:100%;margin:8px 0 0;padding:7px 8px;font:inherit;font-size:12.5px;
+border:1px dashed var(--line);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.srsahead:hover{border-color:var(--accent);color:var(--accent)}
+/* Reveal by stage. The card's HTML is copied whole into the panel; what the
+   reader has not earned yet is hidden by the stage attribute, not removed. */
+#panel[data-stage=question] .csec,#panel[data-stage=question] .xlinks,
+#panel[data-stage=question] .qmeta{display:none}
+#panel[data-stage=intuition] .csec-stuck,#panel[data-stage=intuition] .csec-answer,
+#panel[data-stage=intuition] .csec-self,#panel[data-stage=intuition] .qmeta{display:none}
+#panel[data-stage=half-explain] .csec-answer,#panel[data-stage=half-explain] .csec-key,
+#panel[data-stage=half-explain] .csec-self,#panel[data-stage=half-explain] .xlinks,
+#panel[data-stage=half-explain] .qmeta{display:none}
+#panel[data-stage=half-compare] .qmeta{display:none}
+.stage{margin:18px 0 4px;padding:14px 0 0;border-top:1px solid var(--line)}
+.stage-t{display:block;margin-bottom:9px;font-size:.86em;color:var(--muted);font-weight:600}
+.hint{margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--muted)}
+.hint code{font-size:11.5px}
+.stage .wide{display:block;width:100%;margin:0 0 10px;padding:9px 10px;font:inherit;font-size:14px;
+border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);cursor:pointer;text-align:left}
+.stage .wide:hover{border-color:var(--accent);color:var(--accent)}
+/* Three shades of sure, coloured like the status dots so they read at a
+   glance: green is "I have it", yellow is "sort of", red is "nothing". */
+.srsbtns.jol .j-sure{border-color:var(--done);color:var(--done);background:var(--sec-key)}
+.srsbtns.jol .j-vague{border-color:var(--half);color:var(--half);background:var(--sec-stuck)}
+.srsbtns.jol .j-blank{border-color:var(--open);color:var(--open);background:var(--sec-again)}
+.srsbtns.jol button:hover{filter:brightness(.94)}
+.srsbtns button:disabled{opacity:.55;cursor:default}
+.srsbtns button.picked{border-color:var(--accent);color:var(--accent);opacity:1}
+.srsbtns.half .ok{border-color:var(--done);color:var(--done);background:var(--sec-key)}
+.srsnext{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+margin-top:12px;font-size:13px;color:var(--fg)}
+.srsnext button{flex:0 0 auto;padding:7px 14px;font:inherit;font-size:13.5px;border:1px solid var(--accent);
+border-radius:8px;background:var(--accent);color:var(--bg);cursor:pointer}
+textarea.self{display:block;width:100%;margin:0 0 10px;padding:8px 10px;font:inherit;font-size:14px;line-height:1.6;
+border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);resize:vertical}
+textarea.self:focus{outline:2px solid var(--accent);outline-offset:1px}
+.csec-self{background:var(--algo);border-left-color:var(--accent)}
+.csec-self .csec-t{color:var(--accent)}
+.csec-mine{background:var(--algo);border-left-color:var(--accent)}
+.who{font-size:10.5px;letter-spacing:.02em;margin-left:6px;padding:0 5px;border-radius:4px;
+background:var(--sec-answer);color:var(--muted);vertical-align:baseline;bottom:0}
+.who.user{background:var(--sec-key);color:var(--done)}
+/* A comparison across papers is asked before it is shown. */
+.think{margin:4px 0 2px;color:var(--fg);font-size:.95em}
+.xlsum{margin:0 0 4px}
+.xlsum summary{cursor:pointer;color:var(--accent);font-size:.92em}
+.xlsum p{margin:4px 0 0 12px}
 /* At the foot of the open card, never in the sidebar: you grade after reading
    the answer, not while looking at a list of titles. */
 .srsbar{margin:22px 0 4px;padding:14px 0 0;border-top:1px solid var(--line)}

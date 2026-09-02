@@ -762,6 +762,44 @@ def _counts(catalog):
     return tally
 
 
+def due_line(papers, today=None):
+    """One line to open a reading round with: what is due across every paper.
+
+    Imports lazily -- workspace and srs sit above this module and importing
+    them at the top would make the dependency graph a loop.
+    """
+    from datetime import date
+
+    from . import srs, workspace
+
+    today = today or date.today().isoformat()
+    due = half = 0
+    nxt = ""
+    per = []
+    for paper in papers:
+        if not paper["alive"]:
+            continue
+        try:
+            _, _, notes_dir, _ = workspace.load_workspace(paper["work"])
+        except SystemExit:
+            continue
+        plan = srs.schedule(notes_dir, notes.load_cards(notes_dir), today)
+        due += plan["due"]
+        half += plan["half"]
+        if plan["next"] and (not nxt or plan["next"] < nxt):
+            nxt = plan["next"]
+        if plan["due"] or plan["half"]:
+            bits = [f"到期 {plan['due']}" if plan["due"] else "",
+                    f"半懂 {plan['half']}" if plan["half"] else ""]
+            per.append(f"{paper['slug']} {' '.join(b for b in bits if b)}")
+    line = f"今天到期 {due} 張 · 半懂 {half} 張"
+    if nxt:
+        line += f" · 下一張 {nxt[5:]}"
+    if per:
+        line += "（" + "、".join(per) + "）"
+    return line
+
+
 def main(argv):
     args = cli.positionals(argv)
     start = Path(args[0] if args else ".").resolve()
@@ -787,6 +825,13 @@ def main(argv):
     if registry is None:
         print(f"還沒有論文登記簿。從 {start} 往上找不到 {REGISTRY_NAME}。")
         print(f"對任何一篇論文執行 probe.py 就會建立一份（預設放在 {registry_home(start)}）。")
+        return 0
+
+    # Replayed now, not read from the catalog: the catalog says what was due
+    # when the page was last built, and a round that opens with a stale
+    # number is a round that opens with the wrong question.
+    print(due_line(papers))
+    if "--due" in argv:
         return 0
 
     print(f"論文庫  {registry}  共 {len(papers)} 篇")

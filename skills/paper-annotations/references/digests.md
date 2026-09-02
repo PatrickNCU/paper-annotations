@@ -16,7 +16,7 @@ personally did not get through**.
 The cards are the only data this tool uniquely has. A digest must be built around
 them, or the output is something any AI summariser would give — and give better.
 
-## The four modes
+## The five modes
 
 If he did not name one, read the cards first and then recommend, **based on
 whether there is a real thread between cards, not on how many there are**:
@@ -27,6 +27,8 @@ whether there is a real thread between cards, not on how many there are**:
 - The 卡點 fields repeatedly pointing at the same few concepts → 前提盤點
 - **He has more than one paper** → 接線 (the first three are single-paper; this
   one spans papers)
+- **He has written something himself** (a related-work paragraph, a proposal
+  section) → 主張核對: check it against his notes; never write it for him
 
 If you cannot tell, use 回顧單: it holds for any set of cards.
 
@@ -102,6 +104,32 @@ Output to `notes/digests/connections-<date>.md`, under the notes of the **newly
 read** paper, with a `papers:` key in the frontmatter alongside `cards:` naming
 every paper involved (by `papers.yml` slug).
 
+### 5. 主張核對 `claims-check`
+
+**He writes; you check.** The input is a paragraph or section he wrote himself —
+a related-work summary, a proposal, a thesis chapter — pasted or pointed at.
+The output is a table with one row per claim in his text: the claim (his
+words, quoted), which card or point it rests on (`[eplace-ms#P0003]`,
+`[Q0004]`), and one of three verdicts:
+
+- **有依據** — a card or point says this, and the sentence matches it
+- **對不上** — a card or point is about this and says something different;
+  quote the note
+- **找不到依據** — nothing in his notes covers it. Not "wrong": it means he
+  either knows something he never wrote down, or is repeating something he
+  read elsewhere. Either way he should know before a reviewer does
+
+Do **not** rewrite his paragraph, do not supply the missing citations from your
+own knowledge, and do not fill 找不到依據 rows with what the paper "probably"
+says. A row he has to go and check is the product; a paragraph you wrote for
+him is the thing this tool exists to avoid. Run `library.py` first so every
+paper he has is in scope; multi-paper like 接線, and the frontmatter carries
+`papers:` the same way.
+
+Output to `notes/digests/claims-check-<date>.md` under the paper his text is
+mostly about, with his original text kept verbatim in a fenced block at the
+top so the check can be reread against exactly what was checked.
+
 ## Shared rules
 
 **Everything must have a source.** Borrowed from Elicit: every judgement must
@@ -113,7 +141,7 @@ and the inference you are adding now must be distinguishable. Mark your addition
 
 **No answers unless the mode calls for them.** 回顧單 and 主題聚合 list questions
 only — a digest is for reviewing, which only works if he thinks first. The answers
-are in the cards, one expand away.
+are in the cards, one expand away. 主張核對 gives verdicts, not corrections.
 
 **Read-only.** Do not touch the source, the cards, or `annotated/`. A digest is an
 extra artifact.

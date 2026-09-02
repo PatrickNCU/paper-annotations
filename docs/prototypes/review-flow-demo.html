@@ -1,0 +1,618 @@
+<meta charset="utf-8">
+<title>複習動線試玩</title>
+<style>
+/* Tokens copied from paper-annotations/assets/style.css so the demo looks like
+   the real review page. --sec-self is the one new token (自己的話). */
+:root{--bg:#fbfaf7;--fg:#22201d;--muted:#6d685f;--line:#e4dfd5;--card:#f5f2ea;
+--sidebar:#f2efe8;--accent:#8a4f24;--accent-ink:#fff;--open:#b3261e;--half:#96631a;--done:#2f6f4a;
+--shadow:rgba(0,0,0,.05);--mark:#f7e3a9;
+--sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;--sec-self:#eef0f6;--self:#3f5a8a;--sec-again:#fbe9e7;
+--proto:#f1ece2;--proto-ink:#5a4a33;--overlay:rgba(0,0,0,.38);--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
+--sidebar:#191b20;--accent:#e0a76a;--accent-ink:#15161a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
+--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--sec-self:#1c1f2a;--self:#8fa8d6;--sec-again:#2a1b19;
+--proto:#22201b;--proto-ink:#cbb995;--overlay:rgba(0,0,0,.6)}}
+:root[data-theme="dark"]{
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;
+--sidebar:#191b20;--accent:#e0a76a;--accent-ink:#15161a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;
+--shadow:rgba(0,0,0,.35);--mark:#4a3a1f;
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--sec-self:#1c1f2a;--self:#8fa8d6;--sec-again:#2a1b19;
+--proto:#22201b;--proto-ink:#cbb995;--overlay:rgba(0,0,0,.6)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);
+font-family:-apple-system,"Segoe UI","Noto Sans TC",system-ui,sans-serif;line-height:1.7;font-size:15.5px}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,textarea:focus-visible,summary:focus-visible,mark:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+mark{background:var(--mark);color:inherit;padding:.05em .15em;border-radius:3px;cursor:pointer}
+mark:hover{box-shadow:inset 0 -2px 0 var(--accent)}
+code{font-family:var(--mono);font-size:.9em}
+
+/* ---- 試玩用的外框（不是工具的一部分） ---- */
+/* 灰帶壓在遮罩上面，卡片開著時劇本的步驟鈕還按得到；面板因此靠下放，不蓋到灰帶。 */
+#proto{position:sticky;top:0;z-index:45;background:var(--proto);color:var(--proto-ink);border-bottom:1px solid var(--line);padding:16px 22px 12px}
+#proto h1{font-size:19px;margin:0 0 4px;color:var(--fg)}
+#proto .lead{max-width:72ch;margin:0 0 10px;font-size:14px}
+.more{display:inline}
+.more summary{display:inline;cursor:pointer;color:var(--accent);margin-left:6px}
+.more[open]{display:block;margin-top:4px}
+.more[open] summary{display:block;margin:0 0 2px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tabs button{padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--fg);font-size:13.5px}
+.tabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+#scen{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 24px;align-items:start}
+#scen p{margin:0;font-size:14px;max-width:70ch;color:var(--fg)}
+.steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.steps button{padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13.5px}
+.steps button.cur{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.steps button.done{opacity:.55;text-decoration:line-through}
+.steps .arrow{color:var(--muted);font-size:12px}
+.tag{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:6px}
+
+/* ---- 版面：側欄｜正文｜狀態 ---- */
+#layout{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;min-height:calc(100vh - 120px)}
+#side{background:var(--sidebar);border-right:1px solid var(--line);padding:18px 16px;font-size:14px}
+#side h2,#state h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 8px;border:0;padding:0}
+#side h2:first-child,#state h2:first-child{margin-top:0}
+#side a{display:flex;gap:6px;color:var(--fg);text-decoration:none;padding:3px 6px;border-radius:4px;line-height:1.55}
+#side a:hover{background:var(--line)}
+.qtext{flex:1 1 auto}
+.dot{flex:0 0 auto;font-size:10px;line-height:2.1}
+.dot.open{color:var(--open)}.dot.half{color:var(--half)}.dot.resolved{color:var(--done)}
+.qempty{font-size:13px;color:var(--muted);padding:4px 6px;line-height:1.6}
+.srsitem{align-items:center}
+.srstag{flex:0 0 auto;padding:1px 6px;border-radius:4px;font-size:11px;line-height:1.6;white-space:nowrap}
+.srstag.half{background:var(--sec-stuck);color:var(--half)}
+.srstag.due{background:var(--sec-key);color:var(--done)}
+.srstag.retry{background:var(--sec-self);color:var(--self)}
+.srssub{flex:0 0 auto;font-size:11.5px;color:var(--muted)}
+.dueline{font-size:13px;color:var(--fg);padding:6px 8px;border:1px dashed var(--line);border-radius:6px;margin-bottom:8px;line-height:1.5}
+.dueline small{display:block;color:var(--muted);font-size:11.5px}
+.srshint{margin:8px 2px 0;font-size:12px;line-height:1.6;color:var(--muted)}
+.mini{padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font-size:13px}
+.mini:hover{border-color:var(--accent);color:var(--accent)}
+.flash{animation:flash 1.2s ease}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+@media(prefers-reduced-motion:reduce){.flash{animation:none;outline:2px solid var(--accent)}}
+
+#main{padding:26px 34px 80px;max-width:820px;margin:0 auto;width:100%}
+.meta{color:var(--muted);font-size:14px;margin-bottom:14px}
+.banner{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:14px;color:var(--muted)}
+.paper{margin:0 0 34px}
+.paper h3{font-size:18px;margin:0 0 4px}
+.paper .pt{color:var(--muted);font-size:13px;margin:0 0 10px}
+.paper p{margin:8px 0;font-size:15.5px;line-height:1.8}
+.paper .ell{color:var(--muted)}
+
+#state{background:var(--proto);color:var(--proto-ink);border-left:1px solid var(--line);padding:18px 16px;font-size:13.5px}
+/* 試玩用的字一律虛線框，跟工具會真的印出來的字分開 */
+.proto-note{display:block;border:1px dashed var(--proto-ink);color:var(--proto-ink);background:var(--proto);border-radius:6px;padding:4px 8px;font-size:12px;line-height:1.5;opacity:.9}
+.banner.proto-note{margin-bottom:24px;padding:10px 14px;font-size:13.5px}
+.dueline small.proto-note{margin-top:6px}
+.clock{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.clock b{font-size:16px;font-variant-numeric:tabular-nums}
+.what{background:var(--card);border-left:3px solid var(--accent);border-radius:6px;padding:8px 10px;font-size:13px;line-height:1.6;min-height:44px}
+.logs{font-family:var(--mono);font-size:12px;line-height:1.55;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow-x:auto}
+.logs .f{color:var(--muted);margin-top:6px}
+.logs .f:first-child{margin-top:0}
+.logs .n{color:var(--accent)}
+table.sched{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+table.sched th{text-align:left;font-weight:600;color:var(--muted);padding:2px 4px;border-bottom:1px solid var(--line)}
+table.sched td{padding:3px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.sched td.k{font-family:var(--mono);font-size:11.5px}
+
+/* ---- 卡片面板（照工具的樣子） ---- */
+#ov{position:fixed;inset:0;background:var(--overlay);z-index:40}
+/* 面板從灰帶下緣掛下來：灰帶多高由腳本量給 --proto-h，所以不管灰帶幾行都不會蓋到卡片。 */
+#panel{position:fixed;z-index:41;left:50%;top:calc(var(--proto-h,140px) + 12px);transform:translateX(-50%);
+width:min(760px,92vw);max-height:calc(100vh - var(--proto-h,140px) - 12px - 3vh);overflow:auto;background:var(--card);
+border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:12px;
+box-shadow:0 18px 50px var(--shadow);padding:20px 26px 24px}
+#panel[data-status=open]{border-left-color:var(--open)}
+#panel[data-status=half]{border-left-color:var(--half)}
+#panel[data-status=resolved]{border-left-color:var(--done)}
+.pbar{display:flex;gap:8px;position:absolute;top:14px;right:16px}
+.pbar button{width:30px;height:30px;padding:0;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+.pbar button:hover{background:var(--line)}
+.ptitle{font-weight:600;font-size:17px;line-height:1.6;padding-right:82px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line)}
+.pkind{display:inline-block;font-size:11.5px;letter-spacing:.05em;color:var(--muted);font-weight:400;margin-right:8px;vertical-align:middle}
+.quote{margin:0 0 10px;font-size:13.5px;color:var(--muted);line-height:1.6}
+.quote mark{cursor:default}.quote mark:hover{box-shadow:none}
+.csec{margin:12px 0;padding:10px 14px 2px;border-radius:8px;border-left:3px solid var(--line);background:var(--sec-answer)}
+.csec-t{display:block;margin-bottom:2px;font-size:.82em;letter-spacing:.04em;color:var(--muted)}
+.csec p{margin:0 0 10px;line-height:1.7}
+.csec-stuck{background:var(--sec-stuck);border-left-color:var(--half)}
+.csec-stuck .csec-t{color:var(--half)}
+.csec-key{background:var(--sec-key);border-left-color:var(--done)}
+.csec-key .csec-t{color:var(--done)}
+.csec-self{background:var(--sec-self);border-left-color:var(--self)}
+.csec-self .csec-t{color:var(--self)}
+.csec-self p{margin:0 0 6px}
+.csec-self .d{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-right:6px}
+.who{display:inline-block;margin-left:8px;padding:0 6px;border-radius:4px;font-size:11px;letter-spacing:.03em;background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.who.user{color:var(--self);border-color:var(--self)}
+.xlinks{margin:14px 0 6px;padding:9px 0 1px;border-top:1px dashed var(--line)}
+.xl{margin:0 0 5px;font-size:.92em;line-height:1.6;color:var(--muted)}
+.xlt{color:var(--accent);font-weight:600}
+.xlref{font-size:.86em;padding:1px 5px;border-radius:4px;background:var(--sec-answer);color:var(--fg);text-decoration:none;white-space:nowrap}
+.xlsum{margin:6px 0 4px}
+.xlsum summary{cursor:pointer;color:var(--accent);font-size:.92em}
+.xlsum p{margin:6px 0 4px 14px;font-size:.92em;color:var(--fg)}
+.think{font-size:.92em;color:var(--fg);margin:4px 0}
+.stage{margin:18px 0 4px;padding:14px 0 0;border-top:1px solid var(--line)}
+.stage>b{display:block;margin-bottom:9px;font-size:.86em;color:var(--muted);font-weight:600}
+.srsbtns{display:flex;gap:8px;flex-wrap:wrap}
+.srsbtns button{flex:1 1 92px;padding:8px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:14px}
+.srsbtns button:hover{border-color:var(--accent);color:var(--accent)}
+.srsbtns button sub{display:block;margin-top:2px;font-size:11px;color:var(--muted);bottom:0;font-weight:400}
+.srsbtns button.wide{flex:2 1 160px}
+/* 三種把握各一個顏色，跟狀態點一樣：綠＝有、黃＝模糊、紅＝沒有 */
+.jol button{border-left:4px solid var(--line)}
+.jol button[data-j=sure]{border-left-color:var(--done);background:var(--sec-key)}
+.jol button[data-j=vague]{border-left-color:var(--half);background:var(--sec-stuck)}
+.jol button[data-j=blank]{border-left-color:var(--open);background:var(--sec-again)}
+.jol button[data-j=sure]:hover{border-color:var(--done);color:var(--done)}
+.jol button[data-j=vague]:hover{border-color:var(--half);color:var(--half)}
+.jol button[data-j=blank]:hover{border-color:var(--open);color:var(--open)}
+.say{display:block;margin-top:10px;font-size:13px;color:var(--fg);min-height:1.4em}
+.say.mis{color:var(--open);font-weight:600}
+textarea.self{width:100%;min-height:74px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit;font-size:14px;line-height:1.6;resize:vertical}
+.hint{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+
+@media(max-width:1100px){#layout{grid-template-columns:280px minmax(0,1fr)}#state{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}}
+@media(max-width:760px){#layout{grid-template-columns:1fr}#side{border-right:0;border-bottom:1px solid var(--line)}#main{padding:20px 18px 60px}#scen{grid-template-columns:1fr}}
+</style>
+
+<header id="proto">
+  <h1>複習動線試玩</h1>
+  <p class="lead">分段揭示的複習動線，用假資料玩一遍。<details class="more"><summary>這在驗證什麼</summary>
+  「問題 → 先說有沒有把握 → 看一句話直覺（這時就能評分）→ 要的話再看完整解答 → 評分」這條路，加上答錯當天再來、半懂卡的出口、跨論文對照題和三種空狀態，操作起來順不順、有沒有哪一步你會覺得「不該是這樣」。
+  資料全是假的，評分只寫進右邊那個模擬的 <code>notes/reviews/</code>，重新整理就歸零。側欄與卡片面板照現在複習頁的樣子畫；這條灰帶、右邊的狀態欄，和頁面裡所有虛線框的字，都是試玩用的，不是工具的一部分。</details></p>
+  <div class="tabs" id="tabs"></div>
+  <div id="scen"><p id="scen-desc"></p><div class="steps" id="scen-steps"></div></div>
+</header>
+
+<div id="layout">
+<nav id="side">
+  <h2>複習 <span id="srscount"></span></h2>
+  <div id="dueline" class="dueline"></div>
+  <div id="srslist"></div>
+  <h2>疑問（<span id="qcount"></span>）</h2>
+  <div id="qlist"></div>
+</nav>
+
+<main id="main">
+  <div class="meta" id="meta"></div>
+  <div class="banner proto-note">試玩註：正文只放了幾句錨定的句子當示意。<strong>反白的句子</strong>點下去會以閱讀模式打開卡片（整張攤開，跟現在一樣）；要試分段揭示，請從左邊「複習」清單點進去。</div>
+  <div id="papers"></div>
+</main>
+
+<aside id="state">
+  <h2><span class="tag">試玩用</span>模擬時鐘</h2>
+  <div class="clock"><b id="today"></b><button class="mini" id="nextday">到明天</button><button class="mini" id="reset">重設這個劇本</button></div>
+  <h2>剛才發生了什麼</h2>
+  <div class="what" id="what">還沒有動作。</div>
+  <h2>notes/reviews/（模擬）</h2>
+  <div class="proto-note" style="margin-bottom:6px">每行是「日期 評分 把握」。第三欄的把握屬於第二階段的提案，不是已定的格式。</div>
+  <div class="logs" id="logs"></div>
+  <h2>排程（每次由紀錄重放算出）</h2>
+  <div style="overflow-x:auto"><table class="sched"><thead><tr><th>卡</th><th>狀態</th><th>間隔</th><th>到期</th><th>失誤</th></tr></thead><tbody id="sched"></tbody></table></div>
+</aside>
+</div>
+
+<div id="ov" hidden></div>
+<aside id="panel" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="ptitle">
+  <div class="pbar"><button id="pclose" aria-label="關閉" title="關閉">✕</button></div>
+  <div id="panel-in"></div>
+</aside>
+
+<script>
+/* =====================================================================
+   PA — 純邏輯，沒有 DOM。這一塊是日後可以搬進 srs.py / page.js 的部分。
+   ===================================================================== */
+var PA=(function(){
+  var EASE0=2.5, MIN_EASE=1.3, MAX_INT=365, FIRST={again:1,hard:1,good:1,easy:4};
+  function d(s){var p=s.split('-').map(Number);return Date.UTC(p[0],p[1]-1,p[2]);}
+  function iso(t){return new Date(t).toISOString().slice(0,10);}
+  function addDays(s,n){return iso(d(s)+n*864e5);}
+  function daysBetween(a,b){return Math.round((d(b)-d(a))/864e5);}
+  function fresh(){return {interval:0,ease:EASE0,lapses:0,reps:0};}
+  // 簡化版 SM-2，常數照 srs.py：重來→1 天、ease-0.2；困難×1.2；良好×ease；簡單×ease×1.3；上限 365。
+  // 兩個試玩的假設：重來之後回到第一次的間隔表（下一次答對是 1 天，不是 ×ease）；
+  // 取整用 Math.round，和 Python 的 round 可能差 1 天。
+  function step(st,grade){
+    var s={interval:st.interval,ease:st.ease,lapses:st.lapses,reps:st.reps};
+    if(grade==='again'){s.interval=1;s.ease=Math.max(MIN_EASE,+(s.ease-0.2).toFixed(2));s.lapses++;s.reps=0;return s;}
+    if(s.reps===0){s.interval=FIRST[grade];if(grade==='easy')s.ease=+(s.ease+0.15).toFixed(2);}
+    else if(grade==='hard'){s.interval=Math.round(s.interval*1.2);}
+    else if(grade==='good'){s.interval=Math.round(s.interval*s.ease);}
+    else {s.interval=Math.round(s.interval*s.ease*1.3);s.ease=+(s.ease+0.15).toFixed(2);}
+    s.interval=Math.min(MAX_INT,Math.max(1,s.interval));s.reps++;return s;
+  }
+  function replay(entries){var s=fresh();entries.forEach(function(e){s=step(s,e.grade);});return s;}
+  function previews(st){return {again:step(st,'again').interval,hard:step(st,'hard').interval,good:step(st,'good').interval,easy:step(st,'easy').interval};}
+  // 排程：半懂永遠在最前面（附放了幾天）；到期的照到期日；今天答錯的排在最後「再答一次」；
+  // 同一天重來三次就放下，明天再來。
+  function schedule(cards,logs,today){
+    var half=[],ready=[],later=[],retry=[],parked=[];
+    cards.forEach(function(c){
+      var key=c.paper+'#'+c.id;
+      if(c.status==='half'){half.push({key:key,kind:'half',since:daysBetween(c.updated,today)});return;}
+      if(c.status!=='resolved'||(c.origin==='suggested'&&!c.adopted))return;
+      var entries=logs[key]||[], st=replay(entries), last=entries[entries.length-1];
+      var againToday=entries.filter(function(e){return e.date===today&&e.grade==='again';}).length;
+      var due=st.reps?addDays(last.date,st.interval):today;   // 剛改成已解決 → 今天就到期
+      var item={key:key,kind:'scheduled',due:due,state:st,preview:previews(st),last:last||null,againToday:againToday};
+      if(last&&last.grade==='again'&&last.date===today){(againToday>=3?parked:retry).push(item);}
+      else if(due<=today)ready.push(item);else later.push(item);
+    });
+    half.sort(function(a,b){return b.since-a.since;});
+    ready.sort(function(a,b){return a.due<b.due?-1:a.due>b.due?1:a.key<b.key?-1:1;});
+    later.sort(function(a,b){return a.due<b.due?-1:1;});
+    var tomorrow=addDays(today,1);
+    return {queue:half.concat(ready,retry),half:half,ready:ready,retry:retry,parked:parked,later:later,
+      tracked:ready.length+later.length+retry.length+parked.length,due:ready.length+retry.length,
+      next:(function(){var n=later.length?later[0].due:null;if(parked.length)n=(n&&n<tomorrow)?n:tomorrow;return n;})(),
+      tomorrowCount:later.filter(function(i){return i.due<=tomorrow;}).length+parked.length};
+  }
+  function grade(logs,key,g,jol,today){
+    var out={};Object.keys(logs).forEach(function(k){out[k]=logs[k].slice();});
+    (out[key]=out[key]||[]).push({date:today,grade:g,jol:jol||null});return out;
+  }
+  var LABEL={again:'重來',hard:'困難',good:'良好',easy:'簡單'};
+  function mismatch(jol,g){
+    if(jol==='sure'&&g==='again')return '你說想得起來，結果按了重來。';
+    if(jol==='blank'&&(g==='good'||g==='easy'))return '你說想不起來，結果按了'+LABEL[g]+'。';
+    return null;
+  }
+  function logLine(e){return e.date+' '+e.grade+(e.jol?' '+e.jol:'');}
+  return {schedule:schedule,grade:grade,mismatch:mismatch,addDays:addDays,daysBetween:daysBetween,LABEL:LABEL,logLine:logLine};
+})();
+
+/* ===================================================================== 假資料 */
+var PAPERS={
+  'eplace-ms':{name:'ePlace-MS',title:'ePlace-MS: Electrostatics-Based Placement for Mixed-Size Circuits'},
+  'replace':{name:'RePlAce',title:'RePlAce: Advancing Solution Quality and Routability Validation in Global Placement'}};
+var POINTS={
+  'eplace-ms#P0008':'步長不用線搜尋，而是取梯度 Lipschitz constant 的封閉式倒數 α<sub>k</sub> = L<sup>-1</sup>，再用 backtracking 防止高估。',
+  'eplace-ms#P0006':'ePlace-MS 主張整個電路只需要一個全域密度懲罰係數就能和線長取得平衡，並把這當成 eDensity 相對其他密度函數的優點。'};
+function seedCards(){return [
+ {paper:'eplace-ms',id:'0001',status:'resolved',origin:'asked',updated:'2026-09-01',tags:['macro','靜電'],
+  quote:'Macros and standard cells are placed simultaneously as charged objects in the same electrostatic system before macro legalization.',
+  q:'為什麼 ePlace-MS 把 macro 和 standard cell 用同一套靜電模型一起放，而不是先放 macro 再放 cell？',
+  stuck:'我以為 macro 太大會壓垮密度計算，所以一定得分兩階段；其實問題不在密度模型，而在兩階段做法會讓 macro 的位置在 cell 還沒放之前就定死。',
+  answer:'ePlace-MS 把每個 instance 都當成帶電荷的物體，電荷量等於面積，所以 macro 只是電荷比較大的 cell，密度函數本身不需要區分。它先把 macro 和 standard cell 一起放，等 macro 的位置已經被 cell 拉過一輪，才做 macro legalization 把它們固定，再單獨放 cell；避開的是 macro 在 cell 還沒放之前就定死。代價是 macro 電荷極大、梯度尺度差很多，這件事交給 preconditioner 處理（見 Q0002）。',
+  intuition:'大的東西最後才該定案，先定案就沒得改了。',intuitionBy:'user',
+  self:[{date:'2026-08-28',kind:'猜',text:'因為 macro 太大，先放會擋住 cell？'}],links:[]},
+ {paper:'eplace-ms',id:'0002',status:'resolved',origin:'asked',updated:'2026-08-26',tags:['preconditioner','收斂'],
+  quote:'Without preconditioning, the gradient magnitude of a macro can be orders larger than that of a standard cell, and the placement oscillates.',
+  q:'沒有 preconditioner 的時候，為什麼 macro 會來回震盪？',
+  stuck:'我把震盪當成步長太大的問題，想用縮小步長解決；但步長是全體共用的，縮到 macro 不震盪，cell 就幾乎不動。',
+  answer:'梯度的尺度跟電荷成正比，macro 的電荷是 cell 的幾百倍，同一個步長對 macro 就是幾百倍的位移：一步跨過平衡點，下一步再跨回來。preconditioner 用每個 instance 自己的電荷量（加上它接的 net 數）把梯度除回去，等於每個 instance 有自己的步長。這也是為什麼 ablation 拿掉 preconditioner 之後，MMS 上有幾個 benchmark 根本不收斂。',
+  intuition:'步長共用、電荷不共用，所以要用電荷把梯度除回同一個尺度。',intuitionBy:'agent',
+  self:[{date:'2026-08-26',kind:'猜',text:'是不是 macro 的梯度太大？'}],links:[]},
+ {paper:'eplace-ms',id:'0003',status:'half',origin:'asked',updated:'2026-07-27',tags:['密度','dc-removal'],
+  quote:'The average density is subtracted from the density function so that the total charge over the placement region is zero.',
+  q:'IV-B 的 dc removal 為什麼要扣掉平均密度？',
+  stuck:'知道 Poisson 方程式要求右邊積分為零，但沒想通「積分為零」跟「扣掉平均」之間的關係，也不確定不扣會怎樣。',
+  answer:'在 Neumann 邊界條件下，Poisson 方程式只有在總電荷為零時才有解；密度函數扣掉平均值之後，整個晶片的淨電荷剛好是零，方程式才解得出來。物理上等於在每個地方鋪一層均勻的負電荷當背景，所以 cell 感受到的力只來自密度高於平均的地方。不扣的話等於整個晶片都帶正電，所有東西一起往邊界推。',
+  intuition:'扣掉平均是為了讓總電荷為零，Poisson 方程式才有解。',intuitionBy:'agent',self:[],links:[]},
+ {paper:'replace',id:'0001',status:'resolved',origin:'asked',updated:'2026-08-31',tags:['步長','兩篇對照'],
+  quote:'we dynamically adjust both the step size and the step size scaling range during global placement, while previous approaches adjust step size within a constant step size range',
+  q:'RePlAce 的步長為什麼要連可調範圍本身也一起動態調整？',
+  stuck:'以為步長只要跟著 Lipschitz constant 算就夠了；沒注意到 ePlace 系列的 backtracking 只在固定的 [0.95, 1.05] 區間內縮放，區間本身不會變。',
+  answer:'ePlace 系列的 backtracking 只在一個固定區間內縮放步長，區間本身不會變。RePlAce 觀察到不同階段需要的調整幅度差很多：早期密度低可以大步走，接近收斂時要小步。所以它把縮放係數的上下限也做成隨 overflow 變化的量，等於步長有兩層自適應。實驗上這是它在相同 runtime 下線長比 ePlace-MS 短的主要來源之一。',
+  intuition:'ePlace-MS 調的是步長，RePlAce 連「步長能調多少」也一起調。',intuitionBy:'agent',
+  self:[{date:'2026-08-31',kind:'猜',text:'因為固定範圍太保守，收斂慢？'}],
+  links:[{type:'改進了',target:'eplace-ms#P0008',ask:'先想：ePlace-MS 的步長是怎麼定的？'}]},
+ {paper:'replace',id:'0002',status:'resolved',origin:'asked',updated:'2026-08-27',tags:['局部密度','overflow'],
+  quote:'Combining the previous global density function [29] with a new local density function that comprehends local density overflow per bin',
+  q:'RePlAce 的局部密度懲罰為什麼是疊在全域密度函數上，而不是換掉它？',
+  stuck:'把「新的密度函數」讀成「取代」；其實 [29] 的全域密度函數整個保留，只是每個 bin 多一組係數。',
+  answer:'全域密度函數負責整體的擴散與收斂性質，這部分 ePlace-MS 已經證明有效；RePlAce 要處理的是它會漏掉的局部 overflow：整體密度達標、某幾個 bin 卻塞爆。所以在全域項之外，替每個 bin 加一個隨 overflow 指數放大的懲罰係數 ν<sub>j</sub>，只在塞住的地方推。這也直接反駁了 ePlace-MS「一個全域懲罰係數就夠」的主張。',
+  intuition:'全域項管整體，局部項只在塞住的 bin 加壓。',intuitionBy:'agent',self:[],
+  links:[{type:'矛盾',target:'eplace-ms#P0006',ask:'先想：ePlace-MS 對懲罰係數的數量怎麼主張？'}]},
+ {paper:'replace',id:'0003',status:'open',origin:'asked',updated:'2026-09-01',tags:['routability','cell-inflation'],
+  quote:'Cells in congested regions are inflated before the next placement iteration.',
+  q:'cell inflation 的膨脹量怎麼決定？會不會膨脹過頭反而拉長線長？',
+  stuck:'',answer:'',intuition:'',intuitionBy:'agent',self:[],links:[]}
+];}
+function seedLogs(){return {
+  'eplace-ms#0002':[{date:'2026-08-26',grade:'good'},{date:'2026-08-27',grade:'good'},{date:'2026-08-30',grade:'good'}],
+  'replace#0001':[{date:'2026-09-01',grade:'good'}],
+  'replace#0002':[{date:'2026-08-28',grade:'good'},{date:'2026-08-29',grade:'good'},{date:'2026-09-01',grade:'hard'}]
+};}
+
+/* ===================================================================== 頁面殼 */
+var S={today:'2026-09-02',cards:seedCards(),logs:seedLogs(),gradedToday:0,plan:null};
+var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+function card(key){var p=key.split('#');return S.cards.filter(function(c){return c.paper===p[0]&&c.id===p[1];})[0];}
+function keyOf(c){return c.paper+'#'+c.id;}
+function mmdd(s){return s.slice(5);}
+var SAID=[];
+// 最近兩句都留著：評分之後面板馬上換下一張，不留的話評分那句一閃就沒了。
+function say(t){SAID.unshift(t);SAID=SAID.slice(0,2);
+  document.getElementById('what').innerHTML=SAID.map(function(s,i){return '<div'+(i?' style="color:var(--muted);margin-top:6px;font-size:12px"':'')+'>'+esc(s)+'</div>';}).join('');}
+function flash(el){if(!el)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+
+function draw(){
+  S.plan=PA.schedule(S.cards,S.logs,S.today);
+  var p=S.plan;
+  document.getElementById('today').textContent=S.today;
+  document.getElementById('srscount').textContent='('+p.due+')';
+  // 開場那一行：library.py 每次即時重放印出來的東西
+  var dl=document.getElementById('dueline');
+  dl.innerHTML=(p.tracked?('今天到期 <b>'+p.due+'</b> 張'+(p.half.length?' · 半懂 '+p.half.length+' 張':'')+(p.next?' · 下一張 '+mmdd(p.next):'')):(p.half.length?'半懂 '+p.half.length+' 張 · 還沒有排程中的卡':'還沒有排程中的卡'))+
+    '<small class="proto-note">試玩註：這行就是 <code>library.py</code> 開場會印的，AI 開回合先報這個</small>';
+  // 複習清單：永遠在，三種空狀態
+  var list=document.getElementById('srslist');
+  // 半懂卡永遠列在最上面；到期的部分空了才說空狀態，兩者互不遮蔽。
+  var items=p.queue.map(function(it){
+    var c=card(it.key), tag, sub='';
+    if(it.kind==='half'){tag='<span class="srstag half">半懂 '+it.since+' 天</span>';}
+    else if(it.last&&it.last.grade==='again'&&it.last.date===S.today){tag='<span class="srstag retry">再答一次</span>';}
+    else {tag='<span class="srstag due">到期</span>';if(it.due<S.today)sub='<span class="srssub">'+mmdd(it.due)+' 就到期</span>';}
+    return '<a class="srsitem" href="#" data-key="'+it.key+'">'+tag+'<span class="qtext">'+esc(c.q)+'</span>'+sub+'</a>';
+  }).join('');
+  if(p.parked.length)items+='<div class="qempty">'+p.parked.map(function(it){return '「'+esc(card(it.key).q.slice(0,18))+'…」今天先放下，明天再來。';}).join('<br>')+'</div>';
+  var empty='';
+  if(!p.tracked){
+    empty='<div class="qempty">還沒有排程中的卡。疑問改成「已解決」之後才會進來——所以先讀、先問。</div>';
+  } else if(!p.ready.length&&!p.retry.length){
+    if(S.gradedToday){
+      empty='<div class="qempty">今天做完了。明天 '+p.tomorrowCount+' 張'+(p.next&&p.tomorrowCount===0?'，下一張 '+mmdd(p.next):'')+'。</div>';
+    } else {
+      empty='<div class="qempty">今天沒有到期的卡'+(p.next?' · 下一張 '+mmdd(p.next):'')+'</div>'+
+        (p.later.length?'<div style="padding:2px 6px"><button class="mini" id="early">提前複習一張</button></div>':'');
+    }
+  }
+  list.innerHTML=items+empty;
+  list.innerHTML+='<div class="srshint proto-note">試玩註：評分會寫進右邊的模擬紀錄；真實版本要 <code>serve.py</code> 在跑。</div>';
+  [].slice.call(list.querySelectorAll('.srsitem')).forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();openReview(a.dataset.key);});});
+  var early=document.getElementById('early');if(early)early.addEventListener('click',function(){openReview(p.later[0].key,true);});
+  // 疑問清單
+  document.getElementById('qcount').textContent=S.cards.length;
+  document.getElementById('qlist').innerHTML=S.cards.map(function(c){
+    return '<a href="#" data-key="'+keyOf(c)+'"><span class="dot '+c.status+'">●</span><span class="qtext">'+esc(c.q)+'</span></a>';
+  }).join('');
+  [].slice.call(document.querySelectorAll('#qlist a')).forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();openRead(a.dataset.key);});});
+  var n={open:0,half:0,resolved:0};S.cards.forEach(function(c){n[c.status]++;});
+  document.getElementById('meta').textContent='疑問 '+S.cards.length+' 則 — 🔴 未解決 '+n.open+' · 🟡 半懂 '+n.half+' · 🟢 已解決 '+n.resolved+' · 產生於 '+S.today;
+  // 正文
+  document.getElementById('papers').innerHTML=Object.keys(PAPERS).map(function(pk){
+    var cs=S.cards.filter(function(c){return c.paper===pk;});
+    return '<section class="paper"><h3>'+esc(PAPERS[pk].name)+'</h3><p class="pt">'+esc(PAPERS[pk].title)+'</p>'+
+      cs.map(function(c){return '<p><span class="ell">… </span><mark tabindex="0" role="button" data-key="'+keyOf(c)+'">'+esc(c.quote)+'</mark><span class="ell"> …</span></p>';}).join('')+'</section>';
+  }).join('');
+  [].slice.call(document.querySelectorAll('#papers mark')).forEach(function(m){
+    m.addEventListener('click',function(){openRead(m.dataset.key);});
+    m.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openRead(m.dataset.key);}});
+  });
+  // 狀態欄
+  var keys=Object.keys(S.logs).filter(function(k){return S.logs[k].length;}).sort();
+  document.getElementById('logs').innerHTML=keys.length?keys.map(function(k){
+    return '<div class="f">'+esc(k.replace('#','/'))+'.md</div>'+S.logs[k].map(function(e,i){
+      var fresh=(e.date===S.today&&i===S.logs[k].length-1);return '<div'+(fresh?' class="n"':'')+'>'+esc(PA.logLine(e))+'</div>';}).join('');
+  }).join(''):'<div class="f">（還沒有任何紀錄）</div>';
+  var rows=p.half.map(function(it){return [it.key,'半懂 '+it.since+' 天','—','—','—'];})
+    .concat(p.ready.concat(p.retry,p.parked,p.later).map(function(it){
+      var lab=p.parked.indexOf(it)>=0?'今天放下':p.retry.indexOf(it)>=0?'再答一次':it.due<=S.today?'到期':'排程中';
+      return [it.key,lab,it.state.reps?it.state.interval+' 天':'新',mmdd(it.due),String(it.state.lapses)];}));
+  document.getElementById('sched').innerHTML=rows.map(function(r){return '<tr><td class="k">'+esc(r[0])+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+r[4]+'</td></tr>';}).join('')||'<tr><td colspan="5" style="color:var(--muted)">沒有排程中的卡</td></tr>';
+}
+
+/* ---- 面板 ---- */
+var panel=document.getElementById('panel'),panelIn=document.getElementById('panel-in'),ov=document.getElementById('ov');
+// 灰帶的高度給面板當上緣；劇本一換、視窗一縮，高度就重量。
+var proto=document.getElementById('proto');
+function protoH(){document.documentElement.style.setProperty('--proto-h',proto.offsetHeight+'px');}
+protoH();window.addEventListener('resize',protoH);
+if(window.ResizeObserver)new ResizeObserver(protoH).observe(proto);
+var P={key:null,mode:null,stage:null,jol:null,early:false};
+function secHtml(cls,title,body){return '<div class="csec '+cls+'"><span class="csec-t">'+title+'</span>'+body+'</div>';}
+function selfHtml(c){if(!c.self.length)return '';return secHtml('csec-self','自己的話',c.self.map(function(s){return '<p><span class="d">'+s.date+' '+s.kind+'</span>'+esc(s.text)+'</p>';}).join(''));}
+function linksHtml(c,thinkFirst){
+  if(!c.links.length)return '';
+  return '<div class="xlinks">'+c.links.map(function(l){
+    var t=l.target.split('#');
+    return '<div class="xl"><b class="xlt">'+l.type+'</b> <a class="xlref" href="#" onclick="return false">'+esc(PAPERS[t[0]].name)+' · '+esc(t[1])+'</a></div>'+
+      (thinkFirst?'<div class="think">'+esc(l.ask)+'</div>':'')+
+      '<details class="xlsum"><summary>另一篇怎麼說？</summary><p>'+POINTS[l.target]+'</p></details>';
+  }).join('')+'</div>';
+}
+function titleHtml(c,kindLabel){return '<div class="ptitle" id="ptitle">'+(kindLabel?'<span class="pkind">'+kindLabel+'</span>':'')+esc(c.q)+'</div><p class="quote">原文：<mark>'+esc(c.quote)+'</mark></p>';}
+function whoHtml(c){return c.intuitionBy==='user'?'<span class="who user">你寫的</span>':'<span class="who">AI 寫的</span>';}
+var LAST_FOCUS=null;
+function show(html,status){
+  if(panel.hidden)LAST_FOCUS=document.activeElement;   // 關掉時焦點回到打開它的那個東西
+  panelIn.innerHTML=html;panel.dataset.status=status;panel.hidden=false;ov.hidden=false;panel.scrollTop=0;panel.focus();
+}
+function closeCard(){panel.hidden=true;ov.hidden=true;P.key=null;P.mode=null;if(LAST_FOCUS&&LAST_FOCUS.focus&&document.body.contains(LAST_FOCUS))LAST_FOCUS.focus();LAST_FOCUS=null;}
+document.getElementById('pclose').addEventListener('click',closeCard);ov.addEventListener('click',closeCard);
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!panel.hidden)closeCard();});
+
+// 閱讀模式：從正文或疑問清單打開，整張攤開（跟現在一樣）。到期的卡照舊在底部給評分列。
+function openRead(key){
+  var c=card(key);
+  if(c.status==='half')return openHalf(key);   // 半懂卡沒有「隨手看解答」這條路
+  P={key:key,mode:'read',stage:'full',jol:null,early:false};
+  var html=titleHtml(c,'');
+  if(c.status==='open'){html+=secHtml('','還沒有解答','<p>這題還開著。回到對話問，AI 會在這裡補上卡點與解答。</p>');}
+  else {html+=secHtml('csec-stuck','卡點','<p>'+esc(c.stuck)+'</p>')+secHtml('csec-answer','解答','<p>'+c.answer+'</p>')+
+    secHtml('csec-key','一句話直覺'+whoHtml(c),'<p>'+esc(c.intuition)+'</p>')+selfHtml(c)+linksHtml(c,false);}
+  var due=S.plan.ready.concat(S.plan.retry).filter(function(i){return i.key===key;})[0];
+  // 看過解答再評分就是重讀分數，所以閱讀模式不給評分列，只給一條回複習模式的路。
+  if(due)html+='<div class="stage"><div class="srsbtns"><button class="wide" id="toreview">這題今天到期 · 用複習模式作答</button></div></div>';
+  show(html,c.status);
+  var tr=document.getElementById('toreview');if(tr)tr.addEventListener('click',function(){openReview(key);});
+  say('閱讀模式打開 '+key+'：整張攤開，跟現在一樣；到期的卡在這裡不能評分，要回複習模式。');
+}
+function gradeBarHtml(item,label){
+  var g=['again','hard','good','easy'];
+  return '<div class="stage" id="gradebar"><b>'+label+'</b><div class="srsbtns">'+g.map(function(k){
+    return '<button data-g="'+k+'">'+PA.LABEL[k]+'<sub>'+(k==='again'?(item.againToday>=2?'今天先放下':'等一下再答'):item.preview[k]+' 天')+'</sub></button>';}).join('')+'</div><span class="say" id="say"></span></div>';
+}
+function wireGrade(){[].slice.call(panelIn.querySelectorAll('#gradebar button')).forEach(function(b){b.addEventListener('click',function(){grade(b.dataset.g);});});}
+
+// 複習模式：從複習清單打開，分段揭示。
+function openReview(key,early,auto){
+  var c=card(key);
+  if(c.status==='half'){return openHalf(key);}
+  P={key:key,mode:'review',stage:'question',jol:null,early:!!early};
+  var html=titleHtml(c,early?'提前複習':'複習')+
+    '<div class="stage"><b>先想一下。想到答案之後，你有多有把握？</b><div class="srsbtns jol">'+
+    '<button data-j="sure">想得起來</button><button data-j="vague">模糊</button><button data-j="blank">想不起來</button></div>'+
+    '<p class="hint">按下去才會看到一句話直覺。這一步不是評分，是讓你等一下對照自己的預期。</p></div>';
+  show(html,c.status);
+  [].slice.call(panelIn.querySelectorAll('[data-j]')).forEach(function(b){b.addEventListener('click',function(){jol(b.dataset.j);});});
+  say('複習模式打開 '+key+'：只給問題和原文那句話，卡點、解答都還藏著。');
+  if(!auto)markStep('open');   // 「下一張」帶出來的不算劇本裡的「打開」
+}
+function jol(j){
+  if(P.mode!=='review'||P.stage!=='question')return;
+  var c=card(P.key);P.jol=j;P.stage='intuition';
+  var item=S.plan.ready.concat(S.plan.retry,S.plan.later).filter(function(i){return i.key===P.key;})[0];
+  // 對照題放在直覺之後、完整解答之前：解答本身往往就寫了另一篇怎麼做，
+  // 等攤開再問「先想」就晚了。
+  var html=titleHtml(c,P.early?'提前複習':'複習')+
+    secHtml('csec-key','一句話直覺'+whoHtml(c),'<p>'+esc(c.intuition)+'</p>')+
+    linksHtml(c,true)+
+    '<div class="stage" id="more"><div class="srsbtns"><button class="wide" id="full">看完整解答（卡點＋解答）</button></div></div>'+
+    gradeBarHtml(item,'這題答得如何？');
+  show(html,c.status);
+  document.getElementById('full').addEventListener('click',revealFull);wireGrade();
+  say('你選了「'+({sure:'想得起來',vague:'模糊',blank:'想不起來'})[j]+'」。現在看得到一句話直覺，可以直接評分，也可以再看完整解答。');
+  markStep('jol');
+}
+function revealFull(){
+  if(P.mode!=='review'||P.stage!=='intuition')return;
+  var c=card(P.key);P.stage='full';
+  var more=document.getElementById('more');
+  more.outerHTML=secHtml('csec-stuck','卡點','<p>'+esc(c.stuck)+'</p>')+secHtml('csec-answer','解答','<p>'+c.answer+'</p>')+selfHtml(c);
+  say('完整解答攤開了。評分列還在最底下，順序是：先想、看直覺、（要的話）看解答、再評分。');
+  markStep('full');
+}
+function grade(g){
+  if(!P.key||!document.getElementById('gradebar'))return;   // 沒有評分列的階段不能評
+  var key=P.key,c=card(key);
+  S.logs=PA.grade(S.logs,key,g,P.jol,S.today);
+  if(!P.early)S.gradedToday++;   // 提前複習不算「今天做完了」
+  var mis=P.mode==='review'?PA.mismatch(P.jol,g):null;
+  var sayEl=document.getElementById('say');
+  [].slice.call(panelIn.querySelectorAll('#gradebar button')).forEach(function(b){b.disabled=true;});
+  var line=PA.logLine(S.logs[key][S.logs[key].length-1]);
+  if(sayEl){sayEl.textContent=mis?mis:'記錄了：'+line;if(mis)sayEl.classList.add('mis');}
+  draw();
+  var p=S.plan;
+  var againN=p.retry.concat(p.parked).filter(function(i){return i.key===key;})[0];
+  var what='寫進 notes/reviews/'+key.replace('#','/')+'.md：「'+line+'」。';
+  if(g==='again'&&againN){what+=p.parked.indexOf(againN)>=0?' 今天已經重來三次，這張放下，明天再來。':' 這張留在今天佇列的最後，等一下再答一次。';}
+  else {what+=' 下次 '+mmdd(againN?againN.due:p.later.concat(p.ready).filter(function(i){return i.key===key;})[0].due)+' 回來。';}
+  if(mis)what+=' 而且你的預期和結果不一致，面板上多說了一句。';
+  say(what);markStep('grade:'+g);
+  // 現在的工具是評完自動跳下一張。這裡改成要你按「下一張」，讓「記錄了…」和
+  // 對不上的那句留在畫面上——自動跳要不要保留，是要問你的一件事。
+  var nextQ=(S.plan.queue||[]).filter(function(i){return i.kind!=='half';})[0];
+  var bar=document.getElementById('gradebar');
+  bar.insertAdjacentHTML('beforeend','<div class="srsbtns" style="margin-top:10px"><button class="wide" id="nextcard">'+(nextQ?'下一張':'今天做完了，關閉')+'</button></div>');
+  document.getElementById('nextcard').addEventListener('click',function(){
+    markStep('next');
+    var next=(S.plan.queue||[]).filter(function(i){return i.kind!=='half';})[0];
+    if(next)openReview(next.key,false,true);else{closeCard();flash(document.getElementById('srslist'));}
+  });
+}
+function clickNext(){var b=document.getElementById('nextcard');if(b)b.click();}
+
+// 半懂卡：出口是他自己先解釋一次，再比對。
+function openHalf(key){
+  var c=card(key),since=PA.daysBetween(c.updated,S.today);
+  P={key:key,mode:'half',stage:'explain',jol:null,early:false};
+  var html=titleHtml(c,'半懂 · '+since+' 天')+secHtml('csec-stuck','卡點（當時卡在哪）','<p>'+esc(c.stuck)+'</p>')+
+    '<div class="stage"><b>用自己的話說一次這題，說到哪算哪。解答在你按「比對」之後才會出現。</b>'+
+    '<textarea class="self" id="selftext" placeholder="例：因為……所以……"></textarea>'+
+    '<div class="srsbtns" style="margin-top:8px"><button class="wide" id="compare">寫好了，比對解答</button></div>'+
+    '<p class="hint">半懂不是記憶問題，所以這裡沒有評分列；出口是解釋，不是再看一次。</p></div>';
+  show(html,'half');
+  document.getElementById('compare').addEventListener('click',compareHalf);
+  say('半懂卡打開：先顯示它放了 '+since+' 天，要你先解釋再看解答。');
+  markStep('open');
+}
+function compareHalf(){
+  if(P.mode!=='half'||P.stage!=='explain')return;
+  var c=card(P.key),txt=(document.getElementById('selftext').value||'').trim();P.stage='compare';P.text=txt;
+  var html=titleHtml(c,'半懂')+
+    (txt?secHtml('csec-self','你剛剛說的','<p>'+esc(txt)+'</p>'):secHtml('csec-self','你剛剛說的','<p class="hint">（空的——沒關係，先比對）</p>'))+
+    secHtml('csec-answer','解答','<p>'+c.answer+'</p>')+secHtml('csec-key','一句話直覺'+whoHtml(c),'<p>'+esc(c.intuition)+'</p>')+
+    '<div class="stage"><b>對得上嗎？</b><div class="srsbtns"><button id="got">對上了：懂了，進排程</button><button id="still">還是半懂</button></div>'+
+    '<p class="hint">兩個按鈕都會把你寫的那句留在「自己的話」；「懂了」另外把狀態改成已解決，這張今天就會第一次回來。</p></div>';
+  show(html,'half');
+  document.getElementById('got').addEventListener('click',function(){resolveHalf(true);});
+  document.getElementById('still').addEventListener('click',function(){resolveHalf(false);});
+  say('比對：你的話和解答並排。接下來由你判斷，不是 agent。');
+  markStep('compare');
+}
+function resolveHalf(got){
+  if(P.mode!=='half'||P.stage!=='compare')return;
+  var c=card(P.key),key=P.key;
+  if(P.text)c.self.push({date:S.today,kind:got?'解釋':'半懂',text:P.text});
+  if(got){c.status='resolved';c.updated=S.today;}
+  closeCard();draw();
+  say(got?('狀態改成已解決、updated 換成今天，'+key+' 立刻進了今天的佇列（新解決的卡當天到期）。你寫的那句留在「自己的話」。'):('狀態留在半懂，你寫的那句留在「自己的話」，標成「半懂」。'));
+  if(got)flash(document.getElementById('srslist'));
+  markStep(got?'got':'still');
+}
+
+/* ---- 時鐘 ---- */
+document.getElementById('nextday').addEventListener('click',function(){S.today=PA.addDays(S.today,1);S.gradedToday=0;closeCard();draw();say('到了 '+S.today+'。排程從紀錄重放，看左邊清單變成什麼。');markStep('nextday');});
+document.getElementById('reset').addEventListener('click',function(){loadScenario(CUR);});
+
+/* ===================================================================== 劇本 */
+var SCEN=[
+ {name:'第一次複習',desc:'今天有 2 張到期、1 張半懂、2 張要到 09-05 和 09-07 才到期。從複習清單點第一張：先說有沒有把握，才看得到一句話直覺；這時就能評分，解答要再按一次才攤開。第二張故意選「想不起來」再按「簡單」，看它怎麼提醒你。',
+  steps:[['open','打開第一張到期卡',function(){openReview(S.plan.ready[0].key);}],['jol','選「想得起來」',function(){jol('sure');}],['full','看完整解答',revealFull],['grade:good','按「良好」',function(){grade('good');}],
+    ['next','下一張',clickNext],['jol','這張選「想不起來」',function(){jol('blank');}],['grade:easy','按「簡單」，看提示',function(){grade('easy');}],['next','關閉，看清單',clickNext]]},
+ {name:'答錯當天再來',desc:'重來不是明天見。答錯的卡會排到今天佇列的最後，標成「再答一次」，同一場裡再答一次；三次都重來就放下，明天再來。看右邊紀錄檔怎麼一行一行長。',
+  steps:[['open','打開第一張到期卡',function(){openReview(S.plan.ready[0].key);}],['jol','選「想不起來」',function(){jol('blank');}],['grade:again','按「重來」',function(){grade('again');}],
+    ['open','再打開它（現在標成再答一次）',function(){var r=S.plan.retry[0];if(r)openReview(r.key);}],['jol','選「想得起來」',function(){jol('sure');}],['grade:good','按「良好」',function(){grade('good');}]]},
+ {name:'三次重來就放下',desc:'同一張連按三次重來：第三次之後它從今天的佇列消失，清單下面說「今天先放下，明天再來」。到明天它回來。',
+  steps:[['open','打開第一張到期卡',function(){openReview(S.plan.ready[0].key);}],['jol','想不起來',function(){jol('blank');}],['grade:again','重來（1）',function(){grade('again');}],
+    ['open','再打開',function(){var r=S.plan.retry[0];if(r)openReview(r.key);}],['jol','想不起來',function(){jol('blank');}],['grade:again','重來（2）',function(){grade('again');}],
+    ['open','再打開',function(){var r=S.plan.retry[0];if(r)openReview(r.key);}],['jol','想不起來',function(){jol('blank');}],['grade:again','重來（3）→ 放下',function(){grade('again');}],['nextday','到明天',function(){document.getElementById('nextday').click();}]]},
+ {name:'半懂卡的出口',desc:'半懂卡放了 37 天，清單上看得到天數。打開不是重讀：先用自己的話說一次，按比對才看解答，然後由你決定「懂了」還是「還是半懂」。懂了的卡當天就進佇列。',
+  steps:[['open','打開半懂卡',function(){openReview(S.plan.half[0].key);}],['fill','填一句自己的話',function(){var t=document.getElementById('selftext');if(t){t.value='因為 Poisson 方程式要總電荷是零才有解，扣掉平均之後淨電荷才會是零。';markStep('fill');say('填了一句示範的話。你可以改。');}}],
+    ['compare','比對解答',compareHalf],['got','對上了：懂了，進排程',function(){resolveHalf(true);}]]},
+ {name:'跨論文對照題',desc:'RePlAce Q0001 連到 ePlace-MS 的要點 P0008。看完直覺之後、攤開解答之前，先問你「ePlace-MS 怎麼做的」；想過再展開「另一篇怎麼說？」，最後才是完整解答。對方那一句不直接印出來。',
+  steps:[['open','打開 RePlAce Q0001',function(){openReview('replace#0001');}],['jol','選「模糊」',function(){jol('vague');}],
+    ['peek','想過了，展開「另一篇怎麼說？」',function(){var d=panelIn.querySelector('details.xlsum');if(d){d.open=true;markStep('peek');say('展開了對方的要點。順序是：先想 ePlace-MS 怎麼做，再看它怎麼說，最後才攤開解答。');}}],['full','看完整解答',revealFull],['grade:good','按「良好」',function(){grade('good');}]]},
+ {name:'空狀態',desc:'複習區永遠在。三種空狀態：今天做完了（說明天幾張）、今天沒到期（給下一張日期和「提前複習一張」）、還沒有任何排程中的卡。這個劇本從「今天已經做完」開始。',
+  setup:function(){S.plan=PA.schedule(S.cards,S.logs,S.today);S.plan.ready.forEach(function(i){S.logs=PA.grade(S.logs,i.key,'easy','sure',S.today);});S.gradedToday=S.plan.ready.length;},
+  steps:[['nextday','到明天',function(){document.getElementById('nextday').click();}],['nextday','再到明天',function(){document.getElementById('nextday').click();}],
+    ['early','提前複習一張',function(){var b=document.getElementById('early');if(b)b.click();else say('今天有到期的卡，所以沒有「提前複習」這顆鈕。');}],
+    ['clear','把所有卡改成未解決',function(){closeCard();S.cards.forEach(function(c){c.status='open';});S.logs={};draw();say('沒有任何排程中的卡：清單說「先讀、先問」。');markStep('clear');}]]},
+ {name:'自由試玩',desc:'照預設狀態隨便點。想試哪條路都行：正文反白句、疑問清單、複習清單、到明天。',steps:[]}
+];
+var CUR=0,STEP=0;
+function loadScenario(i){
+  CUR=i;STEP=0;S.today='2026-09-02';S.cards=seedCards();S.logs=seedLogs();S.gradedToday=0;closeCard();
+  if(SCEN[i].setup)SCEN[i].setup();
+  draw();say('載入劇本「'+SCEN[i].name+'」。');drawScenario();
+}
+function drawScenario(){
+  document.getElementById('tabs').innerHTML=SCEN.map(function(s,i){return '<button class="'+(i===CUR?'on':'')+'" data-i="'+i+'">'+esc(s.name)+'</button>';}).join('');
+  [].slice.call(document.querySelectorAll('#tabs button')).forEach(function(b){b.addEventListener('click',function(){loadScenario(+b.dataset.i);});});
+  document.getElementById('scen-desc').textContent=SCEN[CUR].desc;
+  var st=SCEN[CUR].steps;
+  document.getElementById('scen-steps').innerHTML=st.length?('<span class="tag">照順序按</span>'+st.map(function(s,i){
+    return (i?'<span class="arrow">→</span>':'')+'<button data-i="'+i+'" class="'+(i<STEP?'done':i===STEP?'cur':'')+'">'+esc(s[1])+'</button>';}).join('')):'<span class="tag">沒有固定步驟</span>';
+  [].slice.call(document.querySelectorAll('#scen-steps button')).forEach(function(b){b.addEventListener('click',function(){var i=+b.dataset.i;STEP=i;st[i][2]();});});
+}
+// 步驟是真的按鈕：不管是從灰帶按、還是直接在面板上按，做到了就打勾。
+function markStep(action){
+  var st=SCEN[CUR].steps;if(!st.length)return;
+  // 往後找：面板允許跳過的步驟（例如不看完整解答就評分）不能把清單卡死
+  for(var i=STEP;i<st.length;i++){if(st[i][0]===action){STEP=i+1;drawScenario();return;}}
+}
+loadScenario(0);
+</script>
