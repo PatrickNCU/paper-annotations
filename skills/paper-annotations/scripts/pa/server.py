@@ -47,7 +47,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from datetime import date
 
-from . import actions, cli, library, marks as marklib, notes, srs, workspace
+from . import actions, checks, cli, library, marks as marklib, notes, srs, workspace
 
 cli.bootstrap()
 
@@ -56,6 +56,8 @@ cli.bootstrap()
 SCRIPTS = Path(__file__).resolve().parent.parent
 MAX_BODY = 4 << 20  # a paper's worth of highlights is kilobytes; this is slack
 MAX_PASTE = 400_000  # a whole paper's copied highlights, with room to spare
+# "2026-09-02 第 1 次：" -- how a line under ## 自己的話 is filed
+_SELF_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}\s+[^：:]{0,20}[：:]\s*")
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -165,6 +167,9 @@ class Handler(SimpleHTTPRequestHandler):
                 "token": self.token,
                 "paper": self.papers[self.default]["work"].name if self.default else "",
                 "papers": sorted(self.papers),
+                # Whether /_pa/shelf leads anywhere: serving one paper on its own
+                # has no shelf, and a page must not offer a way back to one.
+                "shelf": bool(self.shelf and self.shelf.is_file()),
             })
             return
         if path == "/":
@@ -183,6 +188,26 @@ class Handler(SimpleHTTPRequestHandler):
             # Read-only, so no token: it says which of the reader's own cards
             # are due, which is no more than the page already shows.
             self._json(200, self._schedule(paper))
+            return
+        if path == "/_pa/checks":
+            if not self._same_origin():
+                self._json(403, {"error": "cross-origin"})
+                return
+            paper = self._paper(want)
+            if paper is None:
+                self._json(404, {"error": f"沒有這篇論文：{want}"})
+                return
+            # The page bakes in the state it was built with, so a checkpoint
+            # answered since the last rebuild reads as unanswered after a plain
+            # reload. The log is the truth; this replays it (docs/adr/0003).
+            # Read-only and about his own answers, so no token.
+            notes_dir = paper["notes"]
+            rows, _ = checks.tally(notes_dir, checks.load_checks(notes_dir))
+            self._json(200, {"rows": [
+                {"id": r["id"], "state": r["state"],
+                 "tries": r["tries"], "card": r["card"]}
+                for r in rows
+            ]})
             return
         if path == "/_pa/library":
             if not self._same_origin():
@@ -252,7 +277,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?")[0]
         if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/card",
-                        "/_pa/topic", "/_pa/run"):
+                        "/_pa/topic", "/_pa/run", "/_pa/check"):
             self._json(404, {"error": "unknown endpoint"})
             return
         if not self._same_origin():
@@ -275,6 +300,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/_pa/run":
             self._run()
+            return
+        if path == "/_pa/check":
+            self._check()
             return
         payload = self._body()
         if not isinstance(payload, dict) or not isinstance(payload.get("marks"), list):
@@ -476,6 +504,110 @@ class Handler(SimpleHTTPRequestHandler):
             "ok": True, "id": wanted, "action": action, "status": status,
             "rebuilt": rebuilt, "log": log, "schedule": state,
         })
+
+    def _check(self):
+        """Record one attempt at a section checkpoint.
+
+        Two writes, both append-only: his sentence goes under `## 自己的話` in
+        the checkpoint's own file, and the verdict onto its log. Neither is
+        regenerable, so both follow the review-history discipline (docs/adr/
+        0003) -- nothing here ever rewrites a line that is already there.
+
+        A second miss creates a `origin: suggested` card and stops asking. That
+        is the only place in this tool where a card file is created from the
+        page; it is written from a fixed template, its id is generated here, and
+        its anchor is copied off the point the question was about, so nothing in
+        the request reaches the filesystem (docs/adr/0005).
+        """
+        payload = self._body()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "bad payload"})
+            return
+        paper = self._paper(payload.get("paper"))
+        if paper is None:
+            self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
+            return
+        wanted = str(payload.get("id") or "")
+        verdict = str(payload.get("verdict") or "")
+        text = " ".join(str(payload.get("text") or "").split())
+        if verdict not in checks.VERDICTS:
+            self._json(400, {"error": f"verdict 只能是 {' / '.join(checks.VERDICTS)}"})
+            return
+        if len(text) > 2000:
+            self._json(400, {"error": "一次寫一句就好，超過 2000 字請直接改檔案"})
+            return
+
+        with self.lock:
+            notes_dir = paper["notes"]
+            check = next(
+                (c for c in checks.load_checks(notes_dir) if c["id"] == wanted), None
+            )
+            if check is None:
+                self._json(404, {"error": f"找不到檢查點 {wanted}"})
+                return
+            before = checks.state(checks.read_log(notes_dir, wanted))
+            if before in ("pass", "card"):
+                self._json(400, {
+                    "error": "這個檢查點已經結束了（過了，或已經變成卡片），"
+                             "不會再記錄新的作答"
+                })
+                return
+            today = date.today().isoformat()
+            if text:
+                tries = sum(
+                    1 for _, v, _ in checks.read_log(notes_dir, wanted)
+                    if v in ("pass", "miss")
+                )
+                notes.append_self_line(
+                    check["path"], today, f"第 {tries + 1} 次", text
+                )
+            card_id, why = "", ""
+            if verdict == "miss":
+                misses = sum(
+                    1 for _, v, _ in checks.read_log(notes_dir, wanted) if v == "miss"
+                )
+                if misses + 1 >= checks.MAX_TRIES:
+                    target = check["target"].strip().lstrip("Pp").zfill(4)
+                    point = next(
+                        (p for p in notes.load_points(notes_dir)
+                         if str(p["meta"].get("id") or "").zfill(4) == target),
+                        None,
+                    )
+                    # read back after appending, so his current answer is in
+                    # there exactly once and in the order he wrote them
+                    card_id, made = checks.make_card(
+                        notes_dir, check, point, self._own_words(check["path"]), today
+                    )
+                    if card_id is None:
+                        card_id, why = "", str(made)
+            checks.append(notes_dir, wanted, verdict, today, card_id or "")
+            after = checks.state(checks.read_log(notes_dir, wanted))
+            rebuilt, log = (True, [])
+            if card_id:
+                rebuilt, log = self._rebuild_full(paper)
+        self._json(200, {
+            "ok": True, "id": wanted, "state": after, "card": card_id or "",
+            "note": why, "rebuilt": rebuilt, "log": log, "reload": bool(card_id),
+        })
+
+    @staticmethod
+    def _own_words(path):
+        """His attempts at this checkpoint, in the order he wrote them.
+
+        The dated prefix comes off again: it was added when the line was filed
+        and the card that quotes these lines adds its own.
+        """
+        try:
+            _, body = notes.read_doc(path)
+        except OSError:
+            return []
+        section = notes.card_sections(body).get(notes.SELF_HEADING, "")
+        out = []
+        for line in section.splitlines():
+            text = _SELF_PREFIX.sub("", line.strip())
+            if text:
+                out.append(text)
+        return out
 
     def _topic(self):
         """Everything the shelf can do to a category.

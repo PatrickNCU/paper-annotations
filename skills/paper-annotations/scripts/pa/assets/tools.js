@@ -76,10 +76,32 @@
   var box=document.createElement('div');
   box.id='patools';
   box.innerHTML='<div id="patoolsmenu" hidden></div>'+
-    '<button id="patoolsbtn" aria-haspopup="true" aria-expanded="false"></button>';
+    '<div class="parow">'+
+    (conf.scope==='paper'?'<a id="pahome" hidden title="回到書房">← 書房</a>':'')+
+    '<button id="patoolsbtn" aria-haspopup="true" aria-expanded="false"></button>'+
+    '</div>';
   document.body.appendChild(box);
   var menu=document.getElementById('patoolsmenu');
   var btn=document.getElementById('patoolsbtn');
+
+  // The way back, in the same corner as everything else you can press.
+  //
+  // Two different addresses for the same shelf: served, it is /_pa/shelf and the
+  // relative path would land inside this paper's mount; opened from the folder,
+  // it is a file sitting next to the papers. Neither is guessed -- the relative
+  // one is baked in only when that file exists, and the served one only when
+  // hello says a shelf is mounted (serving a single paper has none).
+  var onPaper=conf.scope==='paper';
+  var homeLink=onPaper?document.getElementById('pahome'):null;
+  var homeRel=onPaper?(conf.shelf||''):'';
+  var homeServed=false;
+  function paintHome(){
+    if(!homeLink) return;
+    var href=token?(homeServed?'/_pa/shelf':''):homeRel;
+    homeLink.hidden=!href;
+    if(href) homeLink.href=href;
+  }
+  paintHome();
 
   var out=document.createElement('section');
   out.id='paout'; out.hidden=true;
@@ -312,6 +334,10 @@
   // thing that turns them on.
   fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
     .then(function(r){ return r.ok?r.json():null; })
-    .then(function(d){ if(d&&d.token){ token=d.token; paint(); } })
+    .then(function(d){
+      if(!d||!d.token) return;
+      token=d.token; homeServed=!!d.shelf;
+      paint(); paintHome();
+    })
     .catch(function(){});
 })();

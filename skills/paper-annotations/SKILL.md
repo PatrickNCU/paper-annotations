@@ -442,6 +442,34 @@ correcting it.
 list, not counted in 「疑問 N 則」. Question needing an answer → card; he marked a
 passage → highlight; **the paper asserted something** → point.
 
+## Section checkpoints
+
+One question at the end of a section, answered before that section's points are
+uncovered — so he says it before he reads it. **You write the questions**, in
+`notes/checks/`, from points you have already gathered; the page runs them and
+`serve.py` records the answers. Full rules and the file format:
+[references/checkpoints.md](references/checkpoints.md).
+
+The parts you must not get wrong:
+
+- **Fewer than 6 points in the paper → write none.** The build refuses to place
+  them and warns instead. Thin points make empty questions.
+- **At most one per section**, and only sections with something that has an
+  opposite. Half the sections is a good outcome, not a shortfall.
+- **`target:` is the point the question was written from.** The page shows that
+  point as the answer, and a twice-missed checkpoint copies its anchor and tags
+  onto the card it creates — a wrong target anchors that card to the wrong
+  sentence.
+- **`## 提示` is the second attempt's wording**, a different angle in, not the
+  question restated.
+
+Two attempts, never three: a second miss files an `origin: suggested` card and
+stops asking, because "until you know it" is what the review loop is for
+([docs/adr/0005](../../docs/adr/0005-a-twice-missed-checkpoint-creates-a-card.md)).
+That card's `## 解答` is only the point's own sentence — **expand it on your next
+round**, or say it is his to finish. Its `## 自己的話` holds both of his attempts;
+append to it, never rewrite it.
+
 ## Review scheduling
 
 The 複習 panel in the page's sidebar is built-in spaced repetition; Anki not

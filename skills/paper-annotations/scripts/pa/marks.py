@@ -57,9 +57,20 @@ def parse(text: str):
 
 
 def slug(text: str) -> str:
-    words = re.findall(r"[A-Za-z0-9]+|[一-鿿]", text)
-    out = "-".join(words[:6]).lower()
-    return out[:48].strip("-") or "mark"
+    """A file name you can read.
+
+    A run of Chinese is one word, not one word per character: splitting it
+    turned 每個 bin 的懲罰 into 每-個-bin-的-懲-罰. Punctuation still separates,
+    so a two-clause question keeps only as much as fits.
+    """
+    words = re.findall(r"[A-Za-z0-9]+|[一-鿿]+", text)
+    out = ""
+    for word in words[:6]:
+        nxt = (out + "-" + word if out else word).lower()
+        if out and len(nxt) > 32:
+            break
+        out = nxt[:32]
+    return out.strip("-") or "mark"
 
 
 def write_marks(paper_root: Path, notes_dir: Path, records):

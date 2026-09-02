@@ -15,7 +15,9 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
-from . import anchors, cli, library, links, notes, sources, srs, workspace, xlinks
+from . import (
+    anchors, checks, cli, library, links, notes, sources, srs, workspace, xlinks,
+)
 
 cli.bootstrap()
 
@@ -277,6 +279,31 @@ def render_point(point, dst_path: Path, out_links=(), in_links=(),
     )
 
 
+def render_check(check, here: int) -> str:
+    """The checkpoint that sits at the end of its section.
+
+    Written as readable Markdown and upgraded by the page's script, rather than
+    left as an empty placeholder: the annotated view is a file someone may open
+    on its own, and a bare <div> would say nothing there.
+    """
+    cid = check["id"]
+    return "\n".join(
+        [
+            f"<!-- check:{cid} -->",
+            f'<div class="cp" id="check-{cid}" data-check="{cid}" '
+            f'data-target="{esc_html(check["target"])}" data-points="{here}">',
+            "",
+            f"**段落檢查點** — {check['question']}",
+            "",
+            "讀完這一節先自己答一次。答不出來不會擋你；兩次沒答到就記成一張疑問卡，"
+            "之後在複習頁回來找你。",
+            "",
+            "</div>",
+            "",
+        ]
+    )
+
+
 def check_drift(paper_root: Path, config: dict):
     recorded = config.get("fingerprint", {}).get("files") or {}
     stale, missing = [], []
@@ -329,6 +356,13 @@ def build(work_root: Path, allow_drift: bool = False):
     source_list = [Path(p) for p in (config.get("sources") or [])]
     placed, unanchored, rows, fragile = {}, [], [], []
     point_rows, point_lost, point_fragile = [], [], []
+
+    # One checkpoint per section, keyed by the section file's stem so the
+    # note may name it either way ("S110-…" or "sections/S110-….md").
+    check_list = checks.load_checks(notes_dir, card_problems)
+    checks_here = {}
+    for check in check_list:
+        checks_here.setdefault(Path(check["section"]).stem, check)
 
     # Links resolve against the catalogs that exist right now, so a paper added
     # later lights up the links pointing at it on the next build of either side
@@ -429,6 +463,14 @@ def build(work_root: Path, allow_drift: bool = False):
                 }
             )
 
+        # At the very end, after the points: the question is about the section
+        # that was just read, and it is the last thing before the next heading.
+        check = checks_here.get(rel.stem)
+        if check:
+            out += render_check(
+                check, len(points_by_file.get(rel.as_posix(), []))
+            ).splitlines()
+
         text = "\n".join(out).rstrip("\n") + "\n"
         banner = GENERATED_BANNER.format(source=rel.as_posix())
         # keep the banner below any YAML frontmatter, or it stops being frontmatter
@@ -490,6 +532,22 @@ def build(work_root: Path, allow_drift: bool = False):
         print(f"要點        {len(points)} 則：已定位 {len(point_rows)}，找不到位置 {len(point_lost)}")
         for point, reason in point_lost:
             print(f"  ⚠️  要點 {point['meta'].get('id')} — {reason} — {point['path'].name}")
+    if check_list:
+        _, counts = checks.tally(notes_dir, check_list)
+        placed_checks = sum(1 for c in check_list if Path(c["section"]).stem in
+                            {rel.stem for rel in source_list})
+        print(
+            f"段落檢查點  {len(check_list)} 個（已放進正文 {placed_checks}）："
+            f"過了 {counts['pass']}、跳過 {counts['skip']}、成了卡片 {counts['card']}、"
+            f"還沒答 {counts['todo'] + counts['again']}"
+        )
+        for check in check_list:
+            if Path(check["section"]).stem not in {rel.stem for rel in source_list}:
+                print(f"  ⚠️  檢查點 {check['id']} 的 section「{check['section']}」"
+                      "不是這篇的任何一節，沒有放進正文")
+        if len(points) < checks.MIN_POINTS:
+            print(f"  🟡 這篇只有 {len(points)} 則要點（低於 {checks.MIN_POINTS}）——"
+                  "檢查點問得出來的東西不會比要點好，考慮先補要點")
     print(f"跨論文目錄  {catalog}")
     if card_problems:
         # cards and points share the list, so the wording has to cover both

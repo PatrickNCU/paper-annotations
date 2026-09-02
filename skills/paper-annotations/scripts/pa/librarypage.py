@@ -227,6 +227,15 @@ JS = """
             due.textContent='今天要複習 '+p.due;
             due.hidden=!p.due;
           }
+          // Status counts move on their own: a checkpoint that failed twice
+          // writes a card without anyone rebuilding the shelf.
+          [['open','未解決',p.open],['half','半懂',p.half],
+           ['done','已解決',p.resolved]].forEach(function(row){
+            var pill=el.querySelector('.pill.'+row[0]);
+            if(!pill) return;
+            pill.textContent=row[1]+' '+row[2];
+            pill.hidden=!row[2];
+          });
           var sched=el.querySelector('.pill.sched');
           if(sched){ sched.textContent=p.tracked?('排程 '+p.tracked+' 張'):'還沒有排程'; }
           var pts=el.querySelector('.pill.points');
@@ -523,12 +532,17 @@ def render(registry: Path) -> str:
         review = catalog.get("review") or {}
         facts = [f"Tier {paper['tier']}" if paper.get("tier") else "", str(paper.get("year") or "")]
         pills = []
-        if tally["open"]:
-            pills.append(f'<span class="pill open">未解決 {tally["open"]}</span>')
-        if tally["half"]:
-            pills.append(f'<span class="pill half">半懂 {tally["half"]}</span>')
-        if tally["resolved"]:
-            pills.append(f'<span class="pill done">已解決 {tally["resolved"]}</span>')
+        # Always emitted, hidden when zero -- the same rule the due pill follows.
+        # A pill left out of the HTML because it was zero at build time is a pill
+        # the live update cannot fill in, so a card written since the last build
+        # would never show up here (that is exactly what happened to the first
+        # card a section checkpoint created).
+        for cls, word, n in (("open", "未解決", tally["open"]),
+                             ("half", "半懂", tally["half"]),
+                             ("done", "已解決", tally["resolved"])):
+            pills.append(
+                f'<span class="pill {cls}"{"" if n else " hidden"}>{word} {n}</span>'
+            )
         points = len(catalog.get("points") or [])
         # Distinct classes, not two ".quiet": the live update looks each one up
         # by name, and a shared class means it overwrites whichever comes first.
