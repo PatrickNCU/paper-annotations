@@ -81,6 +81,15 @@ python <scripts>/build_html.py <work> --embed-assets --to <file>   # one file to
 `export_cards.py` is read-only, for people who want their cards in Anki or their
 own pipeline; defaults to `notes/cards-export.txt`. No scheduling logic there.
 
+**Most of these are also a button.** While `serve.py` is running, the bottom-left
+`⚙ 工具` on the review page runs rebuild / export / package / import-marks /
+reanchor for that paper, and the same button on the shelf page runs
+update-shelf / inventory / rebuild-all (`pa/actions.py` holds the table; the page
+sends a name, never a command). So when he asks for one of these and the server
+is up, tell him which button it is instead of offering to run it — a thing he can
+do himself without asking is not work for a round of conversation. Run it here
+when the server is down, when it is part of a longer job, or when he asks you to.
+
 Default layout:
 
 ```

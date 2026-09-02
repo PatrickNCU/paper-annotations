@@ -27,17 +27,24 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import cli, katex, links, minimd, notes, page_transforms as transforms, srs, workspace
+from . import (
+    actions, cli, katex, links, minimd, notes, page_transforms as transforms,
+    srs, workspace,
+)
 
 cli.bootstrap()
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 
-# Runs before the body paints, so a reader who picked dark never sees a white
-# flash on load. file:// may refuse localStorage, hence the try/catch.
+# Both run before the body paints, so neither decision is visible as a flash:
+# a reader who picked dark never sees white, and one who closed the page's
+# explanation never sees it appear and then vanish. file:// may refuse
+# localStorage, hence the try/catch -- and then both simply show the default.
 THEME_BOOT = """<script>
 (function(){try{var t=localStorage.getItem("pa-theme");
-if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();
+if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);
+if(localStorage.getItem("pa-intro")==="off")
+document.documentElement.classList.add("intro-off");}catch(e){}})();
 </script>"""
 
 
@@ -53,6 +60,20 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 
     style = (ASSETS / "style.css").read_text(encoding="utf-8")
     script = (ASSETS / "page.js").read_text(encoding="utf-8")
+    tools_css = (ASSETS / "tools.css").read_text(encoding="utf-8")
+    tools_js = (ASSETS / "tools.js").read_text(encoding="utf-8")
+
+    # What the corner button may run. Baked in at build time so the labels and
+    # the equivalent command lines are here even when no server is: the buttons
+    # then grey out and say what they would have done (pa/actions.py).
+    home = annotated.parent
+    action_json = json.dumps({
+        "scope": actions.PAPER,
+        "actions": actions.catalog(actions.PAPER, {
+            "work": str(work_root),
+            "share": str(home / f"{home.name}-複習頁.html"),
+        }),
+    }, ensure_ascii=False).replace("</", "<\\/")
 
     source_list = [Path(p) for p in (config.get("sources") or [])]
     body_parts, toc, used = [], [], {}
@@ -157,6 +178,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <title>{html.escape(title)} — 疑問註記</title>
 {THEME_BOOT}
 <style>{style}</style>
+<style>{tools_css}</style>
 {katex.katex_assets()}
 </head>
 <body data-paper="{html.escape(paper_root.name)}">
@@ -196,14 +218,18 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 🟢 已解決 {counts.get('resolved', 0)} ·
 產生於 {date.today().isoformat()}</div>
 {warn}
-<div class="banner">
+<div class="banner" id="intro">
+<button class="introx" id="introx" title="關閉說明" aria-label="關閉說明">×</button>
 本頁是<strong>衍生檔</strong>，由論文原文與 <code>notes/cards/</code> 合併產生，請勿直接編輯。
 摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
 正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
 先自己想過再看解答。滑鼠移到左上角的 <strong>☰</strong> 會滑出目錄與疑問清單，點一下可以釘住；
 右上角有提問草稿區。
 選取正文會浮出<strong>螢光筆</strong>，畫記存在這台瀏覽器裡，要留下來請用側欄的「複製畫記」貼回對話。
+左下角的<strong>工具</strong>可以重建這一篇、匯出、打包。
 </div>
+<div id="introgone" hidden>說明關起來了，之後不會再出現。想再看一次就從左下角的工具 →
+「這一頁怎麼用」。</div>
 {''.join(body_parts)}
 </main>
 </div>
@@ -239,7 +265,9 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <button id="pjump" data-tip="跳到原文" aria-label="跳到原文">⤴</button>
 <button id="pclose" data-tip="關閉" aria-label="關閉">✕</button></div>
 <div id="panel-in"></div></aside>
+<script id="pa-actions" type="application/json">{action_json}</script>
 <script>{script}</script>
+<script>{tools_js}</script>
 </body>
 </html>
 """

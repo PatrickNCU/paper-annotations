@@ -1,0 +1,82 @@
+/* The one corner button, and what comes out of it.
+
+   Shared by the review page and the shelf: same shape, same corner, different
+   menu. Bottom LEFT, because bottom right already belongs to the theme toggle
+   and a reader should not have to work out which corner a page put things in.
+   Loaded after style.css, so it uses the same tokens and nothing else. */
+
+/* Anchored by its bottom edge, so the box grows upward and the button itself
+   stays put in the corner however tall the menu gets. */
+#patools{position:fixed;left:16px;bottom:16px;z-index:31;
+display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+#patoolsbtn{font:inherit;font-size:13px;padding:7px 12px;
+border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);
+cursor:pointer;box-shadow:0 2px 10px var(--shadow);white-space:nowrap}
+#patoolsbtn:hover{background:var(--line)}
+#patoolsbtn.busy{border-color:var(--accent);color:var(--accent)}
+
+/* Opens upward: the button sits at the bottom of the window, so a menu that
+   dropped down would be off screen. */
+#patoolsmenu{display:flex;flex-direction:column;gap:2px;padding:6px;
+min-width:min(280px,80vw);border:1px solid var(--line);border-radius:10px;
+background:var(--card);box-shadow:0 6px 24px var(--shadow)}
+#patoolsmenu[hidden]{display:none}
+.patool{font:inherit;font-size:13px;text-align:left;padding:7px 10px;border-radius:7px;
+border:1px solid transparent;background:transparent;color:var(--fg);cursor:pointer}
+.patool:hover:not(:disabled){background:var(--sidebar);border-color:var(--line)}
+.patool:disabled{color:var(--muted);cursor:not-allowed}
+.patool .phint{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+/* 這一頁怎麼用 is not one of the actions: it runs nothing, it is never greyed
+   out by a missing server, and it sits below a rule so it reads as separate. */
+.patool.pdoc{border-top:1px solid var(--line);border-radius:0 0 7px 7px;margin-top:4px}
+
+/* The output floats out of the same corner rather than living in the sidebar:
+   at 296px a build log wraps into noise, and pushing the text sideways while
+   the reader is mid-paragraph is worse than covering a corner of it. */
+#paout{position:fixed;left:16px;bottom:60px;z-index:32;
+width:min(560px,calc(100vw - 32px));max-height:min(60vh,520px);
+display:flex;flex-direction:column;
+border:1px solid var(--line);border-radius:10px;background:var(--card);
+box-shadow:0 8px 30px var(--shadow)}
+#paout[hidden]{display:none}
+.pahead{display:flex;align-items:baseline;gap:8px;padding:10px 12px;
+border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.pahead .pastat{font-weight:400;color:var(--muted)}
+.pahead .paclose{margin-left:auto;font:inherit;font-size:14px;line-height:1;
+padding:2px 7px;border:1px solid transparent;border-radius:6px;
+background:transparent;color:var(--muted);cursor:pointer}
+.pahead .paclose:hover{background:var(--sidebar);color:var(--fg)}
+#palog{margin:0;padding:10px 12px;overflow:auto;flex:1;
+font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+white-space:pre-wrap;word-break:break-word;color:var(--fg)}
+#palog .pacmd{color:var(--muted)}
+#palog .pabad{color:var(--open)}
+.paverdict{padding:8px 12px;border-top:1px solid var(--line);font-size:13px}
+.paverdict.good{color:var(--done)}
+.paverdict.bad{color:var(--open)}
+.pabar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.pabar[hidden]{display:none}
+.pabar button{font:inherit;font-size:12.5px;padding:6px 11px;border:1px solid var(--line);
+border-radius:7px;background:var(--card);color:var(--fg);cursor:pointer}
+.pabar button:hover{background:var(--sidebar)}
+.pabar button.go{border-color:var(--accent);color:var(--accent)}
+#papaste{min-height:120px;margin:10px 12px;width:calc(100% - 24px);
+font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+padding:8px;border:1px solid var(--line);border-radius:7px;
+background:var(--bg);color:var(--fg);resize:vertical}
+#papaste[hidden]{display:none}
+
+/* The page's own explanation. Shown once; the close button remembers. Hidden
+   by a class on <html> set before the body paints, so it never flashes. */
+#intro{position:relative;padding-right:42px}
+#intro .introx{position:absolute;top:6px;right:8px;font:inherit;font-size:17px;line-height:1;
+padding:2px 7px;border:1px solid transparent;border-radius:6px;
+background:transparent;color:var(--muted);cursor:pointer}
+#intro .introx:hover{background:var(--sidebar);color:var(--fg)}
+html.intro-off #intro{display:none}
+#introgone{font-size:13px;color:var(--muted);margin-bottom:24px}
+#introgone[hidden]{display:none}
+
+@media(max-width:900px){
+#patools{left:10px;bottom:10px}
+#paout{left:10px;bottom:54px;width:calc(100vw - 20px)}}

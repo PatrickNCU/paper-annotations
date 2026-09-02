@@ -21,7 +21,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import cli, library
+from . import actions, cli, library
 from .page import ASSETS, THEME_BOOT
 
 cli.bootstrap()
@@ -628,6 +628,16 @@ def render(registry: Path) -> str:
     vocab_json = json.dumps(
         {"names": vocab, "colors": colors}, ensure_ascii=False
     ).replace("</", "<\\/")
+    # The shelf's own three actions. Only the papers that are actually there
+    # go into 全部重建: a registry entry whose folder moved has nothing to
+    # rebuild, and its card already says so.
+    action_json = json.dumps({
+        "scope": actions.SHELF,
+        "actions": actions.catalog(actions.SHELF, {
+            "home": str(registry.parent),
+            "works": [str(p["work"]) for p in papers if p["alive"]],
+        }),
+    }, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -636,6 +646,7 @@ def render(registry: Path) -> str:
 <title>書房 — {alive} 篇論文</title>
 {THEME_BOOT}
 <style>{(ASSETS / "style.css").read_text(encoding="utf-8")}</style>
+<style>{(ASSETS / "tools.css").read_text(encoding="utf-8")}</style>
 <style>{CSS}</style>
 </head>
 <body>
@@ -662,12 +673,15 @@ def render(registry: Path) -> str:
 <div class="note">
 論文連結只有在 <code>serve.py --library</code> 跑著時才打得開——每篇論文掛在自己的
 路徑底下，各自只開放自己的資料夾。<br>
-這一頁由 <code>build_library.py</code> 產生，改 <code>papers.yml</code> 後重跑即可。
+這一頁由 <code>build_library.py</code> 產生，改 <code>papers.yml</code> 後按左下角的
+<strong>工具 → 更新書房頁</strong>（或自己重跑一次）就會跟上。
 </div>
 </main>
 <button id="theme">🌗 跟隨系統</button>
 <script id="pa-topics" type="application/json">{vocab_json}</script>
+<script id="pa-actions" type="application/json">{action_json}</script>
 <script>{JS}</script>
+<script>{(ASSETS / "tools.js").read_text(encoding="utf-8")}</script>
 </body>
 </html>
 """

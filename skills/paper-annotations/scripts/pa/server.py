@@ -47,7 +47,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from datetime import date
 
-from . import cli, library, marks as marklib, notes, srs, workspace
+from . import actions, cli, library, marks as marklib, notes, srs, workspace
 
 cli.bootstrap()
 
@@ -55,6 +55,7 @@ cli.bootstrap()
 # invoke -- pa/ is an implementation detail nothing outside may point at.
 SCRIPTS = Path(__file__).resolve().parent.parent
 MAX_BODY = 4 << 20  # a paper's worth of highlights is kilobytes; this is slack
+MAX_PASTE = 400_000  # a whole paper's copied highlights, with room to spare
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -67,6 +68,10 @@ class Handler(SimpleHTTPRequestHandler):
     shelf = None  # the one library.html file, served by name and never by folder
     registry = None  # papers.yml, only in --library mode
     lock = threading.Lock()
+    # (action, slug) pairs that have run since this server started. Only
+    # consulted for actions declaring `writes`: 套用 is offered after its dry
+    # run and not before, because seeing the difference first is the point.
+    ran = set()
 
     # ---- routing ---------------------------------------------------------
 
@@ -246,7 +251,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
-        if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/card", "/_pa/topic"):
+        if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/card",
+                        "/_pa/topic", "/_pa/run"):
             self._json(404, {"error": "unknown endpoint"})
             return
         if not self._same_origin():
@@ -266,6 +272,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/_pa/topic":
             self._topic()
+            return
+        if path == "/_pa/run":
+            self._run()
             return
         payload = self._body()
         if not isinstance(payload, dict) or not isinstance(payload.get("marks"), list):
@@ -540,6 +549,159 @@ class Handler(SimpleHTTPRequestHandler):
             rebuilt, log = self._rebuild_shelf()
         self._json(200, {"ok": True, "topic": topic, "note": why,
                          "rebuilt": rebuilt, "log": log})
+
+    # ---- the page's own buttons ------------------------------------------
+
+    def _ctx(self, paper):
+        """Every path an action is built from, resolved here.
+
+        Nothing in this dictionary came out of a request: the paper was mounted
+        at startup and the registry was found by walking up from the working
+        directory. That is what lets pa/actions.py hand a command line straight
+        to a subprocess without sanitising anything.
+        """
+        ctx = {}
+        if paper is not None:
+            home = paper["annotated"].parent
+            ctx["work"] = str(paper["work"])
+            ctx["share"] = str(home / f"{home.name}-複習頁.html")
+        if self.registry is not None:
+            ctx["home"] = str(self.registry.parent)
+            ctx["works"] = [self.papers[s]["work"] for s in sorted(self.papers)]
+        return ctx
+
+    def _line(self, obj):
+        """One line of the streamed reply, flushed so the page sees it now.
+
+        The reader can close the tab in the middle of a rebuild. That must not
+        kill the build -- a half-written page is worse than a slow one -- so a
+        broken pipe only stops the writing; the subprocess is still drained to
+        the end.
+        """
+        if getattr(self, "_gone", False):
+            return
+        try:
+            self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            self._gone = True
+
+    def _run(self):
+        """Run one of the fixed actions in pa/actions.py and stream its output.
+
+        The request carries an action NAME and nothing else that matters; the
+        command line is built from this server's own paths. Streamed rather
+        than answered at the end because a full rebuild takes seconds, and a
+        button that shows nothing for five seconds is a button people press
+        twice. No Content-Length: the body ends when the connection closes,
+        which is what this handler's HTTP/1.0 does anyway.
+        """
+        payload = self._body()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "bad payload"})
+            return
+        name = str(payload.get("action") or "")
+        action = actions.BY_NAME.get(name)
+        if action is None:
+            self._json(400, {"error": f"沒有這個動作：{name}"})
+            return
+
+        paper = None
+        if action["scope"] == actions.PAPER:
+            paper = self._paper(payload.get("paper"))
+            if paper is None:
+                self._json(404, {"error": f"沒有這篇論文：{payload.get('paper')}"})
+                return
+        elif self.registry is None:
+            self._json(400, {
+                "error": "這個 server 是用單篇模式起的，沒有登記簿，"
+                         "整個書房的動作要用 serve.py --library"
+            })
+            return
+        slug = paper["slug"] if paper else ""
+
+        need = action.get("writes")
+        if need and (need, slug) not in self.ran:
+            self._json(400, {
+                "error": f"請先跑一次「{actions.BY_NAME[need]['label']}」，看過差異再套用"
+            })
+            return
+
+        text = ""
+        if action.get("stdin"):
+            text = str(payload.get("text") or "")
+            if not text.strip():
+                self._json(400, {"error": "沒有貼上任何內容"})
+                return
+            if len(text) > MAX_PASTE:
+                self._json(400, {"error": "貼上的內容太長，請分兩次，或改用 import_marks.py --from"})
+                return
+
+        # Refused rather than queued: two rebuilds of the same paper back to
+        # back is never what anyone meant, and a button that silently waits
+        # looks exactly like a button that did nothing.
+        if not self.lock.acquire(timeout=0.2):
+            self._json(409, {"error": "有別的動作正在跑，等它跑完再按"})
+            return
+        try:
+            self._stream(name, action, self._ctx(paper), text, slug)
+        finally:
+            self.lock.release()
+
+    def _stream(self, name, action, ctx, text, slug):
+        plan = actions.steps(name, ctx)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        # without this some browsers hold the first kilobyte back to sniff it,
+        # which is the whole stream for a short run
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+
+        # UTF-8 both ways for the child. cli.bootstrap() already fixes its
+        # stdout, but pasted highlights go in through stdin, which nothing
+        # reconfigures -- on a zh-TW Windows that decodes as cp950 and every
+        # Chinese quote arrives as mojibake.
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        self._line({"start": name, "steps": len(plan)})
+        ok = True
+        for index, step in enumerate(plan):
+            self._line({"step": index + 1, "of": len(plan),
+                        "cmd": actions.command_line(step)})
+            argv = [sys.executable, str(SCRIPTS / step[0])] + [str(a) for a in step[1:]]
+            try:
+                proc = subprocess.Popen(
+                    argv,
+                    stdin=subprocess.PIPE if text else subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, encoding="utf-8", errors="replace", env=env,
+                )
+            except OSError as why:  # python missing, script gone
+                self._line({"line": f"跑不起來：{why}"})
+                ok = False
+                break
+            if text:
+                try:
+                    proc.stdin.write(text)
+                except OSError:
+                    pass
+                finally:
+                    proc.stdin.close()
+            for raw in proc.stdout:
+                line = raw.rstrip("\n")
+                sys.stderr.write(f"  {line}\n")
+                self._line({"line": line})
+            if proc.wait() != 0:
+                ok = False
+                self._line({"line": f"（{step[0]} 沒有跑完，回傳 {proc.returncode}）"})
+                break
+        if ok:
+            self.ran.add((name, slug))
+        self._line({
+            "done": True, "ok": ok,
+            "out": actions.produces(name, ctx) if ok else "",
+            "reload": bool(action.get("reload")) and ok,
+        })
 
     def _rebuild_shelf(self):
         run = subprocess.run(
