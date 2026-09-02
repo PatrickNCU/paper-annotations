@@ -1,0 +1,633 @@
+<meta charset="utf-8">
+<title>筆記連結圖</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#22201d;--muted:#6d685f;--line:#e4dfd5;--card:#f5f2ea;--plate:#fff;--sidebar:#f2efe8;
+--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;--shadow:rgba(0,0,0,.06);
+--sec-answer:#f8f7f3;--algo:#eef1f6;
+--e-answers:#2f6f4a;--e-contradicts:#b3261e;--e-same:#3b5b9a;--e-refines:#8a4f24;
+--cell1:#f2e6da;--cell2:#e2c6a6;--cell3:#cfa374;--cellself:#efece4;
+--proto:#fff7e0;--proto-ink:#6b4c00}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;--plate:#23252b;--sidebar:#191b20;
+--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;--shadow:rgba(0,0,0,.4);
+--sec-answer:#1b1d22;--algo:#1a1e26;
+--e-answers:#6fc796;--e-contradicts:#f0776a;--e-same:#8fb0ee;--e-refines:#e0a76a;
+--cell1:#2c2620;--cell2:#4a3a28;--cell3:#6d5233;--cellself:#212329;
+--proto:#2a2410;--proto-ink:#e8d9a0}}
+:root[data-theme="dark"]{
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;--plate:#23252b;--sidebar:#191b20;
+--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;--shadow:rgba(0,0,0,.4);
+--sec-answer:#1b1d22;--algo:#1a1e26;
+--e-answers:#6fc796;--e-contradicts:#f0776a;--e-same:#8fb0ee;--e-refines:#e0a76a;
+--cell1:#2c2620;--cell2:#4a3a28;--cell3:#6d5233;--cellself:#212329;
+--proto:#2a2410;--proto-ink:#e8d9a0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 -apple-system,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+header{padding:14px 22px 12px;border-bottom:1px solid var(--line);background:var(--proto);color:var(--proto-ink)}
+header h1{margin:0 0 4px;font-size:18px}
+header p{margin:0 0 4px;font-size:13px;line-height:1.62;max-width:80em}
+.wrap{display:grid;grid-template-columns:236px minmax(0,1fr);gap:0;align-items:start}
+@media(max-width:940px){.wrap{grid-template-columns:1fr}.side{border-right:none;border-bottom:1px solid var(--line)}}
+.side{padding:14px 16px;border-right:1px solid var(--line);background:var(--sidebar);font-size:13px;min-height:70vh}
+.side h3{margin:14px 0 6px;font-size:11.5px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.side h3:first-child{margin-top:0}
+.side label{display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer}
+.sw{display:inline-block;width:20px;height:0;border-top:3px solid;border-radius:2px}
+.side select,.side input[type=search]{width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;background:var(--plate);color:var(--fg)}
+.gap{margin:0;padding:0;list-style:none;font-size:12.5px}
+.gap li{margin:5px 0;line-height:1.5}
+.gap button,.linkish{all:unset;cursor:pointer;color:var(--accent);text-decoration:underline dotted;font-size:12.5px}
+.note{margin-top:14px;padding:9px 11px;border-radius:8px;background:var(--plate);font-size:12px;color:var(--muted);line-height:1.6}
+main{padding:16px 24px 60px;min-width:0}
+.crumb{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:12px;color:var(--muted)}
+.crumb button{all:unset;cursor:pointer;color:var(--accent)}
+.crumb b{color:var(--fg);font-weight:600}
+h2.vt{margin:0 0 4px;font-size:17px}
+p.vs{margin:0 0 14px;font-size:13px;color:var(--muted);max-width:64em}
+/* ---- matrix ---- */
+.mx{overflow:auto;padding-bottom:6px}
+.grid{display:grid;width:max-content}
+.mh{position:relative;height:112px}
+.mh span{position:absolute;bottom:4px;left:26px;transform-origin:0 50%;transform:rotate(-56deg);white-space:nowrap;font-size:11.5px;color:var(--muted)}
+.rl{display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-right:9px;height:38px;font-size:12.5px;white-space:nowrap}
+.rl i{font-style:normal;font-size:11px;color:var(--muted)}
+.cell{position:relative;height:38px;border:1px solid var(--line);border-radius:5px;margin:1px;display:grid;place-items:center;
+font-size:13px;font-variant-numeric:tabular-nums;background:transparent;color:var(--fg);cursor:default}
+/* 一個牴觸比四個「改進了」值錢，但用數量排它永遠沉在底下，所以另外標一點。 */
+.cell .cm{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--open)}
+/* 原始條數不藏起來，只是降級成角落的小字：讀的人要能看出 4 條被讀成廣度 2。 */
+.cell .cx{position:absolute;bottom:1px;right:4px;font-size:9.5px;color:var(--muted);text-decoration:none;opacity:.85}
+.cell.c1{background:var(--cell1)}.cell.c2{background:var(--cell2)}.cell.c3{background:var(--cell3)}
+.cell.c1,.cell.c2,.cell.c3{cursor:pointer;font-weight:600}
+.cell.self{background:var(--cellself);color:var(--muted);font-size:11px}
+.cell.gapc{border-style:dashed;border-color:var(--accent);color:var(--accent);cursor:pointer}
+.cell:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.legend{margin:12px 0 0;font-size:12.5px;color:var(--muted);line-height:1.8}
+.legend .k{display:inline-grid;place-items:center;width:26px;height:20px;border:1px solid var(--line);border-radius:4px;margin-right:4px;vertical-align:-5px;font-size:11px}
+/* ---- pair ---- */
+.lk{margin:8px 0;padding:9px 12px;border-radius:8px;background:var(--card);border-left:3px solid var(--line)}
+.lk .row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.lk b{font-weight:600}
+.lk .why{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
+.quote{margin:8px 0 14px;padding:9px 13px;border-left:3px solid var(--muted);background:var(--sec-answer);font-size:13.5px;color:var(--muted)}
+.sug{margin:6px 0;padding:8px 12px;border-radius:8px;border:1px dashed var(--line);font-size:13px}
+.meas{margin:8px 0;padding:9px 12px;border-radius:8px;background:var(--plate);border:1px solid var(--line);
+font-size:13px;font-variant-numeric:tabular-nums}
+.meas .warnline{display:block;margin-top:4px;font-size:12.5px;color:var(--half);line-height:1.6}
+/* ---- ego ---- */
+.egowrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:6px 0}
+svg{display:block}
+.n rect{fill:var(--plate);stroke:var(--line);stroke-width:1.4;rx:8}
+.n.focus rect{stroke:var(--accent);stroke-width:2.4;fill:var(--card)}
+.n .id{font-size:11px;fill:var(--muted)}
+.n .tx{font-size:12.5px;fill:var(--fg)}
+.n{cursor:pointer}
+.n:hover rect{stroke:var(--accent)}
+.ed{fill:none;stroke-width:1.8}
+.ed.h2{stroke-dasharray:4 4;opacity:.55}
+.el{font-size:10.5px;paint-order:stroke;stroke:var(--card);stroke-width:3px}
+.col{font-size:11px;fill:var(--muted);letter-spacing:.06em}
+.chips{margin:10px 0 0;font-size:12.5px;color:var(--muted)}
+.chip{display:inline-block;padding:1px 7px;border-radius:5px;background:var(--card);margin-right:5px}
+.dot{font-size:10px}.dot.open{color:var(--open)}.dot.half{color:var(--half)}.dot.resolved{color:var(--done)}
+.btn{padding:6px 11px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;background:var(--plate);color:var(--fg);cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.on{border-color:var(--accent);color:var(--accent);background:var(--card)}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+.old{margin-top:26px;padding-top:16px;border-top:1px dashed var(--line)}
+.oldbox{overflow:auto;max-height:340px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<header>
+  <h1>筆記連結圖 · 試玩（第二版：10 篇論文、48 則筆記）</h1>
+  <p>上一版每篇論文一欄、筆記垂直排——三篇好看，十篇就爆了（可以到最下面按「看看舊排法」）。改成三層，每一層的可讀性都不隨筆記總數變動：<b>書房層</b>用矩陣看哪兩篇之間有線、哪兩篇有引用卻還沒接；<b>兩篇之間</b>看那幾條線各是什麼；<b>一則筆記</b>只畫它一跳之內的鄰居。</p>
+  <p>假資料。實作時第三層直接嵌在複習頁的卡片旁邊（你每天會看到的就是它），前兩層放書房頁。</p>
+</header>
+
+<div class="wrap">
+  <aside class="side">
+    <h3>連線種類</h3>
+    <label><input type="checkbox" data-t="answers" checked><span class="sw" style="border-color:var(--e-answers)"></span>回答了</label>
+    <label><input type="checkbox" data-t="contradicts" checked><span class="sw" style="border-color:var(--e-contradicts)"></span>牴觸</label>
+    <label><input type="checkbox" data-t="same-as" checked><span class="sw" style="border-color:var(--e-same)"></span>同一件事</label>
+    <label><input type="checkbox" data-t="refines" checked><span class="sw" style="border-color:var(--e-refines)"></span>改進了</label>
+
+    <h3>只看一個分類</h3>
+    <select id="topic"></select>
+
+    <h3>跳到一則筆記</h3>
+    <input type="search" id="q" placeholder="問題、要點、標籤…" autocomplete="off">
+    <div id="qhits" style="margin-top:6px"></div>
+
+    <h3>有引用卻還沒接線 <span id="gapn"></span></h3>
+    <ul class="gap" id="gaps"></ul>
+
+    <h3>還沒接線的筆記 <span id="orphn"></span></h3>
+    <ul class="gap" id="orph"></ul>
+
+    <div class="note" id="scale"></div>
+  </aside>
+
+  <main id="main"></main>
+</div>
+
+<script>
+// ---------------------------------------------------------------- mock data
+var P=[
+ ['ntuplace3','NTUplace3',2008,['布局','多層次']],
+ ['kraftwerk2','Kraftwerk2',2008,['布局','二次法']],
+ ['simpl','SimPL',2010,['布局','二次法','合法化']],
+ ['eplace','ePlace',2014,['布局','非線性']],
+ ['eplace-ms','ePlace-MS',2015,['布局','混合尺寸','非線性']],
+ ['polar','POLAR',2015,['布局','合法化']],
+ ['replace','RePlAce',2019,['布局','混合尺寸','可繞度']],
+ ['dreamplace','DREAMPlace',2019,['布局','GPU']],
+ ['abcdplace','ABCDPlace',2020,['布局','GPU','合法化']],
+ ['xplace','Xplace',2022,['布局','GPU']]
+];
+// slug, id, kind, status, section, text, tags
+var N=[
+ ['ntuplace3','Q0001','Q','half','III','為什麼要多層次分割？直接對全部物件做不行嗎','multilevel'],
+ ['ntuplace3','P0001','P','','II','用 log-sum-exp 近似 HPWL','wirelength'],
+ ['ntuplace3','P0002','P','','III','多層次框架：聚合、放置、細化','multilevel'],
+ ['ntuplace3','P0003','P','','IV','bell-shaped 密度平滑函數','density'],
+ ['ntuplace3','P0004','P','','V','當時的學術基準，後面幾篇都拿它比','result'],
+ ['kraftwerk2','Q0001','Q','half','II','力導向和電荷模型是不是同一件事','force,density'],
+ ['kraftwerk2','P0001','P','','II','力導向：把重疊當成額外的力','force'],
+ ['kraftwerk2','P0002','P','','III','用 Poisson 方程算 demand-supply 的移動力','density,poisson'],
+ ['kraftwerk2','P0003','P','','IV','每次迭代解一次線性系統','quadratic'],
+ ['simpl','Q0001','Q','open','III','look-ahead legalization 為什麼不會破壞線長','legalization'],
+ ['simpl','P0001','P','','II','lower／upper bound 兩條軌跡自我收斂','quadratic'],
+ ['simpl','P0002','P','','III','用 look-ahead legalization 產生 upper bound','legalization'],
+ ['simpl','P0003','P','','IV','比 mPL6 快 6 倍','result'],
+ ['eplace','Q0001','Q','resolved','IV','為什麼不直接算 Lipschitz 常數','step-size'],
+ ['eplace','P0001','P','','III','電荷模型的原型，只處理 standard cell','density'],
+ ['eplace','P0002','P','','IV','Nesterov 加速梯度取代共軛梯度','optimizer'],
+ ['eplace','P0003','P','','IV','用前兩次迭代預測 Lipschitz 常數，再 backtracking 驗證','step-size'],
+ ['eplace-ms','Q0001','Q','resolved','IV-A','(7) 第三行的零均值條件為什麼要成立','density,poisson'],
+ ['eplace-ms','Q0002','Q','resolved','I','「extended to mixed-size」是不是代表不特殊處理就會出問題','mixed-size'],
+ ['eplace-ms','Q0003','Q','resolved','VI','沒有 preconditioner 時 macro 為什麼會震盪','preconditioner,mixed-size'],
+ ['eplace-ms','P0001','P','','I','macro 與 cell 用同一套密度模型與優化器','mixed-size'],
+ ['eplace-ms','P0002','P','','IV-A','eDensity 有閉合形式，用 FFT 解 Poisson','fft,density'],
+ ['eplace-ms','P0003','P','','III','一個全域 penalty factor λ 就夠了','density'],
+ ['eplace-ms','P0004','P','','VI-B','Jacobi preconditioner 只取 Hessian 對角','preconditioner'],
+ ['eplace-ms','P0005','P','','IX','關掉 preconditioner，16 個 MMS 有 9 個不收斂','preconditioner,result'],
+ ['polar','P0001','P','','II','rough legalization 取代 look-ahead','legalization'],
+ ['polar','P0002','P','','III','把擺放區切塊，各塊自己的密度懲罰','density'],
+ ['polar','P0003','P','','IV','多執行緒加速','result'],
+ ['replace','Q0001','Q','resolved','I','RePlAce 相對 ePlace-MS 改了什麼','兩篇對照'],
+ ['replace','Q0002','Q','half','III','preconditioner 和 local density 是不是在解同一個問題','preconditioner,local-density'],
+ ['replace','P0001','P','','III','局部密度疊在全域密度上，每個 bin 一個 ν','local-density'],
+ ['replace','P0002','P','','III','局部懲罰隨溢出量指數放大','local-density'],
+ ['replace','P0003','P','','IV','步長上限依 trial placement 的 HPWL 曲線調','step-size'],
+ ['replace','P0004','P','','V','一個引擎橫掃五個 benchmark suite','result'],
+ ['dreamplace','Q0001','Q','open','II','為什麼 placement 可以寫成訓練神經網路的形式','formulation'],
+ ['dreamplace','P0001','P','','III','eDensity 與 Nesterov 照搬，算子換成 GPU kernel','fft,gpu'],
+ ['dreamplace','P0002','P','','IV','40 倍加速，品質不變','gpu,result'],
+ ['dreamplace','P0003','P','','V','沒實作 local density，品質仍與 RePlAce 持平','local-density,result'],
+ ['dreamplace','P0004','P','','II','把 placement 寫成 PyTorch 的計算圖','formulation,gpu'],
+ ['abcdplace','P0001','P','','II','GPU 上的 legalization 與 detailed placement','gpu,legalization'],
+ ['abcdplace','P0002','P','','III','平行化 independent set matching','gpu'],
+ ['abcdplace','P0003','P','','IV','比單執行緒快 10 倍以上','gpu,result'],
+ ['xplace','Q0001','Q','open','III','DCT 和 FFT 在這裡差在哪','fft'],
+ ['xplace','P0001','P','','II','GPU 上重寫整條 flow','gpu'],
+ ['xplace','P0002','P','','III','用 DCT 取代 FFT 的實作細節','fft,gpu'],
+ ['xplace','P0003','P','','IV','比 DREAMPlace 再快 3 倍','gpu,result'],
+ ['polar','Q0001','Q','open','II','rough legalization 跟 look-ahead 差在哪一步','legalization'],
+ ['simpl','P0004','P','','II','只用二次目標，不做非線性','quadratic']
+];
+var L=[
+ ['eplace-ms#P0005','answers','eplace-ms#Q0003','實驗數字直接回答「會怎樣」'],
+ ['eplace-ms#P0004','answers','eplace-ms#Q0003','力被面積放大，對角 Hessian 除回去'],
+ ['replace#P0001','refines','eplace-ms#P0003','一個 λ 變成每個 bin 一個'],
+ ['replace#P0002','refines','eplace-ms#P0003','懲罰不再是線性的'],
+ ['replace#Q0002','same-as','eplace-ms#Q0003','兩張卡都在問 macro 的力為什麼失衡'],
+ ['replace#Q0001','refines','eplace-ms#P0001','引擎沒換，換的是外面那層'],
+ ['replace#P0003','refines','eplace#P0003','步長從固定範圍變成看曲線決定'],
+ ['dreamplace#P0001','same-as','eplace-ms#P0002','同一個 FFT 解法，搬到 GPU'],
+ ['dreamplace#P0003','contradicts','replace#P0001','RePlAce 說 local density 是品質來源，這裡沒做卻持平'],
+ ['dreamplace#P0003','contradicts','replace#P0002','同上'],
+ ['dreamplace#P0004','answers','dreamplace#Q0001','算子可微，就能寫成計算圖'],
+ ['eplace-ms#P0001','refines','eplace#P0001','從只有 cell 擴到 macro'],
+ ['eplace#P0003','answers','eplace#Q0001','算不出來就預測，再用 backtracking 驗'],
+ ['eplace#P0001','answers','kraftwerk2#Q0001','電荷模型就是把力寫成位能的梯度'],
+ ['kraftwerk2#P0002','same-as','eplace#P0001','都在解 Poisson，只是名字不同'],
+ ['ntuplace3#P0003','same-as','eplace#P0001','都在把密度抹平成可微的東西'],
+ ['ntuplace3#P0002','answers','ntuplace3#Q0001','聚合之後問題規模才降得下來'],
+ ['polar#P0001','refines','simpl#P0002','rough legalization 取代 look-ahead'],
+ ['polar#P0002','contradicts','eplace-ms#P0003','分區的懲罰 vs 單一全域 λ'],
+ ['abcdplace#P0001','refines','polar#P0001','同一件事搬上 GPU'],
+ ['xplace#P0001','refines','dreamplace#P0001','整條 flow 重寫，不只算子'],
+ ['xplace#P0002','refines','eplace-ms#P0002','FFT 換成 DCT'],
+ ['xplace#P0003','refines','dreamplace#P0002','再快 3 倍'],
+ ['abcdplace#P0003','same-as','dreamplace#P0002','都在講 GPU 帶來的倍數'],
+ ['polar#P0001','answers','polar#Q0001','差在不要求完全合法，只要求夠散']
+];
+// from, to, section, quote
+var C=[
+ ['replace','eplace-ms','I','we build upon the electrostatics-based formulation of [29]'],
+ ['replace','ntuplace3','V','compared against NTUplace3 on the ISPD-2005 suite'],
+ ['dreamplace','eplace-ms','III','we adopt the eDensity formulation'],
+ ['dreamplace','replace','V','matching RePlAce quality at 40x speedup'],
+ ['eplace-ms','eplace','I','extends our previous work [28] to mixed-size'],
+ ['eplace-ms','ntuplace3','IX','outperforms NTUplace3 by 8-22% HPWL'],
+ ['eplace','kraftwerk2','II','similar in spirit to the force-directed formulation'],
+ ['xplace','dreamplace','I','building on the GPU-accelerated DREAMPlace'],
+ ['xplace','replace','IV','quality is compared with RePlAce'],
+ ['abcdplace','dreamplace','II','implemented within the DREAMPlace framework'],
+ ['abcdplace','simpl','III','the independent set matching of [12]'],
+ ['polar','simpl','II','replaces the look-ahead legalization of SimPL'],
+ ['simpl','ntuplace3','IV','compared with NTUplace3'],
+ ['kraftwerk2','ntuplace3','V','both evaluated on the same suite']
+];
+var TYPE={answers:['回答了','答案在'],contradicts:['牴觸','牴觸'],'same-as':['同一件事','同一件事'],refines:['改進了','被…改進']};
+var ECOL={answers:'var(--e-answers)',contradicts:'var(--e-contradicts)','same-as':'var(--e-same)',refines:'var(--e-refines)'};
+var STAT={open:['未解決','open'],half:['半懂','half'],resolved:['已解決','resolved']};
+
+// ---------------------------------------------------------------- derive
+var papers={},notes={},order=[];
+P.forEach(function(p){ papers[p[0]]={slug:p[0],name:p[1],year:p[2],topics:p[3],notes:[]}; order.push(p[0]); });
+N.forEach(function(r){
+  var id=r[0]+'#'+r[1];
+  notes[id]={id:id,paper:r[0],num:r[1],kind:r[2],status:r[3],sec:r[4],text:r[5],tags:r[6].split(',')};
+  papers[r[0]].notes.push(id);
+});
+var links=L.map(function(r){ return {from:r[0],type:r[1],to:r[2],why:r[3]}; });
+var cites=C.map(function(r){ return {from:r[0],to:r[1],sec:r[2],quote:r[3]}; });
+var TOPICS=[];
+P.forEach(function(p){ p[3].forEach(function(t){ if(TOPICS.indexOf(t)<0) TOPICS.push(t); }); });
+
+var on={answers:true,contradicts:true,'same-as':true,refines:true};
+var view='shelf', focus=null, pair=null, hop2=false, topic='', showOld=false;
+
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function cut(s,n){ s=String(s); return s.length>n?s.slice(0,n-1)+'…':s; }
+function live(){ return links.filter(function(e){ return on[e.type]; }); }
+function shown(){ return topic?order.filter(function(s){ return papers[s].topics.indexOf(topic)>=0; }):order.slice(); }
+function pairKey(a,b){ return [a,b].sort().join('|'); }
+function citeBetween(a,b){ return cites.filter(function(c){ return (c.from===a&&c.to===b)||(c.from===b&&c.to===a); }); }
+function linksBetween(a,b){
+  return live().filter(function(e){
+    var x=notes[e.from].paper, y=notes[e.to].paper;
+    return (x===a&&y===b)||(x===b&&y===a);
+  });
+}
+// A格子裡的數字是「廣度」，不是條數：兩邊各有幾則不同的筆記真的參與，取比較窄的那一邊。
+// 四條線全部掛在同一則筆記上，是一個關係被寫成四條，不是四個關係；用條數會把它讀成
+// 「這兩篇關係很深」。廣度不會被單一節點的扇出灌水，也不會被某一節卡片特別多灌水。
+function stats(a,b){
+  var es=live().filter(function(e){ return notes[e.from].paper===a&&notes[e.to].paper===b; });
+  var src={},dst={},fan={},ss={},sd={};
+  es.forEach(function(e){
+    src[e.from]=1; dst[e.to]=1;
+    fan[e.from]=(fan[e.from]||0)+1;
+    ss[notes[e.from].sec]=1; sd[notes[e.to].sec]=1;
+  });
+  var S=Object.keys(src), D=Object.keys(dst);
+  var topId='', top=0;
+  S.forEach(function(i){ if(fan[i]>top){ top=fan[i]; topId=i; } });
+  return {links:es.length,edges:es,src:S,dst:D,
+          breadth:Math.min(S.length,D.length),
+          topFan:top,topId:topId,
+          secS:Object.keys(ss),secD:Object.keys(sd),
+          contra:es.some(function(e){ return e.type==='contradicts'; })};
+}
+function around(id){
+  var out=live().filter(function(e){ return e.from===id; });
+  var inn=live().filter(function(e){ return e.to===id; });
+  return {out:out,inn:inn,n:out.length+inn.length};
+}
+function orphans(){
+  var seen={};
+  live().forEach(function(e){ seen[e.from]=1; seen[e.to]=1; });
+  return Object.keys(notes).filter(function(id){ return !seen[id]; });
+}
+function gapPairs(){
+  var out=[];
+  cites.forEach(function(c){
+    if(!linksBetween(c.from,c.to).length) out.push(c);
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------- views
+function crumb(){
+  var h='<div class="crumb"><button data-go="shelf">書房層</button>';
+  if(view==='pair'||view==='note'){
+    h+=' › ';
+    if(view==='pair') h+='<b>'+esc(papers[pair[0]].name)+' ↔ '+esc(papers[pair[1]].name)+'</b>';
+    else h+='<button data-go="pairback">兩篇之間</button> › <b>'+esc(focus)+'</b>';
+  }
+  return h+'</div>';
+}
+function matrix(){
+  var ps=shown();
+  var h='<h2 class="vt">書房層：哪兩篇之間有線</h2>'+
+    '<p class="vs">一列是「從」，一欄是「到」。格子裡的大字是<b>廣度</b>：兩邊各有幾則<b>不同的</b>筆記真的參與，取比較窄的那一邊；'+
+    '右下角的小字才是原始條數。四條線全掛在同一則筆記上是一個關係寫成四條，廣度只算 1。'+
+    '紅點代表這格裡有牴觸。虛線框代表<b>兩篇有引用關係，但你一條線都還沒接</b>。點格子看細節。'+
+    (topic?'（目前只看分類「'+esc(topic)+'」）':'')+'</p>';
+  h+='<div class="mx"><div class="grid" style="grid-template-columns:132px repeat('+ps.length+',40px)">';
+  h+='<div></div>';
+  ps.forEach(function(s){ h+='<div class="mh"><span>'+esc(papers[s].name)+'</span></div>'; });
+  ps.forEach(function(a){
+    h+='<div class="rl">'+esc(papers[a].name)+' <i>'+papers[a].year+'</i></div>';
+    ps.forEach(function(b){
+      if(a===b){
+        var self=live().filter(function(e){ return notes[e.from].paper===a&&notes[e.to].paper===a; }).length;
+        h+='<div class="cell self" title="'+esc(papers[a].name)+'：'+papers[a].notes.length+' 則筆記，內部 '+self+' 條線">'+papers[a].notes.length+'</div>';
+        return;
+      }
+      var st=stats(a,b);
+      if(st.links){
+        var v=st.breadth;
+        var c=v>=3?'c3':(v===2?'c2':'c1');
+        var tip=papers[a].name+' → '+papers[b].name+'：廣度 '+v+
+          '（'+st.links+' 條線；'+papers[a].name+' 這邊 '+st.src.length+' 則筆記、'+
+          papers[b].name+' 這邊 '+st.dst.length+' 則）'+
+          (st.contra?'　含牴觸':'');
+        h+='<div class="cell '+c+'" tabindex="0" role="button" data-a="'+a+'" data-b="'+b+'" '+
+           'title="'+esc(tip)+'">'+v+(st.contra?'<i class="cm"></i>':'')+
+           (st.links>v?'<u class="cx">'+st.links+'</u>':'')+'</div>';
+      } else if(citeBetween(a,b).length&&!linksBetween(a,b).length){
+        h+='<div class="cell gapc" tabindex="0" role="button" data-a="'+a+'" data-b="'+b+'" '+
+           'title="有引用關係，還沒接線">·</div>';
+      } else h+='<div class="cell"></div>';
+    });
+  });
+  h+='</div></div>';
+  h+='<div class="legend"><span class="k c1">1</span><span class="k c2">2</span><span class="k c3">3+</span> 廣度（小字＝條數） &nbsp;·&nbsp; '+
+     '<span class="k gapc" style="border-style:dashed;border-color:var(--accent);color:var(--accent)">·</span> 有引用、還沒接線 &nbsp;·&nbsp; '+
+     '<span class="k self">n</span> 對角線是這篇的筆記數</div>';
+  h+='<div class="row-actions"><button class="btn'+(showOld?' on':'')+'" data-act="old">'+(showOld?'收起舊排法':'看看舊排法（10 篇會變怎樣）')+'</button></div>';
+  if(showOld) h+=oldLayout();
+  return h;
+}
+function oldLayout(){
+  // the v1 layout, drawn at real scale so the failure is visible rather than argued
+  var W=260,H=34,GAP=42,X=170,STEP=300;
+  var ps=order, pos={}, maxN=0;
+  ps.forEach(function(s,ci){
+    papers[s].notes.forEach(function(id,i){ pos[id]={x:X+ci*STEP,y:70+i*GAP}; });
+    maxN=Math.max(maxN,papers[s].notes.length);
+  });
+  var w=X+ (ps.length-1)*STEP + W/2 + 20, hh=70+maxN*GAP+20;
+  var g='<svg viewBox="0 0 '+w+' '+hh+'" width="'+w+'" height="'+hh+'">';
+  ps.forEach(function(s,ci){
+    g+='<text x="'+(X+ci*STEP-W/2)+'" y="46" font-size="13" font-weight="700" fill="var(--accent)">'+esc(papers[s].name)+'</text>';
+  });
+  live().forEach(function(e){
+    var a=pos[e.from],b=pos[e.to];
+    if(!a||!b) return;
+    var m=(a.x+b.x)/2;
+    g+='<path fill="none" stroke="'+ECOL[e.type]+'" stroke-width="1.6" opacity=".8" d="M'+(a.x+W/2)+','+(a.y+H/2)+
+       ' C'+m+','+(a.y+H/2)+' '+m+','+(b.y+H/2)+' '+(b.x-W/2)+','+(b.y+H/2)+'"/>';
+  });
+  Object.keys(pos).forEach(function(id){
+    var p=pos[id],n=notes[id];
+    g+='<g><rect x="'+(p.x-W/2)+'" y="'+p.y+'" width="'+W+'" height="'+H+'" rx="7" fill="var(--plate)" stroke="var(--line)"/>'+
+       '<text x="'+(p.x-W/2+10)+'" y="'+(p.y+22)+'" font-size="11.5" fill="var(--fg)">'+esc(n.num)+' '+esc(cut(n.text,16))+'</text></g>';
+  });
+  g+='</svg>';
+  return '<div class="old"><h2 class="vt">舊排法，同一份資料</h2>'+
+    '<p class="vs">十欄橫向排開要 3000 px，一欄最多 12 則往下長，跨兩欄以上的線全部從別人身上壓過去。'+
+    '筆記再多一倍，這張圖就只剩裝飾價值——這是換成上面三層的理由。</p>'+
+    '<div class="oldbox">'+g+'</div></div>';
+}
+function pairView(){
+  var a=pair[0],b=pair[1];
+  var cs=citeBetween(a,b), ls=linksBetween(a,b);
+  var h='<h2 class="vt">'+esc(papers[a].name)+' ↔ '+esc(papers[b].name)+'</h2>'+
+        '<p class="vs">先是機械事實（誰引用誰、原文那句話），再是你或 agent 判斷寫下的線。</p>';
+  if(cs.length){
+    cs.forEach(function(c){
+      h+='<div class="quote"><b>'+esc(papers[c.from].name)+'</b> 在 §'+esc(c.sec)+' 引用了 <b>'+esc(papers[c.to].name)+'</b>：'+
+         '「'+esc(c.quote)+'」</div>';
+    });
+  } else h+='<div class="quote">這兩篇沒有互相引用。</div>';
+  h+=measure(a,b)+measure(b,a);
+  h+='<h2 class="vt" style="font-size:15px">你接過的線（'+ls.length+'）</h2>';
+  if(!ls.length){
+    h+='<div class="sug">一條都還沒有。有引用關係卻沒有線，通常代表你讀第二篇時沒回頭對第一篇——回合結尾 agent 會拿這一格問你。</div>';
+  }
+  ls.forEach(function(e){
+    var f=notes[e.from],t=notes[e.to];
+    h+='<div class="lk" style="border-left-color:'+ECOL[e.type]+'"><div class="row">'+
+       '<button class="linkish" data-note="'+esc(e.from)+'">'+esc(papers[f.paper].name)+' '+esc(f.num)+'</button>'+
+       '<b style="color:'+ECOL[e.type]+'">'+esc(TYPE[e.type][0])+'</b>'+
+       '<button class="linkish" data-note="'+esc(e.to)+'">'+esc(papers[t.paper].name)+' '+esc(t.num)+'</button></div>'+
+       '<span class="why">'+esc(f.text)+' → '+esc(t.text)+'<br>'+esc(e.why)+'</span></div>';
+  });
+  // suggestions: notes on both sides sharing a tag, not yet linked
+  var sug=[];
+  papers[a].notes.forEach(function(x){
+    papers[b].notes.forEach(function(y){
+      if(linksBetween(a,b).some(function(e){ return (e.from===x&&e.to===y)||(e.from===y&&e.to===x); })) return;
+      var sh=notes[x].tags.filter(function(t){ return notes[y].tags.indexOf(t)>=0; });
+      if(sh.length) sug.push([x,y,sh]);
+    });
+  });
+  h+='<h2 class="vt" style="font-size:15px;margin-top:18px">還可以接的（共用標籤，'+sug.length+'）</h2>'+
+     '<p class="vs">標籤只是線索，不是關係。工具不會自己接——它只是把候選端到你面前。</p>';
+  sug.slice(0,5).forEach(function(s){
+    h+='<div class="sug"><button class="linkish" data-note="'+esc(s[0])+'">'+esc(notes[s[0]].num)+'</button> '+
+       esc(cut(notes[s[0]].text,22))+' &nbsp;·&nbsp; <button class="linkish" data-note="'+esc(s[1])+'">'+esc(notes[s[1]].num)+'</button> '+
+       esc(cut(notes[s[1]].text,22))+' <span class="why">共用 '+esc(s[2].join('、'))+'</span></div>';
+  });
+  if(sug.length>5) h+='<div class="vs">還有 '+(sug.length-5)+' 組，先看前五組就好。</div>';
+  return h;
+}
+// Says out loud what the cell's number is made of, and warns when the two
+// things that inflate a raw count are actually happening.
+function measure(a,b){
+  var st=stats(a,b);
+  if(!st.links) return '';
+  var h='<div class="meas"><b>'+esc(papers[a].name)+' → '+esc(papers[b].name)+'</b>　'+
+    st.links+' 條線 · '+esc(papers[a].name)+' 這邊 '+st.src.length+' 則 · '+
+    esc(papers[b].name)+' 這邊 '+st.dst.length+' 則 · <b>廣度 '+st.breadth+'</b>';
+  if(st.topFan>1&&st.breadth<st.links){
+    h+='<span class="warnline">其中 '+st.topFan+' 條都從同一則（'+esc(notes[st.topId].num)+
+       '）發出，所以廣度只有 '+st.breadth+'：那是一個關係被寫成 '+st.topFan+' 條，不是 '+st.topFan+' 個關係。</span>';
+  }
+  if(st.secS.length===1&&st.src.length>=2){
+    h+='<span class="warnline">'+esc(papers[a].name)+' 這邊的筆記全部落在 §'+esc(st.secS[0])+
+       '：這通常代表你在那一節卡比較多，不是兩篇整體很像。</span>';
+  }
+  return h+'</div>';
+}
+function ego(){
+  var n=notes[focus], a=around(focus);
+  var CAP=10;
+  var inn=a.inn.slice(0,CAP), out=a.out.slice(0,CAP);
+  var W=270,H=48,GAP=58;
+  var h2list=[];
+  if(hop2){
+    out.forEach(function(e){
+      around(e.to).out.forEach(function(e2){ if(e2.to!==focus) h2list.push([e.to,e2]); });
+    });
+    h2list=h2list.slice(0,CAP);
+  }
+  // Only columns that have something in them take up room -- an empty reserved
+  // column reads as "there is something here you cannot see".
+  var live_cols=[];
+  if(inn.length) live_cols.push('in');
+  live_cols.push('focus');
+  if(out.length) live_cols.push('out');
+  if(hop2&&h2list.length) live_cols.push('h2');
+  var xs={};
+  live_cols.forEach(function(k,i){ xs[k]=160+i*360; });
+  var rows=Math.max(inn.length,out.length,h2list.length,1);
+  var H0=76, height=H0+Math.max(rows,1)*GAP+24;
+  var width=160+(live_cols.length-1)*360+W/2+30;
+  function y(i,count){ return H0+(Math.max(rows,1)-count)*GAP/2+i*GAP; }
+  function node(id,x,yy,cls){
+    var m=notes[id];
+    var dot=m.kind==='Q'?'<tspan class="dot '+STAT[m.status][1]+'" fill="var(--'+({open:'open',half:'half',resolved:'done'})[m.status]+')">● </tspan>':'';
+    return '<g class="n '+(cls||'')+'" data-note="'+esc(id)+'" tabindex="0" role="button">'+
+      '<rect x="'+(x-W/2)+'" y="'+yy+'" width="'+W+'" height="'+H+'"/>'+
+      '<text class="id" x="'+(x-W/2+12)+'" y="'+(yy+18)+'">'+dot+esc(papers[m.paper].name)+' · '+esc(m.num)+' · §'+esc(m.sec)+'</text>'+
+      '<text class="tx" x="'+(x-W/2+12)+'" y="'+(yy+37)+'">'+esc(cut(m.text,17))+'</text></g>';
+  }
+  function edge(x1,y1,x2,y2,type,label,cls){
+    var m=(x1+x2)/2;
+    return '<path class="ed '+(cls||'')+'" stroke="'+ECOL[type]+'" d="M'+x1+','+y1+' C'+m+','+y1+' '+m+','+y2+' '+x2+','+y2+'"/>'+
+      '<text class="el" fill="'+ECOL[type]+'" x="'+m+'" y="'+((y1+y2)/2-5)+'" text-anchor="middle">'+esc(label)+'</text>';
+  }
+  var fy=y(0,1);
+  var g='<svg viewBox="0 0 '+width+' '+height+'" width="'+width+'" height="'+height+'">';
+  var LAB={'in':'指向它的',focus:'這一則','out':'它指向的',h2:'再一跳'};
+  live_cols.forEach(function(k){ g+='<text class="col" x="'+(xs[k]-W/2)+'" y="34">'+LAB[k]+'</text>'; });
+  inn.forEach(function(e,i){ g+=edge(xs['in']+W/2,y(i,inn.length)+H/2,xs.focus-W/2,fy+H/2,e.type,TYPE[e.type][0]); });
+  out.forEach(function(e,i){ g+=edge(xs.focus+W/2,fy+H/2,xs.out-W/2,y(i,out.length)+H/2,e.type,TYPE[e.type][0]); });
+  if(hop2&&h2list.length) h2list.forEach(function(pairv,i){
+    var src=pairv[0],e2=pairv[1];
+    var si=out.map(function(e){ return e.to; }).indexOf(src);
+    if(si<0) return;
+    g+=edge(xs.out+W/2,y(si,out.length)+H/2,xs.h2-W/2,y(i,h2list.length)+H/2,e2.type,TYPE[e2.type][0],'h2');
+  });
+  inn.forEach(function(e,i){ g+=node(e.from,xs['in'],y(i,inn.length)); });
+  g+=node(focus,xs.focus,fy,'focus');
+  out.forEach(function(e,i){ g+=node(e.to,xs.out,y(i,out.length)); });
+  if(hop2&&h2list.length) h2list.forEach(function(pairv,i){ g+=node(pairv[1].to,xs.h2,y(i,h2list.length)); });
+  g+='</svg>';
+
+  var h='<h2 class="vt">'+esc(papers[n.paper].name)+' · '+esc(n.num)+
+        (n.kind==='Q'?' <span class="dot '+STAT[n.status][1]+'">●</span> <span style="font-size:13px;color:var(--muted)">'+esc(STAT[n.status][0])+'</span>':'')+'</h2>'+
+        '<p class="vs">'+esc(n.text)+' &nbsp;·&nbsp; §'+esc(n.sec)+' &nbsp;·&nbsp; 標籤 '+esc(n.tags.join('、'))+'</p>';
+  if(!a.n){
+    h+='<div class="sug" style="border-color:var(--half)"><b>這一則還沒接線。</b> 回合結尾 agent 會問一次：'+
+       '「這一則跟你讀過的哪一則是同一件事，或牴觸？」答不出來就留著，不硬接。</div>';
+  }
+  h+='<div class="egowrap">'+g+'</div>';
+  if(a.inn.length>CAP||a.out.length>CAP) h+='<p class="vs" style="margin-top:8px">連線太多，只畫了各 '+CAP+' 條。用左邊的連線種類篩。</p>';
+  var cross=a.out.concat(a.inn).map(function(e){
+    return notes[e.to===focus?e.from:e.to].paper;
+  }).filter(function(s){ return s!==n.paper; })[0];
+  h+='<div class="row-actions">'+
+     (a.out.length?'<button class="btn'+(hop2?' on':'')+'" data-act="hop2">'+(hop2?'只看一跳':'再往外一跳')+'</button>':'')+
+     (cross?'<button class="btn" data-act="pairof" data-p="'+esc(cross)+'">看 '+esc(papers[n.paper].name)+' ↔ '+esc(papers[cross].name)+' 的全部線</button>':'')+
+     '<button class="btn" data-go="shelf">回書房層</button></div>';
+  h+='<div class="chips">實作時這張圖就嵌在複習頁卡片的下面，'+
+     '寬度只夠三欄——一則筆記的鄰居不會超過十幾則，所以這一層永遠畫得下，不管你讀了幾篇。</div>';
+  var all=a.inn.concat(a.out);
+  if(all.length){
+    h+='<h2 class="vt" style="font-size:15px;margin-top:16px">為什麼這樣接</h2>';
+    a.inn.forEach(function(e){ h+=lkline(e,e.from,'← '+TYPE[e.type][1]); });
+    a.out.forEach(function(e){ h+=lkline(e,e.to,TYPE[e.type][0]); });
+  }
+  return h;
+}
+function lkline(e,other,label){
+  var o=notes[other];
+  return '<div class="lk" style="border-left-color:'+ECOL[e.type]+'"><div class="row"><b style="color:'+ECOL[e.type]+'">'+esc(label)+'</b>'+
+    '<button class="linkish" data-note="'+esc(other)+'">'+esc(papers[o.paper].name)+' '+esc(o.num)+'</button></div>'+
+    '<span class="why">'+esc(o.text)+'<br>'+esc(e.why)+'</span></div>';
+}
+
+function render(){
+  var m=document.getElementById('main');
+  m.innerHTML=crumb()+(view==='shelf'?matrix():(view==='pair'?pairView():ego()));
+  [].slice.call(m.querySelectorAll('[data-a]')).forEach(function(el){
+    el.addEventListener('click',function(){ pair=[el.dataset.a,el.dataset.b]; view='pair'; render(); });
+    el.addEventListener('keydown',function(ev){ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); el.click(); } });
+  });
+  [].slice.call(m.querySelectorAll('[data-note]')).forEach(function(el){
+    el.addEventListener('click',function(){ goNote(el.dataset.note); });
+    el.addEventListener('keydown',function(ev){ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); el.click(); } });
+  });
+  [].slice.call(m.querySelectorAll('[data-go]')).forEach(function(el){
+    el.addEventListener('click',function(){
+      if(el.dataset.go==='shelf'){ view='shelf'; }
+      else { view='pair'; }
+      render();
+    });
+  });
+  [].slice.call(m.querySelectorAll('[data-act]')).forEach(function(el){
+    el.addEventListener('click',function(){
+      var a=el.dataset.act;
+      if(a==='hop2') hop2=!hop2;
+      if(a==='old') showOld=!showOld;
+      if(a==='pairof'&&el.dataset.p){ pair=[notes[focus].paper,el.dataset.p]; view='pair'; }
+      render();
+    });
+  });
+  side();
+}
+function goNote(id){
+  focus=id;
+  var ar=around(id), first=(ar.out[0]||ar.inn[0]);
+  if(first){
+    var o=notes[first.to===id?first.from:first.to].paper;
+    if(o!==notes[id].paper) pair=[notes[id].paper,o];
+  }
+  if(!pair) pair=[notes[id].paper,notes[id].paper];
+  view='note'; render();
+}
+function side(){
+  var gp=gapPairs();
+  document.getElementById('gapn').textContent='('+gp.length+')';
+  document.getElementById('gaps').innerHTML=gp.slice(0,6).map(function(c){
+    return '<li><button data-a="'+c.from+'" data-b="'+c.to+'">'+esc(papers[c.from].name)+' → '+esc(papers[c.to].name)+'</button></li>';
+  }).join('')+(gp.length>6?'<li style="color:var(--muted)">…還有 '+(gp.length-6)+' 組</li>':'');
+  var or=orphans();
+  document.getElementById('orphn').textContent='('+or.length+' / '+Object.keys(notes).length+')';
+  document.getElementById('orph').innerHTML=or.slice(0,6).map(function(id){
+    return '<li><button data-note="'+esc(id)+'">'+esc(papers[notes[id].paper].name)+' '+esc(notes[id].num)+'</button> '+esc(cut(notes[id].text,12))+'</li>';
+  }).join('')+(or.length>6?'<li style="color:var(--muted)">…還有 '+(or.length-6)+' 則</li>':'');
+  document.getElementById('scale').innerHTML='現在：'+order.length+' 篇 · '+Object.keys(notes).length+' 則筆記 · '+live().length+' 條線。<br>'+
+    '矩陣到 40 篇還讀得完，再多就用分類篩；鄰居圖只受單則筆記的連線數影響，跟總量無關。';
+  [].slice.call(document.querySelectorAll('.side [data-a]')).forEach(function(el){
+    el.addEventListener('click',function(){ pair=[el.dataset.a,el.dataset.b]; view='pair'; render(); });
+  });
+  [].slice.call(document.querySelectorAll('.side [data-note]')).forEach(function(el){
+    el.addEventListener('click',function(){ goNote(el.dataset.note); });
+  });
+}
+// ---- controls
+[].slice.call(document.querySelectorAll('.side input[type=checkbox]')).forEach(function(c){
+  c.addEventListener('change',function(){ on[c.dataset.t]=c.checked; render(); });
+});
+var sel=document.getElementById('topic');
+sel.innerHTML='<option value="">全部（'+order.length+' 篇）</option>'+TOPICS.map(function(t){
+  var n=order.filter(function(s){ return papers[s].topics.indexOf(t)>=0; }).length;
+  return '<option value="'+esc(t)+'">'+esc(t)+'（'+n+'）</option>';
+}).join('');
+sel.addEventListener('change',function(){ topic=sel.value; view='shelf'; render(); });
+document.getElementById('q').addEventListener('input',function(e){
+  var q=e.target.value.trim().toLowerCase();
+  var box=document.getElementById('qhits');
+  if(!q){ box.innerHTML=''; return; }
+  var hits=Object.keys(notes).filter(function(id){
+    var n=notes[id];
+    return (id+' '+n.text+' '+n.tags.join(' ')+' '+papers[n.paper].name).toLowerCase().indexOf(q)>=0;
+  }).slice(0,8);
+  box.innerHTML=hits.length?('<ul class="gap">'+hits.map(function(id){
+    return '<li><button data-note="'+esc(id)+'">'+esc(papers[notes[id].paper].name)+' '+esc(notes[id].num)+'</button> '+esc(cut(notes[id].text,12))+'</li>';
+  }).join('')+'</ul>'):'<div style="color:var(--muted);font-size:12.5px">沒有符合的筆記</div>';
+  [].slice.call(box.querySelectorAll('[data-note]')).forEach(function(el){
+    el.addEventListener('click',function(){ goNote(el.dataset.note); });
+  });
+});
+render();
+</script>

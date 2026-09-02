@@ -1,0 +1,472 @@
+<meta charset="utf-8">
+<title>動作按鈕的位置</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#22201d;--muted:#6d685f;--line:#e4dfd5;--card:#f5f2ea;--plate:#fff;--sidebar:#f2efe8;
+--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;--shadow:rgba(0,0,0,.08);
+--sec-key:#edf3ee;--sec-stuck:#fdf1e3;--sec-again:#fbe9e6;--algo:#eef1f6;--mark:#f7e3a9;
+--term:#1d1f25;--term-ink:#dcd8d0;
+--proto:#fff7e0;--proto-ink:#6b4c00}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;--plate:#23252b;--sidebar:#191b20;
+--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;--shadow:rgba(0,0,0,.45);
+--sec-key:#17231e;--sec-stuck:#2a2118;--sec-again:#2b1b1a;--algo:#1a1e26;--mark:#4a3a1f;
+--term:#101216;--term-ink:#cfcbc3;
+--proto:#2a2410;--proto-ink:#e8d9a0}}
+:root[data-theme="dark"]{
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;--plate:#23252b;--sidebar:#191b20;
+--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;--shadow:rgba(0,0,0,.45);
+--sec-key:#17231e;--sec-stuck:#2a2118;--sec-again:#2b1b1a;--algo:#1a1e26;--mark:#4a3a1f;
+--term:#101216;--term-ink:#cfcbc3;
+--proto:#2a2410;--proto-ink:#e8d9a0}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.68 -apple-system,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+display:flex;flex-direction:column}
+header{flex:0 0 auto;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--proto);color:var(--proto-ink)}
+header h1{margin:0 0 3px;font-size:17px}
+header p{margin:0;font-size:12.5px;line-height:1.6;max-width:82em}
+.tabs{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tabs button{font:inherit;font-size:12.5px;padding:5px 12px;border:1px solid var(--proto-ink);border-radius:7px;
+background:transparent;color:var(--proto-ink);cursor:pointer;opacity:.65}
+.tabs button.on{opacity:1;background:var(--proto-ink);color:var(--proto)}
+.tabs .sp{flex:1 1 auto}
+/* ------------------------------------------------------------ the fake app */
+.app{flex:1 1 auto;position:relative;overflow:hidden;background:var(--bg)}
+.screen{position:absolute;inset:0;overflow:auto}
+.screen[hidden]{display:none}
+/* shelf */
+.shelf{padding:22px 26px 90px;max-width:1000px;margin:0 auto}
+.shelf h2{margin:0 0 2px;font-size:20px}
+.shelf .lead{margin:0 0 18px;color:var(--muted);font-size:13.5px}
+.pcard{margin:10px 0;padding:13px 16px;border:1px solid var(--line);border-radius:11px;background:var(--card);
+display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.pcard h3{margin:0;font-size:15.5px}
+.pcard .meta{font-size:12.5px;color:var(--muted)}
+.pcard .go{margin-left:auto;font-size:13px;color:var(--accent);cursor:pointer;text-decoration:underline dotted}
+.topics span{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:20px;background:var(--plate);
+border:1px solid var(--line);color:var(--muted);margin-right:5px}
+/* review page */
+.rp{display:grid;grid-template-columns:296px minmax(0,1fr);height:100%}
+.rside{overflow:auto;padding:14px 15px 26px;background:var(--sidebar);border-right:1px solid var(--line);font-size:13.5px}
+.rside h4{margin:16px 0 6px;font-size:11.5px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.rside h4:first-child{margin-top:0}
+.rside .fake{color:var(--muted);font-size:12.5px;line-height:1.9}
+.rside .fake i{font-style:normal;color:var(--done)}
+.rmain{overflow:auto;padding:26px 34px 110px}
+/* 第一次進來才有的說明。關掉就記住，不再出現；工具選單裡留一個找得回來的入口，
+   因為裡面混著「請勿直接編輯」這種不該永遠消失的話。 */
+.intro{position:relative;margin:0 0 20px;padding:13px 42px 13px 16px;border:1px solid var(--line);
+border-left:3px solid var(--accent);border-radius:10px;background:var(--card);font-size:13.5px;line-height:1.7}
+.intro[hidden]{display:none}
+.intro p{margin:0;max-width:none}
+.intro code{font-size:12.5px;padding:1px 5px;border-radius:4px;background:var(--plate)}
+/* all:unset 要放最前面：它會把後面沒重寫的東西也一起清掉，包括 position/top/right。 */
+.intro .x{all:unset;position:absolute;top:6px;right:8px;cursor:pointer;color:var(--muted);
+font-size:18px;line-height:1;padding:2px 7px;border-radius:6px}
+.intro .x:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.intro .x:hover{background:var(--plate);color:var(--fg)}
+.introgone{margin:0 0 18px;font-size:12.5px;color:var(--muted)}
+.introgone[hidden]{display:none}
+.mdiv{height:1px;background:var(--line);margin:4px 6px}
+.tool.ghost{color:var(--muted)}
+.rmain .paper-title{font-size:22px;margin:0 0 4px;line-height:1.4}
+.rmain .byline{color:var(--muted);font-size:13px;margin:0 0 18px}
+.rmain h3{margin:22px 0 8px;font-size:16px}
+.rmain p{margin:0 0 12px;max-width:62em}
+mark{background:var(--mark);color:inherit;padding:0 1px;border-radius:2px}
+/* tool buttons */
+.tool{display:block;width:100%;text-align:left;margin:5px 0;padding:8px 11px;font:inherit;font-size:13.5px;
+border:1px solid var(--line);border-radius:8px;background:var(--plate);color:var(--fg);cursor:pointer;
+display:flex;align-items:center;gap:8px}
+.tool:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.tool:disabled{opacity:.5;cursor:not-allowed}
+.tool.busy{border-color:var(--accent);color:var(--accent)}
+.tool.warn{border-color:var(--half);color:var(--half)}
+.sp2{width:11px;height:11px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;
+display:inline-block;animation:spin .7s linear infinite;flex:0 0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.sp2{animation:none}}
+/* corner cluster (shelf) */
+.corner{position:absolute;left:16px;bottom:16px;z-index:30;display:flex;flex-direction:column-reverse;gap:8px;align-items:flex-start}
+.corner .pill{display:flex;align-items:center;gap:8px;padding:8px 14px;font:inherit;font-size:13.5px;
+border:1px solid var(--line);border-radius:22px;background:var(--plate);color:var(--fg);cursor:pointer;
+box-shadow:0 3px 14px var(--shadow)}
+.corner .pill:hover{border-color:var(--accent);color:var(--accent)}
+.corner .menu{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--line);border-radius:12px;
+background:var(--plate);box-shadow:0 8px 26px var(--shadow);min-width:250px}
+.corner .menu[hidden]{display:none}
+.corner .menu .tool{margin:0;background:transparent;border-color:transparent}
+.corner .menu .tool:hover:not(:disabled){background:var(--card);border-color:var(--line)}
+.theme{position:absolute;right:16px;bottom:16px;z-index:30;display:flex;align-items:center;gap:7px;
+padding:8px 14px;font-size:13px;border:1px solid var(--line);border-radius:22px;background:var(--plate);
+color:var(--muted);box-shadow:0 3px 14px var(--shadow)}
+/* output panel */
+.panel{position:absolute;left:16px;bottom:16px;z-index:40;width:min(560px,calc(100% - 32px));
+border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:0 10px 34px var(--shadow);
+padding:12px 15px 14px}
+.panel[hidden]{display:none}
+.panel .ph{display:flex;gap:10px;align-items:baseline}
+.panel .ph b{font-size:13.5px}
+.panel .ph code{font-size:12px;color:var(--muted)}
+.panel .ph button{margin-left:auto;all:unset;cursor:pointer;color:var(--muted);font-size:16px;line-height:1}
+.out{margin:8px 0 0;padding:9px 12px;border-radius:9px;background:var(--term);color:var(--term-ink);
+font:12px/1.7 ui-monospace,"Cascadia Mono",Consolas,"Noto Sans Mono CJK TC",monospace;white-space:pre-wrap;
+max-height:180px;overflow:auto}
+.out .cmd{color:#8fb0ee}.out .y{color:#e8b04b}.out .g{color:#6fc796}.out .r{color:#f0776a}
+.res{margin:9px 0 0;font-size:13.5px}
+.res.ok{color:var(--done)}.res.bad{color:var(--open)}.res.warn{color:var(--half)}
+.file{margin:8px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px}
+.file code{padding:2px 7px;border-radius:5px;background:var(--plate);border:1px solid var(--line)}
+.file button,.acts button{font:inherit;font-size:12.5px;padding:5px 11px;border:1px solid var(--line);
+border-radius:7px;background:var(--plate);color:var(--fg);cursor:pointer}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin:9px 0 0}
+.acts button.go{border-color:var(--accent);color:var(--accent)}
+.ask{margin:9px 0 0;padding:9px 12px;border-radius:9px;background:var(--sec-stuck);
+border-left:3px solid var(--half);font-size:13px;line-height:1.6}
+textarea{display:block;width:100%;margin:7px 0 0;padding:8px 10px;font:inherit;font-size:13px;line-height:1.6;
+border:1px solid var(--line);border-radius:8px;background:var(--plate);color:var(--fg);resize:vertical}
+.why{font-size:12px;color:var(--muted);line-height:1.6}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<header>
+  <h1>動作按鈕的位置 · 試玩</h1>
+  <p>兩個頁面<b>同一顆「工具」按鈕、同一個左下角</b>，只是選單內容不同：書房頁裝三顆全域的，閱讀頁裝這一篇的五顆加「這一頁怎麼用」。右下角留給本來就在那裡的明暗切換，輸出面板從左下角浮出來，不推動正文。閱讀頁頂端的說明<b>只有第一次進來才出現</b>，按 × 關掉就記住，不再出現。</p>
+  <div class="tabs">
+    <button data-s="shelf" class="on">書房頁</button>
+    <button data-s="review">閱讀／複習頁</button>
+    <span class="sp"></span>
+    <button id="forget">當成第一次進來（說明再出現）</button>
+    <button id="srv">把 server 關掉看看</button>
+    <button id="reset">重置</button>
+  </div>
+</header>
+
+<div class="app">
+  <!-- ---------------------------------------------------------- 書房頁 -->
+  <div class="screen" id="s-shelf">
+    <div class="shelf">
+      <h2>書房</h2>
+      <p class="lead">2 篇論文 · 今天到期 3 張 · 半懂 1 張 · 下一張 09-04</p>
+      <div class="pcard">
+        <h3>ePlace-MS</h3>
+        <span class="meta">2015 · 疑問 4 則 · 要點 12 則 · 今天到期 2 張</span>
+        <span class="topics"><span>布局</span><span>混合尺寸</span></span>
+        <span class="go" data-open="eplace-ms">打開 →</span>
+      </div>
+      <div class="pcard">
+        <h3>RePlAce</h3>
+        <span class="meta">2019 · 疑問 2 則 · 要點 12 則 · 今天到期 1 張</span>
+        <span class="topics"><span>布局</span><span>可繞度</span></span>
+        <span class="go" data-open="replace">打開 →</span>
+      </div>
+      <p class="why" style="margin-top:20px">卡片上乾乾淨淨，沒有任何按鈕——書房是拿來挑論文的，不是拿來按東西的。</p>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------ 閱讀／複習頁 -->
+  <div class="screen" id="s-review" hidden>
+    <div class="rp">
+      <aside class="rside">
+        <h4>畫記</h4>
+        <div class="fake">🖍 顯示畫記　💾 存檔　複製畫記</div>
+        <h4>複習 (1)</h4>
+        <div class="fake">今天到期 1 張 · 半懂 0 張 · 下一張 09-04<br><i>到期</i> 局部密度為什麼要疊在全域密度上…</div>
+        <h4>疑問 (2)</h4>
+        <div class="fake">🟢 RePlAce 相對 ePlace-MS 改了什麼<br>🟡 preconditioner 和 local density…</div>
+        <h4>目錄</h4>
+        <div class="fake">I. Introduction<br>III. Local Density<br>IV. Dynamic Step Size</div>
+      </aside>
+      <div class="rmain">
+        <div class="intro" id="intro">
+          <button class="x" id="introx" title="關閉說明">×</button>
+          <p>這一頁由論文原文與 <code>notes/cards/</code> 合併產生，<b>請勿直接編輯</b>。正文裡<mark>反白的句子</mark>就是你當初卡住的地方，點它會叫出當時的問答。滑鼠移到左上角的 ☰ 會滑出目錄與疑問區，點一下可以釘住。選取正文會浮出螢光筆。左下角的<b>工具</b>可以重建這一篇、匯出、打包。</p>
+        </div>
+        <div class="introgone" id="introgone" hidden></div>
+        <h2 class="paper-title">RePlAce: Advancing Solution Quality and Routability Validation in Global Placement</h2>
+        <p class="byline">Chung-Kuan Cheng, Andrew B. Kahng, Ilgweon Kang, Lutong Wang · 2019</p>
+        <h3>III. Local Density Function</h3>
+        <p>ePlace uses a single density penalty factor for the entire placement region. <mark>This sacrifices the wirelength of bins with mild overlap in order to resolve bins with severe overlap.</mark> We introduce a local Lagrangian multiplier per bin, together with a per-instance coefficient.</p>
+        <p>The per-instance coefficient preserves part of the repulsive force for cells that have already escaped an overflowed bin, so that the force does not collapse the moment a cell crosses the bin boundary.</p>
+        <h3>IV. Dynamic Step Size Adaptation</h3>
+        <p>ePlace-MS already adapts the coefficient to maintain a fixed wirelength increment per iteration, but the adjustable range is hard-coded. <mark>RePlAce adapts the upper bound itself, using the wirelength curve obtained from a trial global placement.</mark></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- one corner button, both screens: same shape, same place, different menu -->
+  <div class="corner">
+    <button class="pill" id="cpill"><span id="cico">⚙</span> <span id="clab">工具</span></button>
+    <div class="menu" id="cmenu" hidden></div>
+  </div>
+  <div class="theme">◐ 跟隨系統</div>
+
+  <!-- one panel, both screens -->
+  <div class="panel" id="panel" hidden>
+    <div class="ph"><b id="ptitle"></b> <code id="pscript"></code><button id="pclose" title="關閉">×</button></div>
+    <div id="pbody"></div>
+  </div>
+</div>
+
+<script>
+var SERVER=true, busy=null, screenNow='shelf', current='replace';
+var PAPERS={'eplace-ms':{name:'ePlace-MS',dir:'ePlace-MS\\ePlace-MS_md'},
+            'replace':{name:'RePlAce',dir:'RePlAce\\RePlAce_md'}};
+// The page sends this key. The server looks the script and the paths up in its
+// own table; nothing typed here ever becomes part of a command line.
+var A={
+ 'library-build':{scope:'shelf',label:'更新書房頁',script:'build_library.py',
+   steps:[[420,'書房頁  2/2 篇 · 53 KB']],done:{ok:'書房頁更新好了'}},
+ 'survey':{scope:'shelf',label:'盤點（誰引用誰、還有什麼沒解決）',script:'library.py',
+   steps:[[300,'今天到期 3 張 · 半懂 1 張 · 下一張 09-04'],
+          [220,'論文庫  …\\論文筆記\\papers.yml  共 2 篇'],[180,''],
+          [180,'eplace-ms  ePlace-MS: Electrostatics-Based Placement…'],
+          [150,'  疑問 4 則（未解決 1 · 半懂 0 · 已解決 3） · 要點 12 則'],
+          [150,'  複習 排程 3 張，今天到期 2 張'],
+          [200,'引用關係（由參考文獻標題比對，機械判定）'],
+          [150,'  replace [3] → eplace-ms']],
+   done:{ok:'盤點完了'}},
+ 'rebuild-all':{scope:'shelf',label:'全部重建',script:'build_annotated.py + build_html.py（每篇）',
+   steps:[[500,'ePlace-MS：註記檢視 29 個檔案'],[480,'ePlace-MS：複習頁 812 KB'],
+          [500,'RePlAce：註記檢視 27 個檔案'],[480,'RePlAce：複習頁 795 KB'],[280,'書房頁  2/2 篇']],
+   done:{ok:'兩篇都重建好了'}},
+
+ 'rebuild':{scope:'paper',label:'重建這一篇',script:'build_annotated.py + build_html.py',reload:true,
+   steps:[[560,'註記檢視    27 個檔案 → RePlAce\\annotated'],
+          [400,'疑問卡      2 張：已定位 2，找不到位置 0'],
+          [360,'要點        12 則：已定位 12，找不到位置 0'],
+          [400,['y','🟡 引文提醒  Q0002 的引文在 S310 出現 2 次，這次挑了第一處']],
+          [280,'            排除辦法：把 quote.exact 加長到只命中一處'],
+          [480,'複習頁      795 KB → RePlAce\\annotated\\index.html']],
+   done:{warn:'重建好了，有 1 條引文提醒'}},
+ 'export':{scope:'paper',label:'匯出 Anki',script:'export_cards.py --format anki',
+   steps:[[420,'匯出        2 張（已解決 2 · 半懂 0）'],
+          [280,'欄位順序    Front / Back / Extra / Source / Tags'],
+          [240,'公式        $…$ 已轉成 Anki 的 MathJax 寫法']],
+   file:'RePlAce\\RePlAce_md\\notes\\cards-export.txt',
+   done:{ok:'匯出好了。Anki 裡「檔案 → 匯入」選這個檔'}},
+ 'share':{scope:'paper',label:'打包分享頁',script:'build_html.py --embed-assets',
+   steps:[[650,'內嵌圖片    11 張'],[850,'內嵌 KaTeX  離線可讀'],[600,'單檔        4.8 MB']],
+   file:'RePlAce\\RePlAce-share.html',
+   done:{ok:'打包好了，寄出去對方點兩下就能讀'}},
+ 'marks':{scope:'paper',label:'匯入畫記（貼上）',script:'import_marks.py',needs:'paste',reload:true,
+   steps:[[400,'讀到        4 筆'],[300,'寫入        3 筆 → notes\\marks\\'],
+          [240,['y','🟡 跳過 1 筆：這段已經有一模一樣的畫記了']],
+          [480,'重建        註記檢視 27 個檔案、複習頁 795 KB']],
+   done:{ok:'3 筆進去了，頁面已經重建'}},
+ 'reanchor':{scope:'paper',label:'重新對位',script:'reanchor.py',needs:'confirm',advanced:true,reload:true,
+   dry:[[400,'比對        原文換版本後的位置'],
+        [300,['g','✓ 唯一命中 3 條，可以自動改']],
+        [280,['y','❓ Q0004 的引文命中 2 處，要有人挑']],
+        [240,['y','❓ P0007 的引文找不到了']]],
+   steps:[[480,'改寫        3 條錨點'],[480,'重建        註記檢視 27 個檔案、複習頁 795 KB']],
+   done:{warn:'3 條改好了。剩下 2 條要你決定，把它們貼給 Claude'}}
+};
+var FAIL={'eplace-ms|rebuild':{
+  steps:[[560,'註記檢視    讀取原文…'],
+         [400,['r','✗ 原文對不上：sections/S400 的指紋和 notes/paper.yml 記的不一樣']],
+         [280,'            原文被改過或重新轉檔了。確定是新版就先跑重新對位。']],
+  done:{bad:'重建停下來了，沒有寫出任何檔案'}}};
+
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function cmdOf(id){
+  var a=A[id], first=a.script.split(' ')[0];
+  return 'python "<scripts>\\'+first+'" '+(a.scope==='paper'?'"'+PAPERS[current].dir+'"':'"…\\論文筆記"');
+}
+function toolBtn(id){
+  var a=A[id];
+  return '<button class="tool'+(a.advanced?' warn':'')+'" data-id="'+id+'">'+esc(a.label)+'</button>';
+}
+// One button in one corner on both screens. What is inside it changes with the
+// screen: the shelf's three, or this paper's five. Same shape, same place, so
+// there is only one thing to learn.
+function build(){
+  var want=screenNow==='shelf'?'shelf':'paper';
+  var html=Object.keys(A).filter(function(k){ return A[k].scope===want; }).map(toolBtn).join('');
+  if(screenNow==='review'){
+    html+='<div class="mdiv"></div><button class="tool ghost" data-help="1">這一頁怎麼用</button>';
+  }
+  document.getElementById('cmenu').innerHTML=html;
+  [].slice.call(document.querySelectorAll('.tool')).forEach(function(b){
+    b.addEventListener('click',function(){
+      if(b.dataset.help){ showIntro(true); document.getElementById('cmenu').hidden=true; return; }
+      start(b.dataset.id);
+    });
+  });
+  paint();
+}
+// ---- the first-run explanation
+var INTRO='pa-intro', introForced=false;
+// localStorage 讀寫都包起來：用 file:// 開的頁面可能整個不能用，那就照常顯示。
+function introOff(){ try{ return localStorage.getItem(INTRO)==='off'; }catch(e){ return false; } }
+function showIntro(force){
+  // 從選單叫出來只是「再看一次」，不會把「我看過了」這件事忘掉。
+  if(force) introForced=true;
+  document.getElementById('intro').hidden=introOff()&&!introForced;
+  document.getElementById('introgone').hidden=true;
+}
+function hideIntro(){
+  introForced=false;
+  try{ localStorage.setItem(INTRO,'off'); }catch(e){}
+  document.getElementById('intro').hidden=true;
+  var gone=document.getElementById('introgone');
+  gone.textContent='說明關起來了，之後不會再出現。想再看一次就從左下角的工具 → 這一頁怎麼用。';
+  gone.hidden=false;
+  setTimeout(function(){ gone.hidden=true; },7000);
+}
+function paint(){
+  [].slice.call(document.querySelectorAll('.tool')).forEach(function(b){
+    var id=b.dataset.id,a=A[id];
+    // 「這一頁怎麼用」不是一個動作：它不跑腳本，也不該因為沒有 server 就變灰。
+    if(!a) return;
+    b.disabled=!SERVER||(busy&&busy!==id);
+    b.classList.toggle('busy',busy===id);
+    b.innerHTML=busy===id?'<span class="sp2"></span>執行中…'
+      :(busy?esc(a.label)+'（等待中）':esc(a.label));
+    b.title=SERVER?a.script:'server 沒開。這顆等同於：'+cmdOf(id);
+  });
+  var pill=document.getElementById('cpill');
+  document.getElementById('clab').textContent=!SERVER?'工具（要開 server）':(busy?'執行中…':'工具');
+  document.getElementById('cico').textContent=busy&&SERVER?'●':'⚙';
+  pill.style.opacity=SERVER?1:.7;
+}
+function panelEls(){
+  return {p:document.getElementById('panel'),t:document.getElementById('ptitle'),
+          s:document.getElementById('pscript'),b:document.getElementById('pbody')};
+}
+function start(id){
+  var a=A[id];
+  document.getElementById('cmenu').hidden=true;
+  if(!SERVER) return noServer(id);
+  if(a.needs==='paste'&&!ok.paste[id]) return askPaste(id);
+  if(a.needs==='confirm'&&!ok.confirm[id]) return dry(id);
+  run(id,a.steps,a.done,a.file);
+}
+var ok={paste:{},confirm:{}};
+function noServer(id){
+  var e=panelEls();
+  e.p.hidden=false; e.t.textContent='server 沒開'; e.s.textContent='';
+  e.b.innerHTML='<div class="ask"><b>按鈕不會動，因為頁面自己不能開程式。</b>'+
+    '<div class="why" style="margin-top:4px">點兩下 <code>開啟書房.cmd</code> 就好——那個啟動器現在唯一的工作就是把 server 開起來。'+
+    '真的想用命令列，這顆等同於下面這行。</div></div>'+
+    '<div class="out"><span class="cmd">'+esc(cmdOf(id))+'</span></div>';
+}
+function askPaste(id){
+  var e=panelEls();
+  e.p.hidden=false; e.t.textContent=A[id].label; e.s.textContent=A[id].script;
+  e.b.innerHTML='<div class="ask"><b>把複習頁「複製畫記」的內容貼進來。</b>'+
+    '<div class="why">腳本沒有 --from 時本來就讀 stdin，所以不必先存成檔案，也不必貼回對話。</div></div>'+
+    '<textarea rows="3" id="pb" placeholder="貼上以 --- 分隔的畫記區塊…"></textarea>'+
+    '<div class="acts"><button class="go" id="pgo">匯入並重建</button><button id="pno">取消</button></div>'+
+    '<span class="why" id="psay"></span>';
+  document.getElementById('pgo').addEventListener('click',function(){
+    if(!document.getElementById('pb').value.trim()){ document.getElementById('psay').textContent='先貼上內容。'; return; }
+    ok.paste[id]=1; run(id,A[id].steps,A[id].done);
+  });
+  document.getElementById('pno').addEventListener('click',close);
+  document.getElementById('pb').focus();
+}
+function dry(id){
+  run(id,A[id].dry,{warn:'這只是試跑，還沒有改任何東西'},null,function(){
+    var e=panelEls();
+    e.b.insertAdjacentHTML('beforeend','<div class="ask"><b>3 條可以自動改，2 條要你挑。</b>'+
+      '<div class="why">套用只會改那 3 條唯一命中的，剩下 2 條原封不動留著。</div></div>'+
+      '<div class="acts"><button class="go" id="rgo">套用那 3 條並重建</button><button id="rno">先不要</button></div>');
+    document.getElementById('rgo').addEventListener('click',function(){ ok.confirm[id]=1; run(id,A[id].steps,A[id].done); });
+    document.getElementById('rno').addEventListener('click',close);
+  });
+}
+function close(){ document.getElementById('panel').hidden=true; }
+document.getElementById('pclose').addEventListener('click',close);
+
+function run(id,steps,done,file,after){
+  var a=A[id], ov=FAIL[current+'|'+id];
+  if(ov&&steps===a.steps){ steps=ov.steps; done=ov.done; file=null; }
+  busy=id; paint();
+  var e=panelEls();
+  e.p.hidden=false;
+  e.t.textContent=a.label+(a.scope==='paper'?'　'+PAPERS[current].name:'');
+  e.s.textContent=a.script;
+  e.b.innerHTML='<div class="out" id="out"><span class="cmd">$ '+esc(cmdOf(id))+'</span>\n</div><div class="res" id="res">執行中…</div>';
+  var out=document.getElementById('out'), i=0;
+  (function next(){
+    if(i>=steps.length){
+      busy=null; paint();
+      var r=document.getElementById('res');
+      var kind=done.ok?'ok':(done.bad?'bad':'warn'), mark=done.ok?'✓':(done.bad?'✗':'🟡');
+      r.className='res '+kind; r.textContent=mark+' '+(done.ok||done.bad||done.warn);
+      if(file){
+        r.insertAdjacentHTML('afterend','<div class="file">產生了 <code>'+esc(file)+'</code>'+
+          '<button id="cp">複製路徑</button><span class="why" id="cpsay"></span></div>');
+        document.getElementById('cp').addEventListener('click',function(){
+          var s=document.getElementById('cpsay');
+          try{ navigator.clipboard.writeText(file); s.textContent='已複製'; }
+          catch(err){ s.textContent='複製失敗，請手動選取'; }
+        });
+      }
+      // A rebuild changes the page you are standing on. Say so and let the
+      // reader choose the moment -- reloading under him loses his scroll.
+      if(a.reload&&screenNow==='review'&&!done.bad){
+        r.insertAdjacentHTML('afterend','<div class="acts"><button class="go" id="rl">這一頁已經重建，重新載入</button>'+
+          '<button id="later">等一下</button></div>');
+        document.getElementById('rl').addEventListener('click',function(){
+          r.className='res ok'; r.textContent='✓ 已重新載入（試玩不會真的重整）';
+          document.querySelector('.acts').remove();
+        });
+        document.getElementById('later').addEventListener('click',close);
+      }
+      if(after) after();
+      return;
+    }
+    var s=steps[i++], t=s[1], cls='';
+    if(Array.isArray(t)){ cls=t[0]; t=t[1]; }
+    setTimeout(function(){
+      out.insertAdjacentHTML('beforeend',(cls?'<span class="'+cls+'">'+esc(t)+'</span>':esc(t))+'\n');
+      out.scrollTop=out.scrollHeight; next();
+    },s[0]);
+  })();
+}
+// ---- chrome
+document.getElementById('cpill').addEventListener('click',function(){
+  var m=document.getElementById('cmenu'); m.hidden=!m.hidden;
+});
+document.addEventListener('click',function(ev){
+  var c=document.querySelector('.corner');
+  if(c&&!c.contains(ev.target)) document.getElementById('cmenu').hidden=true;
+});
+[].slice.call(document.querySelectorAll('.tabs [data-s]')).forEach(function(b){
+  b.addEventListener('click',function(){ show(b.dataset.s); });
+});
+[].slice.call(document.querySelectorAll('[data-open]')).forEach(function(g){
+  g.addEventListener('click',function(){ current=g.dataset.open; show('review'); });
+});
+function show(s){
+  screenNow=s; close();
+  document.getElementById('cmenu').hidden=true;
+  document.getElementById('s-shelf').hidden=(s!=='shelf');
+  document.getElementById('s-review').hidden=(s!=='review');
+  [].slice.call(document.querySelectorAll('.tabs [data-s]')).forEach(function(b){
+    b.classList.toggle('on',b.dataset.s===s);
+  });
+  build();
+  introForced=false;
+  if(s==='review') showIntro(false);
+}
+document.getElementById('introx').addEventListener('click',hideIntro);
+document.getElementById('forget').addEventListener('click',function(){
+  try{ localStorage.removeItem(INTRO); }catch(e){}
+  introForced=false;
+  show('review');
+});
+document.getElementById('srv').addEventListener('click',function(){
+  SERVER=!SERVER; close();
+  this.textContent=SERVER?'把 server 關掉看看':'把 server 開回來';
+  paint();
+});
+document.getElementById('reset').addEventListener('click',function(){
+  SERVER=true; busy=null; ok={paste:{},confirm:{}}; close();
+  document.getElementById('srv').textContent='把 server 關掉看看';
+  show('shelf'); paint();
+});
+build();
+</script>

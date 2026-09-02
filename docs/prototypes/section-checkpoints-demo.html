@@ -1,0 +1,229 @@
+<meta charset="utf-8">
+<title>段落檢查點</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#22201d;--muted:#6d685f;--line:#e4dfd5;--card:#f5f2ea;--plate:#fff;--sidebar:#f2efe8;
+--accent:#8a4f24;--open:#b3261e;--half:#96631a;--done:#2f6f4a;--shadow:rgba(0,0,0,.06);
+--sec-stuck:#fdf1e3;--sec-answer:#f8f7f3;--sec-key:#edf3ee;--algo:#eef1f6;--sec-again:#fbe9e6;
+--proto:#fff7e0;--proto-ink:#6b4c00}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;--plate:#23252b;--sidebar:#191b20;
+--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;--shadow:rgba(0,0,0,.4);
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;--sec-again:#2b1b1a;
+--proto:#2a2410;--proto-ink:#e8d9a0}}
+:root[data-theme="dark"]{
+--bg:#15161a;--fg:#e8e5de;--muted:#9b978e;--line:#32353c;--card:#1e2026;--plate:#23252b;--sidebar:#191b20;
+--accent:#e0a76a;--open:#f0776a;--half:#e8b04b;--done:#6fc796;--shadow:rgba(0,0,0,.4);
+--sec-stuck:#2a2118;--sec-answer:#1b1d22;--sec-key:#17231e;--algo:#1a1e26;--sec-again:#2b1b1a;
+--proto:#2a2410;--proto-ink:#e8d9a0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15.5px/1.7 -apple-system,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+header{position:sticky;top:0;z-index:5;padding:14px 22px 12px;border-bottom:1px solid var(--line);background:var(--proto);color:var(--proto-ink)}
+header h1{margin:0 0 4px;font-size:18px}
+header p{margin:0;font-size:13px;line-height:1.6;max-width:78em}
+header button{float:right;margin-left:12px;font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid var(--proto-ink);border-radius:6px;background:transparent;color:var(--proto-ink);cursor:pointer}
+.wrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:0}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}.toc{position:static;border:none;border-bottom:1px solid var(--line)}}
+.toc{position:sticky;top:78px;align-self:start;max-height:calc(100vh - 78px);overflow:auto;padding:16px 18px;border-right:1px solid var(--line);background:var(--sidebar);font-size:13.5px}
+.toc h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.toc a{display:flex;gap:8px;align-items:baseline;color:var(--fg);text-decoration:none;padding:5px 4px;border-radius:6px}
+.toc a:hover{background:var(--card)}
+.toc .m{flex:0 0 18px;text-align:center;font-size:12px}
+.toc .m.todo{color:var(--muted)}.toc .m.pass{color:var(--done)}.toc .m.card{color:var(--open)}.toc .m.skip{color:var(--half)}.toc .m.now{color:var(--accent)}
+.toc .sub{font-size:11.5px;color:var(--muted);margin-left:auto}
+.toc .legend{margin-top:14px;font-size:12px;color:var(--muted);line-height:1.7}
+.qlist{margin:14px 0 0;padding-top:10px;border-top:1px solid var(--line)}
+.qlist ul{margin:4px 0 0;padding:0;list-style:none}
+.qlist li{margin:4px 0;padding:6px 8px;border-radius:6px;background:var(--card);font-size:12.5px;line-height:1.55}
+.qlist li .tag{display:inline-block;font-size:10.5px;padding:0 5px;border-radius:4px;background:var(--sec-again);color:var(--open);margin-right:4px}
+main{max-width:760px;padding:22px 34px 80px}
+main h2{font-size:20px;margin:36px 0 10px;padding-top:6px}
+main h2:first-child{margin-top:8px}
+main p{margin:0 0 12px}
+.pnote{margin:14px 0;padding:1px 0 1px 12px;border-left:2px solid var(--line);color:var(--muted);font-size:.93em}
+.pnote p{margin:3px 0}
+.pk{font-size:.82em;letter-spacing:.06em;color:var(--accent);font-weight:700}
+.pnote.veil{color:var(--muted);font-style:italic}
+/* the checkpoint block sits in the flow at the end of the section */
+.cp{margin:18px 0 8px;padding:14px 18px 16px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;background:var(--card);box-shadow:0 2px 10px var(--shadow)}
+.cp[data-state=pass]{border-left-color:var(--done)}
+.cp[data-state=card]{border-left-color:var(--open)}
+.cp[data-state=skip]{border-left-color:var(--half)}
+.cp .t{font-size:12px;letter-spacing:.06em;color:var(--muted);font-weight:600;text-transform:uppercase;margin-bottom:6px}
+.cp .qq{font-weight:600;line-height:1.6;margin:0 0 10px}
+.cp .cue{font-size:13px;color:var(--muted);margin:-4px 0 10px}
+.cp textarea{display:block;width:100%;padding:8px 10px;font:inherit;font-size:14.5px;line-height:1.6;border:1px solid var(--line);border-radius:8px;background:var(--plate);color:var(--fg);resize:vertical}
+.cp textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btns button{padding:7px 12px;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:8px;background:var(--plate);color:var(--fg);cursor:pointer}
+.btns button:hover{border-color:var(--accent);color:var(--accent)}
+.btns button.ok{border-color:var(--done);color:var(--done);background:var(--sec-key)}
+.btns button.no{border-color:var(--open);color:var(--open);background:var(--sec-again)}
+.btns button.soft{color:var(--muted)}
+.mine{margin:10px 0;padding:8px 12px;border-radius:8px;background:var(--algo);border-left:3px solid var(--accent)}
+.mine b,.ans b{display:block;font-size:.82em;letter-spacing:.04em;color:var(--muted);margin-bottom:2px}
+.ans{margin:10px 0;padding:8px 12px;border-radius:8px;background:var(--sec-key);border-left:3px solid var(--done)}
+.say{font-size:13px;color:var(--muted);margin-top:8px}
+.skel{margin:12px 0 0;padding:10px 14px;border-radius:8px;background:var(--plate);border:1px dashed var(--line);font-size:14px}
+.skel b.h{display:block;font-size:.82em;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
+.skel .sec{margin:6px 0 2px;font-weight:600;font-size:13px;color:var(--accent)}
+.skel ul{margin:0 0 4px;padding-left:18px}
+.skel li{margin:2px 0}
+.skel li.new{color:var(--done)}
+.skel li.mine{background:none;border:none;padding:0;margin:2px 0;color:var(--fg);font-style:italic}
+.cp .card{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:var(--sec-again);border-left:3px solid var(--open);font-size:13.5px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<header>
+  <button id="reset">重置試玩</button>
+  <h1>段落檢查點 · 試玩</h1>
+  <p>假論文、四個小節。每一節結尾有一個檢查點：先寫你的答案，再對這一節的要點自己判斷有沒有答到。沒答到會換一個提示再問一次；第二次還沒答到就不再問——它變成一張疑問卡，進真正的複習迴圈。過了檢查點才看得到這一節的要點，和「到這裡為止」的整篇骨架。不擋你讀：想先往下讀就往下讀，左邊目錄會一直標著哪一節還沒過。</p>
+</header>
+
+<div class="wrap">
+  <aside class="toc">
+    <h3>目錄</h3>
+    <div id="toc"></div>
+    <div class="legend">○ 還沒到 · ● 現在這節 · ✓ 過了 · ⏭ 跳過（要點直接看）· ✗ 沒過，成了卡片</div>
+    <div class="qlist"><h3>疑問（建議）<span id="qn"></span></h3><ul id="ql"></ul></div>
+  </aside>
+
+  <main id="main"></main>
+</div>
+
+<script>
+// ---- mock paper: each section carries its points (the paper's own skeleton)
+// and the checkpoint the agent wrote from those points at setup time.
+var SECTIONS=[
+  {id:'S1',title:'I. Introduction',
+   text:['Analytical placers minimise wirelength subject to a density constraint. Most of them handle macros and standard cells with separate machinery: a macro placer first, then cell placement around fixed macros. This two-stage flow forfeits the freedom of moving macros and cells together.',
+         'We propose a single flow in which every object, whatever its size, is treated the same way by the density model and the optimiser. The claim is that mixed-size placement needs no macro-specific handling once the density function is smooth enough everywhere.'],
+   points:[{id:'P0001',kind:'主張',text:'macro 與 cell 用同一套密度模型與優化器，沒有 macro 專用邏輯'},{id:'P0002',kind:'方法',text:'一段式流程，取代「先放 macro 再放 cell」'}],
+   check:{q:'這篇最核心的一句主張是什麼？用一句話說。',alt:'提示：作者說 mixed-size 不需要什麼？',target:'P0001'}},
+  {id:'S2',title:'IV. Density Function',
+   text:['We model the placement region as an electrostatic system. Each object is a charge whose magnitude equals its area; the density penalty is the potential energy of the system. The potential satisfies a Poisson equation with Neumann boundary conditions, which has a solution only if the total charge is zero — hence the direct-current component of the density is removed before solving.',
+         'The potential and the field have closed forms as cosine series and are evaluated with the fast Fourier transform, so a full gradient costs O(n log n) per iteration regardless of how many objects overlap.'],
+   points:[{id:'P0003',kind:'定義',text:'物件是電荷，電荷量等於面積；密度懲罰是系統的位能'},{id:'P0004',kind:'假設',text:'Neumann 邊界下 Poisson 方程有解的前提是總電荷為零，所以要扣掉直流分量'},{id:'P0005',kind:'方法',text:'位能與電場有閉合形式，用 FFT 算，每次迭代 O(n log n)'}],
+   check:{q:'為什麼要把密度的直流分量扣掉再解？',alt:'提示：想想邊界條件——純 Neumann 邊界對總電荷有什麼要求？',target:'P0004'}},
+  {id:'S3',title:'V. Nonlinear Optimisation',
+   text:['We use Nesterov\'s accelerated gradient method rather than conjugate gradient. The step length needs the Lipschitz constant of the gradient, which is unknown; we predict it from the last two iterates and verify the prediction by backtracking, which in practice succeeds within one or two trials.',
+         'Because the same predictor is used for every object, a macro whose gradient is thousands of times larger than a cell\'s would receive a step thousands of times larger too — the topic of the next section.'],
+   points:[{id:'P0006',kind:'方法',text:'用 Nesterov 加速梯度法，不用共軛梯度'},{id:'P0007',kind:'方法',text:'Lipschitz 常數由前兩次迭代預測，再用 backtracking 驗證'}],
+   check:{q:'步長是怎麼決定的？作者為什麼不直接算 Lipschitz 常數？',alt:'提示：算不出來的東西可以用什麼代替？之後怎麼確認沒猜錯？',target:'P0007'}},
+  {id:'S4',title:'VI. Preconditioning',
+   text:['The gradient of the wirelength and density terms scales with an object\'s pin count and area. Without correction, large macros oscillate between placement boundaries and the optimiser fails to converge on nine of sixteen mixed-size benchmarks.',
+         'A Jacobi preconditioner — the diagonal of the Hessian, approximated by pin count plus a scaled area — divides each gradient by its own scale, so every object moves in proportion to how far it should, not how heavy it is.'],
+   points:[{id:'P0008',kind:'結果',text:'沒有 preconditioner 時，16 個 MMS 有 9 個不收斂，macro 在邊界間震盪'},{id:'P0009',kind:'方法',text:'Jacobi preconditioner：只取 Hessian 對角，用 pin 數加面積近似'}],
+   check:{q:'沒有 preconditioner 時 macro 為什麼會震盪？preconditioner 是怎麼修的？',alt:'提示：梯度跟面積成正比，步長卻是大家共用的——那 macro 的位移會怎樣？',target:'P0009'}}
+];
+var S={}; // per-section state: {st:'todo|now|pass|skip|card', tries, mine:[]}
+var CARDS=[];
+
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function reset(){
+  SECTIONS.forEach(function(s,i){ S[s.id]={st:i===0?'now':'todo',tries:0,mine:[]}; });
+  CARDS=[]; render(); toc();
+}
+function pointsHtml(s,veiled){
+  if(veiled) return '<div class="pnote veil"><p>本節要點 '+s.points.length+' 則——過了檢查點再看。</p></div>';
+  return s.points.map(function(p){ return '<div class="pnote"><p><span class="pk">'+esc(p.kind)+'</span> '+esc(p.text)+'</p></div>'; }).join('');
+}
+function skeleton(upto){
+  var h='<div class="skel"><b class="h">到這裡為止，這篇說了什麼</b>';
+  for(var i=0;i<=upto;i++){
+    var s=SECTIONS[i], st=S[s.id];
+    if(st.st==='todo'||st.st==='now') continue;
+    h+='<div class="sec">'+esc(s.title)+'</div><ul>'+s.points.map(function(p){
+      return '<li class="'+(i===upto?'new':'')+'">'+esc(p.text)+'</li>';
+    }).join('');
+    st.mine.forEach(function(m){ h+='<li class="mine">你寫的：'+esc(m)+'</li>'; });
+    h+='</ul>';
+  }
+  return h+'</div>';
+}
+function cpHtml(i){
+  var s=SECTIONS[i], st=S[s.id], c=s.check, tgt=s.points.filter(function(p){ return p.id===c.target; })[0];
+  var h='<div class="cp" id="cp-'+s.id+'" data-state="'+st.st+'">';
+  if(st.st==='todo'){
+    h+='<div class="t">檢查點 · '+esc(s.title)+'</div><div class="qq">'+esc(c.q)+'</div>'+
+       '<div class="say">讀到這裡再答。上一節的檢查點還沒過也可以先答這一節。</div>'+
+       '<div class="btns"><button data-act="start">開始作答</button></div>';
+  } else if(st.st==='now'){
+    h+='<div class="t">檢查點 · '+esc(s.title)+(st.tries?' · 第 2 次':'')+'</div><div class="qq">'+esc(c.q)+'</div>'+
+       (st.tries?'<div class="cue">'+esc(c.alt)+'</div>':'')+
+       (st.phase==='judge'
+         ?'<div class="mine"><b>你寫的</b>'+esc(st.draft)+'</div><div class="ans"><b>這一節的要點說</b>'+esc(tgt.text)+'</div>'+
+          '<div class="qq" style="font-size:14px">答到了嗎？</div><div class="btns"><button class="ok" data-act="pass">答到了</button><button class="no" data-act="miss">沒答到</button></div>'
+         :'<textarea rows="3" placeholder="先寫，不用完整。寫到卡住的地方也算。">'+esc(st.draft||'')+'</textarea>'+
+          '<div class="btns"><button data-act="compare">對答案</button><button class="soft" data-act="skip">跳過，直接看要點</button></div><div class="say" id="say-'+s.id+'"></div>');
+  } else if(st.st==='pass'){
+    h+='<div class="t">檢查點 · 過了 ✓'+(st.tries>1?'（第 2 次）':'')+'</div>'+
+       (st.mine.length?'<div class="mine"><b>你寫的</b>'+esc(st.mine[st.mine.length-1])+'</div>':'')+skeleton(i)+
+       (i<SECTIONS.length-1?'<div class="btns"><button data-act="next">繼續讀下一節</button></div>':'<div class="say">整篇讀完了。四個檢查點的結果會記在 notes/ 裡，成了卡片的那幾題會在複習頁回來找你。</div>');
+  } else if(st.st==='skip'){
+    h+='<div class="t">檢查點 · 跳過 ⏭</div><div class="say">要點直接給你看了；目錄上這一節標著跳過，之後想補答隨時可以。</div><div class="btns"><button data-act="retry">現在補答</button></div>'+skeleton(i);
+  } else if(st.st==='card'){
+    h+='<div class="t">檢查點 · 沒過，成了卡片 ✗</div>'+
+       '<div class="card">兩次都沒答到，不再問第三次——記成疑問卡 <b>Q'+esc(st.card)+'</b>（origin: suggested）。它進疑問清單，解決了就進複習排程；這個檢查點不會再擋你。</div>'+
+       (st.mine.length?'<div class="mine"><b>你寫的</b>'+st.mine.map(esc).join('<br>')+'</div>':'')+
+       '<div class="ans"><b>這一節的要點說</b>'+esc(tgt.text)+'</div>'+skeleton(i);
+  }
+  return h+'</div>';
+}
+function render(){
+  var h='';
+  SECTIONS.forEach(function(s,i){
+    var st=S[s.id];
+    h+='<h2 id="'+s.id+'">'+esc(s.title)+'</h2>'+s.text.map(function(p){ return '<p>'+esc(p)+'</p>'; }).join('')+
+       pointsHtml(s,st.st==='todo'||st.st==='now')+cpHtml(i);
+  });
+  document.getElementById('main').innerHTML=h;
+  [].slice.call(document.querySelectorAll('.cp button')).forEach(function(b){
+    b.addEventListener('click',function(){ act(b.closest('.cp').id.slice(3),b.dataset.act,b); });
+  });
+  [].slice.call(document.querySelectorAll('.cp textarea')).forEach(function(t){
+    t.addEventListener('input',function(){ S[t.closest('.cp').id.slice(3)].draft=t.value; });
+  });
+  qlist();
+}
+function act(id,what,btn){
+  var st=S[id], i=SECTIONS.findIndex(function(s){ return s.id===id; }), s=SECTIONS[i];
+  if(what==='start'){ st.st='now'; st.phase='write'; }
+  else if(what==='compare'){
+    var t=btn.closest('.cp').querySelector('textarea');
+    if(!t.value.trim()){ document.getElementById('say-'+id).textContent='先寫一句再對答案。'; return; }
+    st.draft=t.value.trim(); st.phase='judge';
+  }
+  else if(what==='pass'){ st.mine.push(st.draft); st.tries++; st.st='pass'; st.phase=''; advance(i); }
+  else if(what==='miss'){
+    st.mine.push(st.draft); st.tries++; st.draft=''; st.phase='write';
+    if(st.tries>=2){
+      st.st='card'; st.card=String(10000+CARDS.length+1).slice(1);
+      CARDS.push({id:st.card,q:s.check.q,sec:s.title,mine:st.mine.slice()});
+      advance(i);
+    }
+  }
+  else if(what==='skip'){ st.st='skip'; st.phase=''; advance(i); }
+  else if(what==='retry'){ st.st='now'; st.phase='write'; st.tries=0; }
+  else if(what==='next'){ var nx=SECTIONS[i+1]; if(nx){ render(); toc(); document.getElementById(nx.id).scrollIntoView({behavior:'smooth',block:'start'}); return; } }
+  render(); toc();
+  var el=document.getElementById('cp-'+id); if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  var ta=el&&el.querySelector('textarea'); if(ta) ta.focus();
+}
+function advance(i){ var nx=SECTIONS[i+1]; if(nx&&S[nx.id].st==='todo') S[nx.id].st='now'; if(nx&&S[nx.id].st==='now') S[nx.id].phase='write'; }
+function toc(){
+  var M={todo:['○','todo'],now:['●','now'],pass:['✓','pass'],skip:['⏭','skip'],card:['✗','card']};
+  document.getElementById('toc').innerHTML=SECTIONS.map(function(s){
+    var st=S[s.id], m=M[st.st];
+    return '<a href="#'+s.id+'"><span class="m '+m[1]+'">'+m[0]+'</span><span>'+esc(s.title)+'</span><span class="sub">'+(st.st==='card'?'Q'+st.card:(st.st==='pass'&&st.tries>1?'第 2 次':''))+'</span></a>';
+  }).join('');
+}
+function qlist(){
+  document.getElementById('qn').textContent=CARDS.length?' ('+CARDS.length+')':'';
+  document.getElementById('ql').innerHTML=CARDS.length?CARDS.map(function(c){
+    return '<li><span class="tag">建議</span>Q'+esc(c.id)+' · '+esc(c.q)+'<br><span style="color:var(--muted)">'+esc(c.sec)+' · 你寫過：'+esc(c.mine[0])+'</span></li>';
+  }).join(''):'<li style="background:none;color:var(--muted)">還沒有。兩次沒答到的檢查點會出現在這裡。</li>';
+}
+document.getElementById('reset').addEventListener('click',reset);
+reset();
+</script>
