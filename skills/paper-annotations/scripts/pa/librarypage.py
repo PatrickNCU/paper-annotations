@@ -21,7 +21,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import actions, cli, library
+from . import actions, cli, graph, katex, library
 from .page import ASSETS, THEME_BOOT
 
 cli.bootstrap()
@@ -69,6 +69,14 @@ a.ptitle{display:block;color:inherit;text-decoration:none}
    colours existed. --tc-ink is the readable text colour on top of --tc and
    --tc-dim is the same hue at low alpha; both are computed at build time
    because CSS cannot work out a contrasting colour by itself. */
+/* Two views of the same shelf: the list you pick a paper from, and the matrix
+   of what you have connected. Same bar shape as the category filters below. */
+.vbar{display:flex;gap:8px;margin:0 0 18px}
+.vbar button{padding:6px 14px;border:1px solid var(--line);border-radius:8px;
+background:var(--card);color:var(--muted);font:inherit;font-size:13.5px;cursor:pointer}
+.vbar button:hover{color:var(--fg)}
+.vbar button.on{border-color:var(--accent);color:var(--accent);background:var(--bg)}
+#view-list[hidden]{display:none}
 .tbar{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 22px;align-items:center}
 .tslot{display:inline-flex;align-items:center;gap:4px}
 .tfilter{padding:5px 12px;border:1px solid var(--tc,var(--line));border-radius:14px;
@@ -638,6 +646,11 @@ def render(registry: Path) -> str:
             "works": [str(p["work"]) for p in papers if p["alive"]],
         }),
     }, ensure_ascii=False).replace("</", "<\\/")
+    # The first two layers of the link graph live here: the matrix over every
+    # paper, and the page about one pair of them.
+    graph_data = graph.collect(registry)
+    graph_data["topicNames"] = vocab
+    graph_json = json.dumps(graph_data, ensure_ascii=False).replace("</", "<\\/")
     page = f"""<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -647,7 +660,9 @@ def render(registry: Path) -> str:
 {THEME_BOOT}
 <style>{(ASSETS / "style.css").read_text(encoding="utf-8")}</style>
 <style>{(ASSETS / "tools.css").read_text(encoding="utf-8")}</style>
+<style>{(ASSETS / "graph.css").read_text(encoding="utf-8")}</style>
 <style>{CSS}</style>
+{katex.katex_assets()}
 </head>
 <body>
 <main id="main">
@@ -662,6 +677,11 @@ def render(registry: Path) -> str:
 <b>開啟書房</b>，或執行：<br>
 <code>python &lt;scripts&gt;/serve.py --library</code>
 </div>
+<div class="vbar">
+<button id="v-list" class="on">論文清單</button>
+<button id="v-graph">連結圖</button>
+</div>
+<div id="view-list">
 <div class="tbar">{''.join(bar)}</div>
 <div id="thelp">每個分類旁邊的色塊可以換顏色，<b>↺</b> 回到預設，<b>✕</b> 刪掉分類——
 只有沒有任何論文的分類刪得掉。顏色深淺兩種主題共用，選中間調的最保險。</div>
@@ -670,6 +690,8 @@ def render(registry: Path) -> str:
 <button id="tok">建立</button><button id="tcancel">取消</button></div>
 <div id="tlist">{listing}</div>
 <div id="tempty" hidden class="qempty">這個分類底下還沒有論文。</div>
+</div>
+<div id="view-graph" hidden></div>
 <div class="note">
 論文連結只有在 <code>serve.py --library</code> 跑著時才打得開——每篇論文掛在自己的
 路徑底下，各自只開放自己的資料夾。<br>
@@ -680,8 +702,32 @@ def render(registry: Path) -> str:
 <button id="theme">🌗 跟隨系統</button>
 <script id="pa-topics" type="application/json">{vocab_json}</script>
 <script id="pa-actions" type="application/json">{action_json}</script>
+<script id="pa-graph" type="application/json">{graph_json}</script>
 <script>{JS}</script>
+<script>{(ASSETS / "graph.js").read_text(encoding="utf-8")}</script>
 <script>{(ASSETS / "tools.js").read_text(encoding="utf-8")}</script>
+<script>
+// Two views of the same shelf. The matrix is drawn on first sight rather than
+// at load: a reader who never opens it should not pay for it.
+(function(){{
+  var list=document.getElementById('view-list'), gview=document.getElementById('view-graph');
+  var bl=document.getElementById('v-list'), bg=document.getElementById('v-graph');
+  var data=null, drawn=false;
+  try{{ data=JSON.parse(document.getElementById('pa-graph').textContent); }}catch(e){{}}
+  function show(which){{
+    var g=which==='graph';
+    list.hidden=g; gview.hidden=!g;
+    bl.classList.toggle('on',!g); bg.classList.toggle('on',g);
+    try{{ localStorage.setItem('pa-shelf-view',which); }}catch(e){{}}
+    if(g&&!drawn&&data&&window.paGraph){{ drawn=true; window.paGraph.matrix(gview,data); }}
+  }}
+  bl.addEventListener('click',function(){{ show('list'); }});
+  bg.addEventListener('click',function(){{ show('graph'); }});
+  var kept='';
+  try{{ kept=localStorage.getItem('pa-shelf-view')||''; }}catch(e){{}}
+  if(kept==='graph') show('graph');
+}})();
+</script>
 </body>
 </html>
 """

@@ -28,8 +28,8 @@ from datetime import date
 from pathlib import Path
 
 from . import (
-    actions, cli, katex, links, minimd, notes, page_transforms as transforms,
-    srs, workspace,
+    actions, cli, graph, katex, library, links, minimd, notes,
+    page_transforms as transforms, srs, workspace,
 )
 
 cli.bootstrap()
@@ -62,6 +62,19 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     script = (ASSETS / "page.js").read_text(encoding="utf-8")
     tools_css = (ASSETS / "tools.css").read_text(encoding="utf-8")
     tools_js = (ASSETS / "tools.js").read_text(encoding="utf-8")
+    graph_css = (ASSETS / "graph.css").read_text(encoding="utf-8")
+    graph_js = (ASSETS / "graph.js").read_text(encoding="utf-8")
+
+    # The third layer of the link graph: one note's neighbours, under the card
+    # that is open. Sliced down to this paper and whatever links to it, so what
+    # the page carries follows this paper's links and not the shelf's size.
+    ego_json = "null"
+    registry = library.find_registry(work_root)
+    if registry is not None:
+        slug = library.paper_name(paper_root).lower()
+        ego = graph.ego_slice(graph.collect(registry), slug)
+        if ego["notes"]:
+            ego_json = json.dumps(ego, ensure_ascii=False).replace("</", "<\\/")
 
     # What the corner button may run. Baked in at build time so the labels and
     # the equivalent command lines are here even when no server is: the buttons
@@ -179,6 +192,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 {THEME_BOOT}
 <style>{style}</style>
 <style>{tools_css}</style>
+<style>{graph_css}</style>
 {katex.katex_assets()}
 </head>
 <body data-paper="{html.escape(paper_root.name)}">
@@ -266,6 +280,8 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <button id="pclose" data-tip="關閉" aria-label="關閉">✕</button></div>
 <div id="panel-in"></div></aside>
 <script id="pa-actions" type="application/json">{action_json}</script>
+<script id="pa-graph" type="application/json">{ego_json}</script>
+<script>{graph_js}</script>
 <script>{script}</script>
 <script>{tools_js}</script>
 </body>

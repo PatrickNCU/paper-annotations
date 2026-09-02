@@ -190,6 +190,25 @@
   var ov=document.getElementById('ov');
   var jump=document.getElementById('pjump');
   var current=null;
+  // One note's neighbours, drawn under the card that is open (the third layer
+  // of the link graph). The data is a slice cut at build time down to this
+  // paper and whatever links to it, so what ships with the page follows this
+  // paper's own links rather than the size of the shelf.
+  var egoData=null;
+  try{
+    var gtag=document.getElementById('pa-graph');
+    if(gtag) egoData=JSON.parse(gtag.textContent);
+  }catch(e){}
+  function drawEgo(id){
+    if(!egoData||!window.paGraph) return;
+    var n=String(id).replace(/^0+/,'');
+    while(n.length<4) n='0'+n;
+    var box=document.createElement('div');
+    panelIn.appendChild(box);
+    // ring 2 only: the card prints its own links just above, with the 先想
+    // prompt in front of them, so repeating that first ring here would be noise.
+    window.paGraph.ego(box,egoData,egoData.self+'#Q'+n,{ring:2});
+  }
   function openCard(id){
     var card=document.getElementById('card-'+id);
     if(!card||card.classList.contains('hidden')) return;
@@ -198,6 +217,7 @@
       if(n.tagName==='SUMMARY') head=n.innerHTML; else rest+=n.outerHTML;
     });
     panelIn.innerHTML='<div class="ptitle">'+head+'</div>'+rest;
+    drawEgo(id);
     panel.dataset.status=card.dataset.status||'open';
     // everything visible until the review module below says otherwise
     panel.dataset.stage='';

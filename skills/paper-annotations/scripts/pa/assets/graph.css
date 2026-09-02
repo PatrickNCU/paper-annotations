@@ -1,0 +1,114 @@
+/* The note link graph: a matrix on the shelf, a pair page under it, and one
+   note's neighbours inside a card.
+
+   No force layout anywhere. These links are few and each one was typed by
+   hand, so the picture can be a table and a set of columns -- which means the
+   same notes draw the same picture every time, and nothing overlaps however
+   many papers arrive. */
+
+#view-graph[hidden]{display:none}
+.gwrap{display:flex;flex-direction:column;gap:18px}
+.gtop{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.gtop .gfilter{font-size:13px;color:var(--muted);margin-right:2px}
+.gchip{font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid var(--line);
+border-radius:999px;background:var(--card);color:var(--muted);cursor:pointer}
+.gchip.on{border-color:var(--accent);color:var(--accent);background:var(--bg)}
+
+/* Wide tables scroll inside their own box; the page never scrolls sideways. */
+.gscroll{overflow:auto;width:max-content;max-width:100%;
+border:1px solid var(--line);border-radius:10px}
+/* min-width:100% from the paper's own table rules would stretch a two-paper
+   matrix across the whole page; this one sizes to its columns. */
+table.gmx{border-collapse:separate;border-spacing:0;font-size:13px;
+min-width:0;width:auto}
+table.gmx th,table.gmx td{border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+table.gmx tr:last-child th,table.gmx tr:last-child td{border-bottom:none}
+table.gmx th:last-child,table.gmx td:last-child{border-right:none}
+table.gmx thead th{position:sticky;top:0;z-index:2;background:var(--sidebar);
+padding:8px 4px;font-weight:600;vertical-align:bottom}
+table.gmx thead th.corner{left:0;z-index:3;text-align:left;padding:8px 12px;
+font-weight:400;font-size:12px;color:var(--muted);white-space:nowrap}
+table.gmx thead th span{writing-mode:vertical-rl;transform:rotate(180deg);
+white-space:nowrap;max-height:11em;overflow:hidden;text-overflow:ellipsis}
+table.gmx tbody th{position:sticky;left:0;z-index:1;background:var(--sidebar);
+text-align:left;padding:6px 12px;font-weight:600;white-space:nowrap;max-width:16em;
+overflow:hidden;text-overflow:ellipsis}
+table.gmx td{width:46px;min-width:46px;height:40px;text-align:center;vertical-align:middle;
+padding:0;background:var(--bg)}
+.gcell{display:block;width:100%;height:40px;border:none;background:transparent;
+font:inherit;color:var(--fg);cursor:pointer;position:relative;line-height:1.1}
+.gcell:hover{background:var(--card)}
+.gcell .gb{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.gcell .gx{display:block;font-size:10.5px;color:var(--muted);text-decoration:none;
+font-variant-numeric:tabular-nums}
+/* A contradiction outranks any number of agreements and would otherwise sit at
+   the bottom of the table for ever. */
+.gcell .gc{position:absolute;top:3px;right:4px;width:6px;height:6px;border-radius:50%;
+background:var(--open)}
+.gcell.self{background:var(--sidebar);cursor:pointer}
+.gcell.self .gb{color:var(--muted);font-weight:400}
+/* Cited, never linked: the actionable gap, and the reason to draw this at all. */
+.gcell.gap{outline:1px dashed var(--accent);outline-offset:-3px}
+.gcell.empty{cursor:default}
+.gcell.empty:hover{background:transparent}
+.glegend{font-size:12.5px;color:var(--muted);line-height:1.9}
+.glegend b{color:var(--fg);font-weight:600}
+.gdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--open);
+vertical-align:middle}
+.gdash{display:inline-block;width:14px;height:10px;border:1px dashed var(--accent);
+vertical-align:middle}
+
+.gtodo{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.gbox{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}
+.gbox h3{margin:0 0 8px;font-size:13.5px}
+.gbox ul{margin:0;padding-left:1.1em;font-size:13px;line-height:1.75}
+.gbox li{margin-bottom:2px}
+.gbox .qempty{padding:0;font-size:13px}
+
+/* The pair page: mechanical facts first, then what you wrote, then candidates. */
+#gpair[hidden]{display:none}
+#gpair{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:14px 16px}
+.ghead{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.ghead h3{margin:0;font-size:15px}
+.ghead .gclose{margin-left:auto;font:inherit;font-size:13px;padding:3px 9px;
+border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--muted);
+cursor:pointer}
+.ghead .gclose:hover{color:var(--fg)}
+.gsec{margin-top:14px}
+.gsec h4{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600}
+.gwarn{border-left:3px solid var(--half);padding:6px 10px;margin:6px 0;font-size:13px;
+background:var(--sec-stuck);border-radius:0 6px 6px 0}
+.gquote{font-size:12.5px;color:var(--muted);line-height:1.7;margin:2px 0 8px}
+.gquote code{font-size:11.5px}
+
+/* One link, both ends visible. Same shape in the pair page and in a card. */
+.glink{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;padding:7px 0;
+border-top:1px solid var(--line);font-size:13px;line-height:1.65}
+.gsec .glink:first-of-type{border-top:none}
+.gtype{flex:0 0 auto;font-size:11.5px;padding:1px 8px;border-radius:999px;
+border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.gtype.contradicts{border-color:var(--open);color:var(--open)}
+.gtype.refines{border-color:var(--done);color:var(--done)}
+.gnote{flex:1 1 14em;min-width:0}
+.gref{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.gref a{color:var(--accent)}
+
+/* One note's neighbours, inside the card that is open. Bounded by that note's
+   own degree, so this is the one view whose size never grows with the shelf. */
+/* Held back by the same stages that hold back the card's own links: a line
+   saying 牴觸 X is a hint, and the point of the review flow is to try first. */
+#panel[data-stage=question] .gego,#panel[data-stage=intuition] .gego,
+#panel[data-stage=half-explain] .gego{display:none}
+.gego{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+/* Inside the shelf's own panel there is already a heading and a rule above. */
+.gego.plain{margin-top:0;border-top:none;padding-top:0}
+.gego h4{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:600}
+.gego .gside{margin-bottom:10px}
+.gego .gside b{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px}
+.gego .qempty{padding:0;font-size:12.5px}
+.gego .ghint{font-size:12px;color:var(--muted);margin:-4px 0 8px}
+/* A note reference is a way into that note's own neighbourhood -- but only
+   where there is a panel to open it in, which is the shelf. */
+#view-graph [data-note]{cursor:pointer;border-bottom:1px dotted var(--line)}
+#view-graph [data-note]:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.gmore{font-size:12.5px;color:var(--half);margin-top:6px}

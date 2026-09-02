@@ -544,6 +544,16 @@ Resolution follows ADR 0001: targets are matched against the current
 have been built**, and links pointing at a newly added paper connect on the next
 build with no file edits.
 
+**How many links there are is not how related two papers are.** The shelf's
+link-graph view (`pa/graph.py`) reports **breadth** — how many *distinct* notes on
+each side take part, narrower side wins — because four links can be one
+relationship written down four times by a single note that fans out. Use the same
+measure when you talk about it: say "these two connect at three separate points",
+never "there are seven links so they are very related". End a round by asking
+about the two lists that view keeps: pairs that cite each other with no link yet,
+and notes with no link at all. Links come from him judging, never from you
+inferring one because two notes share a tag.
+
 ### The shelf page
 
 `build_library.py` produces `library.html` beside `papers.yml`: one card per
