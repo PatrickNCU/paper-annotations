@@ -265,9 +265,13 @@ most here, because a card is exactly the thing he opens alone months later.
 
 **The quote is the highlight and the way into the card.** `quote.exact` lights up
 on the page; clicking it opens the card. So pick **the sentence that actually
-stopped him**, not any unique string used as a position marker. Missing or
-appearing twice → do not mark it; never guess. The card still opens from the
-sidebar list, it just has no entry point in the body.
+stopped him**, not any unique string used as a position marker. Quotes of
+different cards may share a paragraph or overlap: every one is marked, and a
+click on shared words lists those cards. Missing or appearing twice → do not
+mark it; never guess. A quote containing `$…$`, code or a link is found but not
+marked (the build lists it under 「🟡 沒有反白的疑問」) — prefer a plain sentence
+at the same spot. Every card also gets a label beside the paragraph its quote is
+in, so even an unmarked card opens from the text.
 
 **Uniqueness**: `anchor.quote.exact` must occur exactly once in its file. The
 build checks every card each time, including ones anchored by `ref`/`heading`.

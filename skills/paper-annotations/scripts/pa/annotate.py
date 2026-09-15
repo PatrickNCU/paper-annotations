@@ -40,8 +40,10 @@ ANNOTATED_AGENTS = """# Annotated View — Reading Policy
    **不是論文內容，不得作為論文原文引用或轉述為作者主張**。
 3. `<div class="pnote">` 區塊是**AI 讀出的要點**（主張／方法／假設／定義／結果／限制），
    是對原文的轉述，**引用時一律回到權威原文查證**。
-4. 不要編輯本目錄任何檔案；修改請改 `{cards}` 後重新執行 build。
-5. 疑問索引在 `{questions}`。
+4. 原文句子外的 `==…==` 與緊跟著的 `<!--Q:編號-->` 是疑問卡的反白和卡片編號，
+   `<div class="qanchor">` 是頁面定位用的空標記；引用原文時兩者都要去掉。
+5. 不要編輯本目錄任何檔案；修改請改 `{cards}` 後重新執行 build。
+6. 疑問索引在 `{questions}`。
 
 本檔案為新增，不覆寫論文套件原有的 `AGENTS.md` 閱讀政策。
 """
@@ -354,7 +356,7 @@ def build(work_root: Path, allow_drift: bool = False):
         points_by_file.setdefault(str(anchor.get("file") or ""), []).append(point)
 
     source_list = [Path(p) for p in (config.get("sources") or [])]
-    placed, unanchored, rows, fragile = {}, [], [], []
+    placed, unanchored, rows, fragile, unmarked = {}, [], [], [], []
     point_rows, point_lost, point_fragile = [], [], []
 
     # One checkpoint per section, keyed by the section file's stem so the
@@ -391,6 +393,7 @@ def build(work_root: Path, allow_drift: bool = False):
         dst = annotated_root / rel
 
         insertions = []
+        haystack, _ = anchors.norm_map(lines)
         for card in by_file.get(rel.as_posix(), []):
             index, method = anchors.resolve_anchor(card["meta"].get("anchor") or {}, lines)
             if index is None:
@@ -435,27 +438,53 @@ def build(work_root: Path, allow_drift: bool = False):
         # move it a second time. Anchoring still runs on the untouched lines.
         out = [links.rewrite_links(line, src.parent, dst.parent) for line in lines]
         # Marking runs before insertion: it never changes the line count, so the
-        # anchor indices resolved above still point where they did.
+        # anchor indices resolved above still point where they did. All cards of
+        # a file go in one call, so overlapping quotes are all drawn.
+        out, why, near = anchors.mark_quotes(out, [
+            (str(card["meta"].get("id")),
+             anchors.quote_text((card["meta"].get("anchor") or {}).get("quote")))
+            for _, _, card in insertions
+        ])
         for _, _, card in insertions:
-            quote = (card["meta"].get("anchor") or {}).get("quote")
-            out = anchors.highlight_quote(out, anchors.quote_text(quote))
+            reason = why.get(str(card["meta"].get("id")))
+            if reason:
+                unmarked.append((card, reason))
+
+        def where(note):
+            # Several notes can hang after the same block; they follow the text,
+            # so a paragraph's cards read in the order their sentences do.
+            pos = anchors.quote_offset(
+                haystack, anchors.quote_text((note["meta"].get("anchor") or {}).get("quote")))
+            return (pos is None, pos or 0)
+
         blocks = [
-            (index, render_card(card, dst, *links_for(card, "Q"),
-                                dests=dests, this_slug=this_slug).splitlines())
+            ((index, 0) + where(card), render_card(card, dst, *links_for(card, "Q"),
+                                                   dests=dests, this_slug=this_slug).splitlines())
             for index, _, card in insertions
         ]
         blocks += [
-            (index, render_point(point, dst, *links_for(point, "P"),
-                                 dests=dests, this_slug=this_slug).splitlines())
+            ((index, 1) + where(point), render_point(point, dst, *links_for(point, "P"),
+                                                     dests=dests, this_slug=this_slug).splitlines())
             for index, point in point_hits
         ]
-        for index, block in sorted(blocks, key=lambda item: -item[0]):
+        # A card whose sentence could not be marked still tells the page which
+        # block that sentence is in: an empty, hidden marker right after it.
+        # The card itself stays where its anchor put it.
+        blocks += [
+            ((line, 2, False, 0), [f'<div class="qanchor" data-ids="{cid}" hidden></div>'])
+            for cid, line in sorted(near.items())
+        ]
+        # Bottom-up so earlier indices stay valid, and last-first within one
+        # index: each insert lands above the previous one, so this is what
+        # leaves them in order.
+        for key, block in sorted(blocks, key=lambda item: item[0], reverse=True):
+            index = key[0]
             out[index + 1 : index + 1] = [""] + block
 
         for index, method, card in insertions:
             rows.append(
                 {
-                    "order": (order, index),
+                    "order": (order, index) + where(card),
                     "card": card,
                     "method": method,
                     "file_rel": rel,
@@ -519,8 +548,14 @@ def build(work_root: Path, allow_drift: bool = False):
             declared = (card["meta"].get("anchor") or {}).get("file") or "(未填)"
             unanchored.append((card, f"找不到這張卡指定的檔案：{declared}（原文可能被重新切分，執行 reanchor.py）"))
 
+    # A quote that is missing or not unique is already reported under 引文提醒,
+    # with its own fix; saying it twice would bury the cards that only lack a mark.
+    fragile_ids = {str(card["meta"].get("id")) for card, _ in fragile}
+    unmarked = [(card, why) for card, why in unmarked
+                if str(card["meta"].get("id")) not in fragile_ids]
+
     write_index(paper_root, notes_dir, annotated_root, config, rows, unanchored, cards,
-                fragile, card_problems, point_rows, point_lost)
+                fragile, card_problems, point_rows, point_lost, unmarked)
     review = srs.counts(notes_dir, cards, date.today().isoformat())
     catalog = library.write_catalog(notes_dir, paper_root, config, cards, points, review)
 
@@ -559,6 +594,13 @@ def build(work_root: Path, allow_drift: bool = False):
         for card, hits in fragile:
             print(f"    Q{card['meta'].get('id')} — {fragile_reason(hits)} — {card['path'].name}")
         print("    把 quote.exact 改成原文中獨一無二的一句話即可。")
+    if unmarked:
+        # Grouped by reason: a paper full of equation cards would otherwise
+        # print one identical line per card, every build.
+        print(f"\n🟡 沒有反白的疑問 {len(unmarked)} 張（頁面上從段落左邊的卡片標籤打開）：")
+        for reason, ids in group_unmarked(unmarked):
+            print(f"    {reason}：{'、'.join('Q' + i for i in ids)}")
+        print("    要反白就把 quote.exact 換成同一處不含公式、程式碼或連結的一句。")
     if point_fragile:
         print("\n🟡 要點的引文提醒（這次照樣掛好了，但論文改版後會救不回來）：")
         for point, hits in point_fragile:
@@ -580,6 +622,13 @@ def build(work_root: Path, allow_drift: bool = False):
         for rel in companions:
             print(f"    {rel}")
     return 0
+
+
+def group_unmarked(unmarked):
+    groups = {}
+    for card, reason in unmarked:
+        groups.setdefault(reason, []).append(str(card["meta"].get("id")))
+    return sorted(groups.items())
 
 
 def fragile_reason(hits: int) -> str:
@@ -621,7 +670,7 @@ def anchor_display(card, method) -> str:
     return {"heading": "小節", "quote": "引文"}.get(method, method)
 
 
-def write_index(paper_root: Path, notes_dir: Path, annotated_root: Path, config: dict, rows, unanchored, cards, fragile=(), card_problems=(), point_rows=(), point_lost=()):
+def write_index(paper_root: Path, notes_dir: Path, annotated_root: Path, config: dict, rows, unanchored, cards, fragile=(), card_problems=(), point_rows=(), point_lost=(), unmarked=()):
     rows = sorted(rows, key=lambda r: r["order"])
     page = annotated_root / "index.html"
     annotated_link = links.rel_href(notes_dir / "QUESTIONS.md", page)
@@ -683,6 +732,23 @@ def write_index(paper_root: Path, notes_dir: Path, annotated_root: Path, config:
             lines.append(
                 f"| [`{card['path'].name}`](cards/{card['path'].name}) "
                 f"| {esc(summary_text(card))} | {esc(fragile_reason(hits))} |"
+            )
+        lines.append("")
+
+    if unmarked:
+        lines += [
+            "## 🟡 沒有反白的疑問",
+            "",
+            "這些疑問掛好了，但正文裡沒有反白可點；複習頁上改從段落左邊的卡片標籤打開。"
+            "要反白就把 `quote.exact` 換成同一處不含公式、程式碼或連結的一句。",
+            "",
+            "| 卡片 | 問題 | 原因 |",
+            "|---|---|---|",
+        ]
+        for card, reason in unmarked:
+            lines.append(
+                f"| [`{card['path'].name}`](cards/{card['path'].name}) "
+                f"| {esc(summary_text(card))} | {esc(reason)} |"
             )
         lines.append("")
 

@@ -155,12 +155,13 @@ _MARK_RE = re.compile(r"<mark>(.*?)</mark>", re.S)
 
 
 def tag_marks(body_html: str, cards) -> str:
-    """Attach each highlight to the card that put it there.
+    """Attach a card to a highlight that came without one.
 
-    The mark is written as plain ==…== in the Markdown so that view stays
-    portable; the id is joined back on here, by quote, so a filtered-out card
-    takes its highlight with it. An ambiguous match gets no id and simply stays
-    lit -- the harmless failure of the two.
+    The build now writes the ids beside every mark, and minimd hands those over
+    as <mark data-ids>, which this leaves alone. What remains is an annotated/
+    written by an older build: there the id is guessed back by quote, so the
+    page still works until the next build_annotated. An ambiguous match gets no
+    id and simply stays lit -- the harmless failure of the two.
     """
     quotes = []
     for card in cards:
@@ -178,7 +179,7 @@ def tag_marks(body_html: str, cards) -> str:
         hits = [(cid, origin) for quote, cid, origin in quotes if inner in quote or quote in inner]
         if len(hits) != 1:
             return match.group(0)
-        return f'<mark data-id="{hits[0][0]}" data-origin="{hits[0][1]}">{match.group(1)}</mark>'
+        return f'<mark data-ids="{hits[0][0]}">{match.group(1)}</mark>'
 
     return _MARK_RE.sub(sub, body_html)
 

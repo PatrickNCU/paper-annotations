@@ -74,8 +74,24 @@ _IMG = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _FOOTREF = re.compile(r"\[\^([\w-]+)\]")
 _MARK = re.compile(r"==(?=\S)(.+?)(?<=\S)==")
+# A card's highlight, followed by the ids of every card that quotes it. Seen
+# after esc(), hence the escaped comment. The body may not contain "==": the
+# id form must never swallow a bare mark written earlier on the same line.
+_MARK_IDS = re.compile(r"==(?=\S)((?:(?!==).)+?)(?<=\S)==&lt;!--Q:([0-9A-Za-z_ -]+)--&gt;")
+# Pieces of one card's sentence separated only by a space: the space goes
+# inside the first, so the sentence lights up as one band instead of several.
+_MARK_GAP = re.compile(
+    r'(<mark data-ids="([^"]*)">)((?:(?!</mark>).)*)</mark>(\s+)(?=<mark data-ids="([^"]*)">)'
+)
 _BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
 _ITALIC = re.compile(r"(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])")
+
+
+def _join_marks(match) -> str:
+    opening, ids, inner, gap, after = match.groups()
+    if set(ids.split()) & set(after.split()):
+        return f"{opening}{inner}{gap}</mark>"
+    return match.group(0)
 
 
 def _inline(text: str) -> str:
@@ -86,6 +102,10 @@ def _inline(text: str) -> str:
         lambda m: f'<sup class="fn"><a href="#fn-{m.group(1)}" id="fnref-{m.group(1)}">{m.group(1)}</a></sup>',
         text,
     )
+    text = _MARK_IDS.sub(
+        lambda m: f'<mark data-ids="{" ".join(m.group(2).split())}">{m.group(1)}</mark>', text
+    )
+    text = _MARK_GAP.sub(_join_marks, text)
     text = _MARK.sub(lambda m: f"<mark>{m.group(1)}</mark>", text)
     text = _BOLD.sub(lambda m: f"<strong>{m.group(1)}</strong>", text)
     text = _ITALIC.sub(lambda m: f"<em>{m.group(1)}</em>", text)

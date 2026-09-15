@@ -5,9 +5,19 @@
   var filter=document.getElementById('statusf');
   var search=document.getElementById('q');
   var links=[].slice.call(document.querySelectorAll('a.qlink'));
-  // A highlight is its card's footprint in the text, so it follows the card:
-  // hide the card and the mark goes with it, leaving the sentence untouched.
-  var marks=[].slice.call(document.querySelectorAll('mark[data-id]'));
+  // A highlight is its cards' footprint in the text, so it follows them: a
+  // piece goes dark only once every card quoting it is hidden. data-ids is
+  // written by the build, which knows exactly which cards drew each piece.
+  var marks=[].slice.call(document.querySelectorAll('mark[data-ids]'));
+  marks.forEach(function(k){
+    k._ids=k.dataset.ids.split(' ');
+    // pieces of one card's sentence that touch are drawn as one band
+    var prev=k.previousSibling;
+    if(prev&&prev.nodeType===1&&prev.tagName==='MARK'&&prev._ids&&
+       prev._ids.some(function(id){ return k._ids.indexOf(id)>=0; })){
+      prev.classList.add('jr'); k.classList.add('jl');
+    }
+  });
   // Points are filtered on their own switch, never by 狀態: they have no
   // status, and "不顯示疑問" is about questions. The button only exists on a
   // page that has some, hence the null guard everywhere it is touched.
@@ -85,8 +95,12 @@
       a.classList.toggle('hidden', shown[id]===false);
     });
     marks.forEach(function(k){
-      k.classList.toggle('off', shown[k.dataset.id]===false);
+      var n=k._ids.filter(function(id){ return shown[id]!==false; }).length;
+      k.classList.toggle('off',!n);
+      k.classList.toggle('multi',n>1);
     });
+    closeChooser();
+    drawGutters();
     if(points.length){
       var wantPt=!showPt||showPt.classList.contains('on');
       points.forEach(function(p){
@@ -212,6 +226,7 @@
   function openCard(id){
     var card=document.getElementById('card-'+id);
     if(!card||card.classList.contains('hidden')) return;
+    closeChooser(); qtipHide(); light(null);
     var parts=[].slice.call(card.children), head='', rest='';
     parts.forEach(function(n){
       if(n.tagName==='SUMMARY') head=n.innerHTML; else rest+=n.outerHTML;
@@ -222,15 +237,25 @@
     // everything visible until the review module below says otherwise
     panel.dataset.stage='';
     current=id;
-    jump.hidden=!document.querySelector('mark[data-id="'+id+'"]');
+    // every card can go back to the text: to its sentence when it has one,
+    // otherwise to the block it hangs on
+    jump.hidden=!jumpTarget(id);
     panel.hidden=false; ov.hidden=false;
     panel.scrollTop=0;
     panel.focus();
   }
   function closeCard(){ panel.hidden=true; ov.hidden=true; current=null; }
   document.getElementById('main').addEventListener('click',function(e){
-    var m=e.target.closest?e.target.closest('mark[data-id]'):null;
-    if(m&&!m.classList.contains('off')) openCard(m.dataset.id);
+    if(!e.target.closest) return;
+    var g=e.target.closest('.gb');
+    if(g){ openCard(g.dataset.id); return; }
+    var more=e.target.closest('.gmore');
+    if(more){ toggleMore(more); return; }
+    var m=e.target.closest('mark[data-ids]');
+    if(!m||m.classList.contains('off')) return;
+    var ids=liveIds(m);
+    if(ids.length===1) openCard(ids[0]);
+    else if(ids.length>1) openChooser(ids,e.clientX,e.clientY);
   });
   links.forEach(function(a){
     a.addEventListener('click',function(e){
@@ -239,10 +264,254 @@
     });
   });
   jump.addEventListener('click',function(){
-    var m=current&&document.querySelector('mark[data-id="'+current+'"]');
+    var id=current;
     closeCard();
-    if(m) m.scrollIntoView({block:'center'});
+    if(id) jumpTo(id);
   });
+
+  // ---- Cards in the text -------------------------------------------------
+  // Several cards may quote the same words. A click there cannot pick one for
+  // the reader, so it lists them where he clicked; pointing at a row lights
+  // that card's whole sentence, which is what tells two overlapping cards apart.
+  var chooser=document.getElementById('qchooser');
+  var qtip=document.getElementById('qtip');
+  var SMOOTH=!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // Reading order: where a card's first piece sits, then where the card sits.
+  var FIRST={}, ORDER={};
+  marks.forEach(function(k,i){
+    k._ids.forEach(function(id){ if(FIRST[id]==null) FIRST[id]=i; });
+  });
+  cards.forEach(function(c,i){ ORDER[c.dataset.id]=i; });
+  function rank(id){ return (FIRST[id]!=null?FIRST[id]:marks.length)*100000+(ORDER[id]||0); }
+  function byText(a,b){ return rank(a)-rank(b); }
+  function cardEl(id){ return document.getElementById('card-'+id); }
+  function visibleCard(id){ var c=cardEl(id); return !!c&&!c.classList.contains('hidden'); }
+  function liveIds(m){ return m._ids.filter(visibleCard).sort(byText); }
+  function marksOf(id){ return marks.filter(function(k){ return k._ids.indexOf(id)>=0; }); }
+  function attr(s){ return esc(s).replace(/"/g,'&quot;'); }
+  function cardText(id){
+    for(var i=0;i<links.length;i++){
+      if(links[i].getAttribute('href')==='#card-'+id){
+        var t=links[i].querySelector('.qtext');
+        return t?t.textContent:'';
+      }
+    }
+    return '';
+  }
+  // The block a card belongs to, as a direct child of its section: the one
+  // holding its first piece; with no piece, the one the build left a marker
+  // after (the sentence was found but could not be marked); failing both, the
+  // one the card itself was put after.
+  function topBlock(el){
+    while(el&&el.parentElement&&!el.parentElement.classList.contains('chunk')) el=el.parentElement;
+    return el&&el.parentElement?el:null;
+  }
+  function anchorBlock(id){
+    var ms=marksOf(id);
+    if(ms.length) return topBlock(ms[0]);
+    var el=null;
+    [].some.call(document.querySelectorAll('.qanchor'),function(a){
+      if(a.dataset.ids.split(' ').indexOf(id)>=0){ el=a; return true; }
+      return false;
+    });
+    el=el||cardEl(id);
+    while(el&&(el=el.previousElementSibling)){
+      if(!el.matches('.qcard,.pnote,.gutrow,.qanchor')) return el;
+    }
+    return null;
+  }
+  function jumpTarget(id){ var ms=marksOf(id); return ms.length?ms[0]:anchorBlock(id); }
+
+  var litId=null;
+  function light(id){
+    if((id||null)===litId) return;
+    marks.forEach(function(k){ k.classList.remove('qlit'); });
+    [].forEach.call(document.querySelectorAll('.qlit-block'),function(b){ b.classList.remove('qlit-block'); });
+    litId=id||null;
+    if(!id) return;
+    var ms=marksOf(id);
+    if(ms.length) ms.forEach(function(k){ k.classList.add('qlit'); });
+    else { var b=anchorBlock(id); if(b) b.classList.add('qlit-block'); }
+  }
+  function flash(el,cls){
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+    el.addEventListener('animationend',function(){ el.classList.remove(cls); },{once:true});
+  }
+  // Landing is not enough -- a centred line among thirty says nothing. The
+  // whole sentence flashes, every piece of it, not just the part shared with
+  // another card; a card without one flashes the block it hangs on.
+  function jumpTo(id){
+    var ms=marksOf(id).filter(function(k){ return !k.classList.contains('off'); });
+    var target=ms.length?ms[0]:anchorBlock(id);
+    if(!target) return;
+    target.scrollIntoView({block:'center',behavior:SMOOTH?'smooth':'auto'});
+    setTimeout(function(){
+      if(ms.length) ms.forEach(function(k){ flash(k,'qflash'); });
+      else flash(target,'qflash-block');
+    },SMOOTH?420:0);
+  }
+
+  function openChooser(ids,x,y){
+    qtipHide(); light(null);
+    chooser.innerHTML='<div class="qc-head">這裡有 '+ids.length+' 張疑問卡</div>'+ids.map(function(id){
+      var quote=marksOf(id).map(function(k){ return k.textContent; }).join('').replace(/\s+/g,' ').trim();
+      return '<button class="qc-row" role="menuitem" data-id="'+attr(id)+'">'+
+        '<span class="dot '+attr(cardEl(id).dataset.status||'open')+'">●</span><span class="qc-body">'+
+        '<span class="qc-text"><b>Q'+esc(id)+'</b> · '+esc(cardText(id))+'</span>'+
+        '<span class="qc-quote">「'+esc(quote)+'」</span></span></button>';
+    }).join('');
+    chooser.hidden=false;
+    var r=chooser.getBoundingClientRect();
+    var left=Math.max(8,Math.min(x-18,window.innerWidth-r.width-8));
+    var top=y+14;
+    if(top+r.height>window.innerHeight-8) top=Math.max(8,y-14-r.height);
+    chooser.style.left=left+'px'; chooser.style.top=top+'px';
+  }
+  function closeChooser(){
+    if(chooser.hidden) return;
+    chooser.hidden=true;
+    light(null);
+  }
+  chooser.addEventListener('mouseover',function(e){
+    var r=e.target.closest('.qc-row'); if(r) light(r.dataset.id);
+  });
+  chooser.addEventListener('focusin',function(e){
+    var r=e.target.closest('.qc-row'); if(r) light(r.dataset.id);
+  });
+  chooser.addEventListener('mouseleave',function(){
+    if(!chooser.contains(document.activeElement)) light(null);
+  });
+  chooser.addEventListener('click',function(e){
+    var r=e.target.closest('.qc-row'); if(!r) return;
+    var id=r.dataset.id;
+    closeChooser();
+    openCard(id);
+  });
+  document.addEventListener('keydown',function(e){
+    if(chooser.hidden||(e.key!=='ArrowDown'&&e.key!=='ArrowUp')) return;
+    e.preventDefault();
+    var rows=[].slice.call(chooser.querySelectorAll('.qc-row'));
+    var i=rows.indexOf(document.activeElement);
+    i=e.key==='ArrowDown'?(i+1)%rows.length:(i<=0?rows.length-1:i-1);
+    rows[i].focus();
+  });
+  document.addEventListener('mousedown',function(e){
+    if(!chooser.hidden&&!chooser.contains(e.target)) closeChooser();
+  });
+  // placed in viewport coordinates, so it goes as soon as the text moves
+  window.addEventListener('scroll',function(){ closeChooser(); qtipHide(); },{passive:true});
+  document.addEventListener('wheel',function(e){
+    if(!chooser.contains(e.target)) closeChooser();
+    qtipHide();
+  },{passive:true});
+
+  function qtipHide(){ qtip.hidden=true; }
+  var hoverMark=null;
+  var mainEl=document.getElementById('main');
+  mainEl.addEventListener('mousemove',function(e){
+    var m=e.target.closest?e.target.closest('mark[data-ids]'):null;
+    if(m&&m.classList.contains('off')) m=null;
+    if(m!==hoverMark){ hoverMark=m; pickFor(m); }
+    var n=m?liveIds(m).length:0;
+    if(n<2||!chooser.hidden||!panel.hidden||(hlTip&&!hlTip.hidden)){ qtipHide(); return; }
+    qtip.textContent=n+' 張疑問卡 · 點一下挑一張';
+    qtip.hidden=false;
+    qtip.style.left=Math.max(8,Math.min(e.clientX+12,window.innerWidth-qtip.offsetWidth-8))+'px';
+    qtip.style.top=(e.clientY+18)+'px';
+  });
+  mainEl.addEventListener('mouseleave',function(){ hoverMark=null; pickFor(null); qtipHide(); });
+
+  // ---- Labels beside the paragraphs --------------------------------------
+  // Every card hanging on a paragraph, marked or not, in the margin beside it:
+  // a card whose quote could not be marked (a formula, a link) finally has a
+  // way in from the text, and a crowded paragraph shows how crowded it is.
+  var ROWS=[], GUT_MAX=4, GUT_ROOM=118+14+8;
+  function buildGutters(){
+    var byBlock=new Map();
+    cards.forEach(function(c){
+      var b=anchorBlock(c.dataset.id);
+      if(!b) return;
+      if(!byBlock.has(b)) byBlock.set(b,[]);
+      byBlock.get(b).push(c.dataset.id);
+    });
+    byBlock.forEach(function(ids,block){
+      ids.sort(byText);
+      var row=document.createElement('div');
+      row.className='gutrow';
+      row.innerHTML='<div class="gut"></div>';
+      block.parentNode.insertBefore(row,block);
+      var r={row:row,gut:row.firstChild,block:block,ids:ids,open:false};
+      row._r=r;
+      ROWS.push(r);
+    });
+    marks.forEach(function(k){
+      var b=topBlock(k), rr=b&&b.previousElementSibling;
+      k._row=rr&&rr._r?rr._r:null;
+    });
+  }
+  function drawGutters(){
+    ROWS.forEach(function(r){
+      var vis=r.ids.filter(visibleCard);
+      r.row.hidden=!vis.length;
+      var show=vis, more=0;
+      if(vis.length>GUT_MAX&&!r.open){ show=vis.slice(0,GUT_MAX-1); more=vis.length-show.length; }
+      r.gut.innerHTML=show.map(function(id){
+        var bare=!marksOf(id).length, q=cardText(id);
+        return '<button class="gb'+(bare?' nm':'')+'" data-id="'+attr(id)+'" data-status="'+
+          attr(cardEl(id).dataset.status||'open')+'" data-label="Q'+attr(id)+(bare?' 無反白':'')+'"'+
+          ' title="'+attr(q+(bare?'（正文沒有反白，點這裡打開）':''))+'" aria-label="Q'+attr(id)+'：'+attr(q)+'"></button>';
+      }).join('')+(more?'<button class="gmore" data-label="+'+more+' 張" aria-label="再顯示 '+more+' 張"></button>':
+        (vis.length>GUT_MAX?'<button class="gmore" data-label="收起" aria-label="收起"></button>':''));
+    });
+    placeGutters();
+  }
+  function toggleMore(btn){
+    var row=btn.closest('.gutrow');
+    if(!row||!row._r) return;
+    row._r.open=!row._r.open;
+    drawGutters();
+    var again=row.querySelector('.gmore');
+    if(again) again.focus();
+  }
+  // In the margin when there is room for it, otherwise a row above the block.
+  // The offset is measured, not assumed: margins differ between a paragraph,
+  // a heading and a table, and a label should start where its block does.
+  function placeGutters(){
+    if(!ROWS.length) return;
+    var room=mainEl.getBoundingClientRect().left+parseFloat(getComputedStyle(mainEl).paddingLeft||0);
+    var inline=room<GUT_ROOM;
+    body.classList.toggle('gut-inline',inline);
+    ROWS.forEach(function(r){
+      if(r.row.hidden) return;
+      r.gut.style.top=inline?'':(r.block.offsetTop-r.row.offsetTop+3)+'px';
+    });
+  }
+  function pickFor(m){
+    [].forEach.call(document.querySelectorAll('.gut.picking'),function(g){ g.classList.remove('picking'); });
+    [].forEach.call(document.querySelectorAll('.gb.pick'),function(b){ b.classList.remove('pick'); });
+    if(!m||!m._row) return;
+    m._row.gut.classList.add('picking');
+    liveIds(m).forEach(function(id){
+      var b=m._row.gut.querySelector('.gb[data-id="'+id+'"]');
+      if(b) b.classList.add('pick');
+    });
+  }
+  mainEl.addEventListener('mouseover',function(e){
+    var g=e.target.closest&&e.target.closest('.gb'); if(g) light(g.dataset.id);
+  });
+  mainEl.addEventListener('mouseout',function(e){
+    var g=e.target.closest&&e.target.closest('.gb');
+    if(g&&!g.contains(e.relatedTarget)) light(null);
+  });
+  mainEl.addEventListener('focusin',function(e){
+    var g=e.target.closest&&e.target.closest('.gb'); if(g) light(g.dataset.id);
+  });
+  mainEl.addEventListener('focusout',function(e){
+    if(e.target.closest&&e.target.closest('.gb')) light(null);
+  });
+  buildGutters();
+  if(window.ResizeObserver) new ResizeObserver(placeGutters).observe(mainEl);
+  window.addEventListener('resize',placeGutters);
   document.getElementById('pclose').addEventListener('click',closeCard);
   ov.addEventListener('click',closeCard);
   document.addEventListener('keydown',function(e){
@@ -250,6 +519,7 @@
     var np=document.getElementById('hlnote');
     if(np&&!np.hidden){ np.hidden=true; np.dataset.i=''; return; }
     if(hlBar&&!hlBar.hidden){ hlHide(); return; }
+    if(!chooser.hidden){ closeChooser(); return; }
     if(!panel.hidden){ closeCard(); return; }
     if(body.classList.contains('note-on')&&document.activeElement!==pad){
       body.classList.remove('note-on');
@@ -319,7 +589,7 @@
   // and unactionable. Name the real reason instead.
   function hlOurs(node){
     var el=node&&node.nodeType===3?node.parentElement:node;
-    return !!(el&&el.closest&&el.closest('.qcard,.pnote'));
+    return !!(el&&el.closest&&el.closest('.qcard,.pnote,.gutrow'));
   }
   // Text index over one section, counting ONLY the source text. Three kinds of
   // node are skipped, all for the same reason: a highlight is resolved against
@@ -334,7 +604,7 @@
     var walk=document.createTreeWalker(sec,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
       var p=n.parentElement;
       if(!p||!n.nodeValue) return NodeFilter.FILTER_REJECT;
-      return p.closest('.katex-mathml,.qcard,.pnote')
+      return p.closest('.katex-mathml,.qcard,.pnote,.gutrow')
         ?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
     }});
     var m={txt:'',nodes:[],offs:[],at:new Map()},n;
@@ -696,7 +966,7 @@
       // And a click on the page furniture is not a reading gesture -- it does
       // not always clear the selection, which would put the palette straight
       // back over the paper the moment the reader reached for a button.
-      var chrome=e.target.closest&&e.target.closest('#sidewrap,#notewrap,#panel,#ov,#hlnote');
+      var chrome=e.target.closest&&e.target.closest('#sidewrap,#notewrap,#panel,#ov,#hlnote,#qchooser,.gutrow');
       if(!hlOn||chrome){ hlHide(); return; }
       setTimeout(function(){
         if(!panel.hidden){ hlHide(); return; }
@@ -712,7 +982,7 @@
           hlPlace(it.range.getBoundingClientRect());
         }
         // clicking a mark opens its card -- that gesture stays as it was
-        var onCard=e.target.closest&&e.target.closest('mark[data-id]');
+        var onCard=e.target.closest&&e.target.closest('mark[data-ids]');
         var sel=window.getSelection();
         if(sel&&!sel.isCollapsed&&sel.rangeCount&&hlSec(sel.getRangeAt(0).startContainer)){
           // A selection without a drag is user-select:all handing over a
@@ -748,7 +1018,7 @@
     });
     document.addEventListener('mousemove',function(e){
       // anything the reader has deliberately opened outranks a tooltip
-      if(!hlOn||!panel.hidden||!hlNote.hidden||!hlBar.hidden){ tipHide(); return; }
+      if(!hlOn||!panel.hidden||!hlNote.hidden||!hlBar.hidden||!chooser.hidden){ tipHide(); return; }
       var now=Date.now();
       if(now-tipLast<60) return;
       tipLast=now;

@@ -273,6 +273,8 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 本頁是<strong>衍生檔</strong>，由論文原文與 <code>notes/cards/</code> 合併產生，請勿直接編輯。
 摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
 正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
+好幾張卡引到同一處時顏色較深，點下去會列出這裡的卡讓你挑。
+段落左邊的<strong>卡片標籤</strong>列出掛在這一段的卡，沒有反白的卡也在那裡。
 先自己想過再看解答。滑鼠移到左上角的 <strong>☰</strong> 會滑出目錄與疑問清單，點一下可以釘住；
 右上角有提問草稿區。
 選取正文會浮出<strong>螢光筆</strong>，畫記存在這台瀏覽器裡，要留下來請用側欄的「複製畫記」貼回對話。
@@ -296,6 +298,8 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <script id="pa-marks" type="application/json">{mark_json}</script>
 <script id="pa-srs" type="application/json">{srs_json}</script>
 <div id="hltip" hidden></div>
+<div id="qtip" hidden></div>
+<div id="qchooser" hidden role="menu" aria-label="這裡的疑問卡"></div>
 <section id="hlnote" hidden>
   <div class="nhead">畫記註解 <span class="nhint">存在瀏覽器，複製後交給 agent 落檔</span></div>
   <textarea id="hlnotepad" placeholder="這段為什麼重要？想到什麼？"></textarea>
