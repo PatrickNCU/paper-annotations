@@ -1223,290 +1223,41 @@
   // stashing it in localStorage would put it one "clear browsing data" away
   // from gone.
   var srsList=document.getElementById('srslist');
-  if(srsList){
-    var srsCount=document.getElementById('srscount');
-    var dueLine=document.getElementById('dueline');
-    var srsState=null, srsToken='', srsBusy=false;
-    // What the open card is doing. read: everything shown, no grading.
-    // review: question first, then the one line, then the rest, then a grade.
-    // half: his own words first, the answer only after. The stage is a
-    // data attribute on the panel and the stylesheet hides sections by it,
-    // so the card's HTML is never taken apart.
-    var mode='read', jolPick='', selfText='';
+  if(srsList&&window.paReview){
+    var srsState=null;
     try{ srsState=JSON.parse(document.getElementById('pa-srs').textContent); }catch(e){}
-
-    function esc(s){
-      return String(s).replace(/[&<>"]/g,function(c){
-        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
-      });
-    }
-    function srsFind(id){
-      if(!srsState) return null;
-      var all=(srsState.scheduled||[]).concat(srsState.queue||[]);
-      for(var i=0;i<all.length;i++){ if(all[i].id===id) return all[i]; }
-      return null;
-    }
-    function srsDays(n){ return n>=365?'1 年':(n+' 天'); }
-    function mmdd(iso){ return iso?iso.slice(5):''; }
-    function modeFor(it){ return it&&it.kind==='half'?'half':'review'; }
-
-    // One line the reader can act on before opening anything: what is due,
-    // what is stuck, and when the next one comes if nothing is.
-    function srsDraw(){
-      if(!srsState){ srsList.innerHTML=''; if(dueLine) dueLine.textContent=''; return; }
-      var q=srsState.queue||[], due=srsState.due||0, half=srsState.half||0;
-      srsCount.textContent=due?'('+due+')':'';
-      if(dueLine){
-        dueLine.textContent='今天到期 '+due+' 張 · 半懂 '+half+' 張'+
-          (srsState.next?' · 下一張 '+mmdd(srsState.next):'');
-      }
-      var html='';
-      if(!q.length){
-        // three different reasons for an empty list, three different sentences
-        var msg;
-        if(!srsState.tracked) msg='還沒有排程中的卡。卡片標成已解決，就會排進來。';
-        else if(srsState.done_today) msg='今天做完了。'+
-          (srsState.tomorrow?'明天 '+srsState.tomorrow+' 張。':
-           (srsState.next?'下一張 '+mmdd(srsState.next)+'。':''));
-        else msg='今天沒有到期的卡。'+(srsState.next?'下一張 '+mmdd(srsState.next)+'。':'');
-        html='<div class="qempty">'+msg+'</div>';
-      } else {
-        html=q.map(function(it){
-          var tag;
-          if(it.kind==='half') tag='<span class="srstag half">半懂'+
-            (it.since!=null?' '+it.since+' 天':'')+'</span>';
-          else if(it.retry) tag='<span class="srstag retry">再答一次</span>';
-          else tag='<span class="srstag due">到期</span>';
-          return '<a class="qlink srsitem" href="#card-'+it.id+'" data-id="'+it.id+'">'+
-                 tag+'<span class="qtext">'+esc(it.question)+'</span></a>';
-        }).join('');
-      }
-      var parked=srsState.parked||[];
-      if(parked.length){
-        html+='<div class="srshint">'+parked.map(function(p){ return 'Q'+p.id; }).join('、')+
-          ' 今天答錯 3 次了，明天再來。</div>';
-      }
-      var ahead=(srsState.scheduled||[]).filter(function(it){ return !it.ready&&!it.parked; });
-      if(!due&&ahead.length){
-        html+='<button class="srsahead" id="srsahead" data-id="'+ahead[0].id+'">'+
-          '提前複習一張（'+mmdd(ahead[0].due)+' 才到期）</button>';
-      }
-      if(!srsToken){
-        html+='<div class="srshint">評分需要 <code>serve.py</code> 在跑——'+
-          '複習紀錄要寫成檔案，這頁自己寫不了。</div>';
-      }
-      srsList.innerHTML=html;
-      [].slice.call(srsList.querySelectorAll('.srsitem')).forEach(function(a){
-        a.addEventListener('click',function(e){
-          e.preventDefault();
-          openCard(a.dataset.id,modeFor(srsFind(a.dataset.id)));
-        });
-      });
-      var aheadBtn=document.getElementById('srsahead');
-      if(aheadBtn) aheadBtn.addEventListener('click',function(){ openCard(aheadBtn.dataset.id,'review'); });
-    }
-
-    // The controls under the card. Rebuilt at every stage, so there is never
-    // a button on screen that belongs to a step already taken.
-    function setStage(s){ panel.dataset.stage=s; }
-    function controls(id,html){
-      var old=panelIn.querySelector('.stage');
-      if(old) old.remove();
-      if(!html) return;
-      panelIn.insertAdjacentHTML('beforeend','<div class="stage">'+html+'</div>');
-      [].slice.call(panelIn.querySelectorAll('.stage button')).forEach(function(b){
-        b.addEventListener('click',function(){
-          if(b.dataset.j){ jolPick=b.dataset.j; srsIntuition(id); }
-          else if(b.dataset.act==='full') srsFull(id);
-          else if(b.dataset.act==='toreview') openCard(id,'review');
-          else if(b.dataset.act==='compare') srsCompare(id);
-          else if(b.dataset.act==='resolve'||b.dataset.act==='keep') srsCard(id,b.dataset.act);
-          else if(b.dataset.act==='copy') srsCopySelf();
-          else if(b.dataset.g) srsGrade(id,b.dataset.g);
-        });
-      });
-    }
-    function gradeHtml(item){
-      if(!srsToken){
-        return '<div class="hint">評分需要 <code>serve.py</code> 在跑；現在只能自己對答案。</div>';
-      }
-      if(!item||!item.preview) return '';
-      var labels=[['again','重來'],['hard','困難'],['good','良好'],['easy','簡單']];
-      return '<div class="srsbar" id="srsbar"><b>這題答得如何？</b><div class="srsbtns">'+
-        labels.map(function(p){
-          return '<button data-g="'+p[0]+'">'+p[1]+
-                 '<sub>'+srsDays(item.preview[p[0]])+'</sub></button>';
-        }).join('')+'</div><span id="srssay"></span></div>';
-    }
-
-    // read: the whole card, and a way into review if it happens to be due
-    function srsRead(id){
-      setStage('');
-      var item=srsFind(id);
-      if(item&&item.kind==='scheduled'&&item.ready){
-        controls(id,'<button class="wide" data-act="toreview">這題今天到期 · 用複習模式作答</button>');
-      } else controls(id,'');
-    }
-    // review, step 1: the question and nothing else. He answers in his head
-    // and says how sure he is before anything is shown -- the reveal is the
-    // reward for having tried.
-    function srsQuestion(id){
-      setStage('question');
-      jolPick='';
-      controls(id,'<b class="stage-t">先想答案。想到之後，你有多有把握？</b>'+
-        '<div class="srsbtns jol">'+
-        '<button data-j="sure" class="j-sure">想得起來</button>'+
-        '<button data-j="vague" class="j-vague">模糊</button>'+
-        '<button data-j="blank" class="j-blank">想不起來</button></div>'+
-        '<div class="hint">按了才會看到一句話直覺。</div>');
-    }
-    // step 2: the one line and the links. Enough to check yourself against;
-    // the full answer stays a click away so the line gets read on its own.
-    function srsIntuition(id){
-      setStage('intuition');
-      controls(id,'<button class="wide" data-act="full">看完整解答（卡點＋解答）</button>'+gradeHtml(srsFind(id)));
-    }
-    function srsFull(id){
-      setStage('');
-      controls(id,gradeHtml(srsFind(id)));
-    }
-
-    // half: a card he never fully understood is not graded, it is finished.
-    // He writes what he thinks it says, then sees the answer next to it.
-    function draftKey(id){ return 'pa-half:'+paSlug+':'+id; }
-    function srsHalf(id){
-      setStage('half-explain');
-      selfText='';
-      controls(id,'<b class="stage-t">先用自己的話說一遍，寫完再對解答。</b>'+
-        '<textarea class="self" id="selftext" rows="4" '+
-        'placeholder="不用完整，寫到卡住的地方也算。"></textarea>'+
-        '<div class="srsbtns"><button data-act="compare">寫好了，比對解答</button></div>'+
-        '<span id="srssay"></span>');
-      var ta=document.getElementById('selftext');
-      try{ var kept=localStorage.getItem(draftKey(id)); if(kept) ta.value=kept; }catch(e){}
-      ta.addEventListener('input',function(){
-        try{ localStorage.setItem(draftKey(id),ta.value); }catch(e){}
-      });
-      ta.focus();
-    }
-    function srsCompare(id){
-      var ta=document.getElementById('selftext');
-      var text=ta?ta.value.trim():'';
-      var say=document.getElementById('srssay');
-      if(!text){ if(say) say.textContent='先寫一句再比對。'; return; }
-      selfText=text;
-      setStage('half-compare');
-      var html='<div class="csec csec-mine"><b class="csec-t">你剛剛寫的</b><p>'+esc(text)+'</p></div>';
-      if(srsToken){
-        html+='<b class="stage-t">對上了嗎？</b><div class="srsbtns half">'+
-          '<button class="ok" data-act="resolve">懂了，進排程</button>'+
-          '<button data-act="keep">還是半懂，先記下來</button></div>'+
-          '<span id="srssay"></span>';
-      } else {
-        html+='<div class="hint">改狀態要 <code>serve.py</code> 在跑。'+
-          '先把你寫的複製起來，貼回對話，Claude 會記進卡片。</div>'+
-          '<div class="srsbtns"><button data-act="copy">複製你寫的話</button></div>'+
-          '<span id="srssay"></span>';
-      }
-      controls(id,html);
-      // the answer starts at the top; his own words wait at the bottom
-      panel.scrollTop=0;
-    }
-    function srsCopySelf(){
-      var say=document.getElementById('srssay');
-      copyText('Q'+current+' 自己的話：'+selfText,
-        function(){ if(say) say.textContent='已複製'; },
-        function(){ if(say) say.textContent='複製失敗，請手動選取'; });
-    }
-    function srsCard(id,action){
-      if(srsBusy||!srsToken) return;
-      srsBusy=true;
-      var say=document.getElementById('srssay');
-      if(say) say.textContent='寫入中…';
-      fetch('/_pa/card',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-PA-Token':srsToken},
-        body:JSON.stringify({paper:paSlug,id:id,action:action,text:selfText})
-      }).then(function(r){ return r.json(); }).then(function(d){
-        srsBusy=false;
-        if(d.error){ if(say) say.textContent='沒寫成功：'+d.error; return; }
-        try{ localStorage.removeItem(draftKey(id)); }catch(e){}
+    // Everything the reader meets during review lives in review.js, shared
+    // with the shelf. What is local to this page is where a card comes from:
+    // here it is already in the document, so showing one is the openCard that
+    // was always there.
+    var srsOpen=openCard;
+    var review=window.paReview.mount({
+      list:srsList,
+      count:document.getElementById('srscount'),
+      line:document.getElementById('dueline'),
+      panel:panel, body:panelIn,
+      state:srsState,
+      slug:paSlug,
+      show:function(id,item,ok){
+        srsOpen(id);
+        // openCard bails out on a filtered-out card, leaving the panel shut or
+        // showing something else.
+        ok(!(panel.hidden||current!==id));
+      },
+      close:closeCard,
+      copy:copyText,
+      after:function(said){
         // the page on disk has changed under us: reload it rather than patch
         // the DOM, and say what happened once it is back
-        try{
-          sessionStorage.setItem('pa-said',d.status==='resolved'
-            ?'Q'+id+' 已解決，進排程了；你寫的話記在卡片的「自己的話」。'
-            :'Q'+id+' 還是半懂；你寫的話記在卡片的「自己的話」。');
-        }catch(e){}
+        try{ sessionStorage.setItem('pa-said',said); }catch(e){}
         location.hash='#review';
         location.reload();
-      }).catch(function(){
-        srsBusy=false;
-        if(say) say.textContent='沒寫成功，server 可能停了';
-      });
-    }
-
-    function srsGrade(id,grade){
-      if(srsBusy||!srsToken) return;
-      var bar=document.getElementById('srsbar');
-      if(!bar) return;
-      srsBusy=true;
-      var say=document.getElementById('srssay');
-      if(say) say.textContent='記錄中…';
-      fetch('/_pa/review',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-PA-Token':srsToken},
-        body:JSON.stringify({paper:paSlug,id:id,grade:grade,jol:jolPick})
-      }).then(function(r){ return r.json(); }).then(function(d){
-        srsBusy=false;
-        if(d.error){ if(say) say.textContent='沒記錄成功：'+d.error; return; }
-        if(say) say.textContent='';
-        srsState=d.schedule;
-        srsDraw();
-        // Say what was written, then wait. Jumping to the next card the
-        // instant a button is pressed hides the one thing worth reading here:
-        // when this card comes back, or that his guess and his grade disagree.
-        var item=srsFind(id);
-        var names={again:'重來',hard:'困難',good:'良好',easy:'簡單'};
-        var msg=d.mismatch||('記錄了：'+names[grade]+
-          (item&&item.retry?'，今天再答一次':(item&&item.due?'，下次 '+mmdd(item.due):'')));
-        [].slice.call(bar.querySelectorAll('button')).forEach(function(b){
-          b.disabled=true; if(b.dataset.g===grade) b.classList.add('picked');
-        });
-        var q=srsState.queue||[];
-        var next=null;
-        for(var i=0;i<q.length;i++){ if(q[i].id!==id){ next=q[i]; break; } }
-        if(!next&&q.length&&q[0].id===id) next=q[0];
-        var label=!next?'今天做完了，關閉':(next.id===id?'再答一次這張':'下一張');
-        bar.insertAdjacentHTML('beforeend','<div class="srsnext"><span>'+esc(msg)+
-          '</span><button id="srsgo">'+label+'</button></div>');
-        document.getElementById('srsgo').addEventListener('click',function(){
-          if(next) openCard(next.id,modeFor(next)); else closeCard();
-        });
-        // the verdict is the last thing in the panel; make sure it is on screen
-        panel.scrollTop=panel.scrollHeight;
-      }).catch(function(){
-        srsBusy=false;
-        if(say) say.textContent='沒記錄成功，server 可能停了';
-      });
-    }
-
-    var srsOpen=openCard;
-    openCard=function(id,want){
-      var item=srsFind(id);
-      var m=want||'read';
-      if(item&&item.kind==='half') m='half';
-      if(m==='review'&&!(item&&item.kind==='scheduled')) m='read';
-      srsOpen(id);
-      // openCard bails out on a filtered-out card, leaving the panel shut or
-      // showing something else -- controls bolted on then would act on the
-      // wrong question.
-      if(panel.hidden||current!==id) return;
-      mode=m;
-      if(m==='review') srsQuestion(id);
-      else if(m==='half') srsHalf(id);
-      else srsRead(id);
-    };
+      },
+      scrollTop:function(where){
+        panel.scrollTop=(where==='end')?panel.scrollHeight:0;
+      }
+    });
+    openCard=function(id,want){ review.open(id,want); };
 
     // #card-0007 opens that card; #review pins the sidebar on the queue. Both
     // are what the chat pastes, so a card mentioned there is one click away.
@@ -1514,7 +1265,7 @@
       var h=location.hash||'';
       var m=/^#card-(\d+)$/.exec(h);
       if(m){
-        var it=srsFind(m[1]);
+        var it=review.find(m[1]);
         openCard(m[1],it&&it.kind==='scheduled'&&it.ready?'review':'read');
       } else if(h==='#review'){
         pinned=true; openSide();
@@ -1527,23 +1278,25 @@
       var said=sessionStorage.getItem('pa-said');
       if(said){
         sessionStorage.removeItem('pa-said');
-        srsList.insertAdjacentHTML('beforebegin','<div class="srshint said">'+esc(said)+'</div>');
+        srsList.insertAdjacentHTML('beforebegin','<div class="srshint said">'+
+          window.paReview.esc(said)+'</div>');
       }
     }catch(e){}
 
-    srsDraw();
+    review.draw();
     fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
       .then(function(r){ return r.ok?r.json():null; })
       .then(function(d){
         if(!d||!d.token) return;
-        srsToken=d.token;
+        review.setToken(d.token);
         return fetch('/_pa/reviews?p='+encodeURIComponent(paSlug))
           .then(function(r){ return r.ok?r.json():null; })
-          .then(function(s){ if(s) srsState=s; srsDraw(); });
+          .then(function(s){ if(s) review.setState(s); else review.draw(); });
       })
       .catch(function(){})
       .then(fromHash);
   }
+
 
   apply();
 })();

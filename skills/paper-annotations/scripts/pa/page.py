@@ -61,6 +61,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 
     style = (ASSETS / "style.css").read_text(encoding="utf-8")
     script = (ASSETS / "page.js").read_text(encoding="utf-8")
+    review_js = (ASSETS / "review.js").read_text(encoding="utf-8")
     tools_css = (ASSETS / "tools.css").read_text(encoding="utf-8")
     tools_js = (ASSETS / "tools.js").read_text(encoding="utf-8")
     graph_css = (ASSETS / "graph.css").read_text(encoding="utf-8")
@@ -323,6 +324,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <script id="pa-graph" type="application/json">{ego_json}</script>
 <script id="pa-checks" type="application/json">{check_json}</script>
 <script>{graph_js}</script>
+<script>{review_js}</script>
 <script>{script}</script>
 <script>{checks_js}</script>
 <script>{tools_js}</script>

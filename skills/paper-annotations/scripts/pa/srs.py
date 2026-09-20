@@ -291,3 +291,100 @@ def counts(notes_dir: Path, cards, today: str):
     """Just the numbers, for the index and the cross-paper catalog."""
     state = schedule(notes_dir, cards, today)
     return {"due": state["due"], "half": state["half"], "tracked": state["tracked"]}
+
+
+# The shelf reads this one; a single paper's page reads schedule() above. The
+# queue is merged rather than concatenated per paper: what is due today is one
+# job, and splitting it by paper would make the reader decide which paper to do
+# first -- a decision the schedule has already made for him.
+QUEUE_LIMIT = 60
+
+
+def today_across(registry_path, today=None):
+    """Everything due across every registered paper, as one queue.
+
+    Imports lazily for the same reason due_line() does: library and workspace
+    sit above this module, and importing them at the top would close a loop.
+
+    Each item carries `key` -- paper plus id -- because card ids start at 0001
+    in every paper, so an id alone stops being an identity the moment two
+    papers are on screen together.
+    """
+    from datetime import date as _date
+
+    from . import library, workspace
+
+    today = today or _date.today().isoformat()
+    standing, ready, retries, ahead, parked = [], [], [], [], []
+    per, due, half, tracked, tomorrow = [], 0, 0, 0, 0
+    next_due, done_today = "", False
+
+    for paper in library.entries(registry_path):
+        if not paper["alive"]:
+            continue
+        try:
+            _, _, notes_dir, _ = workspace.load_workspace(paper["work"])
+        except SystemExit:
+            # A registered folder that no longer holds a paper package. The
+            # shelf card already says so; the queue just leaves it out.
+            continue
+        plan = schedule(notes_dir, notes.load_cards(notes_dir), today)
+
+        def tag(item):
+            item = dict(item)
+            item["paper"] = paper["slug"]
+            item["paper_title"] = paper["title"]
+            item["key"] = f"{paper['slug']}#{item['id']}"
+            return item
+
+        for item in plan["queue"]:
+            if item["kind"] == "half":
+                standing.append(tag(item))
+            elif item.get("retry"):
+                retries.append(tag(item))
+            else:
+                ready.append(tag(item))
+        ahead += [
+            tag(item) for item in plan["scheduled"]
+            if not item["ready"] and not item["parked"]
+        ]
+        parked += [tag(item) for item in plan["scheduled"] if item["parked"]]
+
+        due += plan["due"]
+        half += plan["half"]
+        tracked += plan["tracked"]
+        tomorrow += plan["tomorrow"]
+        done_today = done_today or plan["done_today"]
+        if plan["next"] and (not next_due or plan["next"] < next_due):
+            next_due = plan["next"]
+        if plan["due"] or plan["half"]:
+            per.append({
+                "slug": paper["slug"], "title": paper["title"],
+                "due": plan["due"], "half": plan["half"],
+            })
+
+    standing.sort(key=lambda i: (-(i["since"] or 0), i["paper"], i["id"]))
+    ready.sort(key=lambda i: (i["due"] or "", i["paper"], i["id"]))
+    retries.sort(key=lambda i: (i["paper"], i["id"]))
+    ahead.sort(key=lambda i: (i["due"], i["paper"], i["id"]))
+    queue = standing + ready + retries
+    return {
+        "today": today,
+        # Truncated rather than paged: a day with more than QUEUE_LIMIT due is
+        # a day the reader will not finish anyway, and the honest thing is to
+        # hand him the top of the queue and the real total.
+        "queue": queue[:QUEUE_LIMIT],
+        "queue_total": len(queue),
+        # Only the next one ahead is ever offered, so only it needs to travel.
+        "scheduled": ahead[:1],
+        "parked": [{"key": i["key"], "id": i["id"], "paper": i["paper"],
+                    "question": i["question"]} for i in parked],
+        "papers": per,
+        "due": due, "half": half, "tracked": tracked,
+        "next": next_due,
+        # Each paper already counted its own parked cards and its own due-by-
+        # tomorrow; summing those is the whole answer. Counting `ahead` again
+        # here would count every one of them twice.
+        "tomorrow": tomorrow,
+        "done_today": done_today,
+    }

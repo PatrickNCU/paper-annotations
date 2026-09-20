@@ -16,7 +16,8 @@ from pathlib import Path
 from urllib.parse import quote
 
 from . import (
-    anchors, checks, cli, library, links, notes, sources, srs, workspace, xlinks,
+    anchors, checks, cli, library, links, minimd, notes, sources, srs, workspace,
+    xlinks,
 )
 
 cli.bootstrap()
@@ -61,6 +62,59 @@ def summary_text(card) -> str:
     return " ".join(question.split()) or "(未填問題)"
 
 
+# The four parts of a card body and the class each one gets. Shared by the two
+# renderers below so the review page and the shelf reveal the same things in
+# the same order -- a card that hides its 卡點 until last on one page but not
+# on the other is two different exercises wearing one name.
+CARD_PARTS = (("卡點", "stuck"), ("解答", "answer"), ("一句話直覺", "key"),
+              ("自己的話", "self"))
+
+
+def _part_heading(key: str, kind: str, meta) -> str:
+    if kind != "key":
+        return key
+    # who wrote the one line he will see first when reviewing
+    who = "你寫的" if str(meta.get("intuition") or "agent") == "user" else "AI 寫的"
+    cls = " user" if who == "你寫的" else ""
+    return f'{key} <sub class="who{cls}">{who}</sub>'
+
+
+def _part_value(value: str, kind: str) -> str:
+    if kind == "self":
+        # one paragraph per line, so each dated entry stands on its own
+        return "\n\n".join(line.strip() for line in value.splitlines() if line.strip())
+    return value
+
+
+def card_content_html(card) -> str:
+    """The card body as finished HTML, for a page that is not the paper's own.
+
+    The shelf's 今天要複習 shows cards from several papers at once, and none of
+    them exists as HTML on that page -- only inside its own paper's build. This
+    renders one on demand, with the same parts and the same classes render_card
+    writes, so the stage stylesheet reveals them identically.
+
+    The question is left out: the queue already shows it, and in review it is
+    the one thing on screen before the reveal.
+    """
+    meta, sections = card["meta"], notes.card_sections(card["body"])
+    parts = []
+    for key, kind in CARD_PARTS:
+        value = (sections.get(key) or "").strip()
+        if not value:
+            continue
+        parts += [
+            f'<div class="csec csec-{kind}"><b class="csec-t">'
+            f'{_part_heading(key, kind, meta)}</b>',
+            "",
+            _part_value(value, kind),
+            "",
+            "</div>",
+            "",
+        ]
+    return minimd.render("\n".join(parts))[0]
+
+
 def render_card(card, dst_path: Path, out_links=(), in_links=(),
                 dests=None, this_slug="") -> str:
     meta, sections = card["meta"], notes.card_sections(card["body"])
@@ -90,21 +144,12 @@ def render_card(card, dst_path: Path, out_links=(), in_links=(),
     # back. Run together as bold-prefixed paragraphs they all looked alike.
     # 自己的話 is the reader's own words, one dated line each; it is rendered
     # last because in review it is only shown once the answer is.
-    for key, kind in (
-        ("卡點", "stuck"), ("解答", "answer"), ("一句話直覺", "key"), ("自己的話", "self"),
-    ):
+    for key, kind in CARD_PARTS:
         value = (sections.get(key) or "").strip()
         if not value:
             continue
-        head = key
-        if kind == "key":
-            # who wrote the one line he will see first when reviewing
-            who = "你寫的" if str(meta.get("intuition") or "agent") == "user" else "AI 寫的"
-            cls = " user" if who == "你寫的" else ""
-            head = f'{key} <sub class="who{cls}">{who}</sub>'
-        if kind == "self":
-            # one paragraph per line, so each dated entry stands on its own
-            value = "\n\n".join(line.strip() for line in value.splitlines() if line.strip())
+        head = _part_heading(key, kind, meta)
+        value = _part_value(value, kind)
         parts += [
             f'<div class="csec csec-{kind}"><b class="csec-t">{head}</b>',
             "",

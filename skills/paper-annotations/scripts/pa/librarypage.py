@@ -69,6 +69,33 @@ a.ptitle{display:block;color:inherit;text-decoration:none}
    colours existed. --tc-ink is the readable text colour on top of --tc and
    --tc-dim is the same hue at low alpha; both are computed at build time
    because CSS cannot work out a contrasting colour by itself. */
+/* 今天要複習：每篇論文各自到期的卡，收成一件事。放在最上面是因為這是進到這
+   一頁最常想做的事；論文清單與連結圖是找東西用的，找東西可以往下捲。 */
+#today{margin:0 0 24px;padding:16px 18px;border:1px solid var(--line);
+border-radius:12px;background:var(--card)}
+#today.hot{border-color:var(--accent)}
+#today h2{margin:0 0 5px;font-size:1.1em;line-height:1.5}
+#dueline{font-size:12.5px;color:var(--muted)}
+.tsplit{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+.tsplit a{padding:2px 9px;border-radius:11px;background:var(--sec-answer);
+color:var(--muted);font-size:12px;line-height:1.7;text-decoration:none}
+.tsplit a:hover{color:var(--accent)}
+#srslist{margin:12px 0 0}
+#srslist a.qlink{display:flex;gap:7px;align-items:flex-start;padding:6px 7px;
+border-radius:7px;color:inherit;text-decoration:none;font-size:13.5px;line-height:1.7}
+#srslist a.qlink:hover{background:var(--line)}
+.qpaper{flex:0 0 auto;font-size:11.5px;color:var(--muted)}
+#tpanel{margin:14px 0 0;padding:14px 16px;border:1px solid var(--line);
+border-radius:10px;background:var(--bg)}
+#tpanel[hidden]{display:none}
+.tpbar{display:flex;gap:10px;align-items:baseline;margin:0 0 10px;
+padding-bottom:9px;border-bottom:1px solid var(--line)}
+.tpq{flex:1 1 auto;font-size:14.5px;line-height:1.7;font-weight:600}
+.tpbar a,.tpbar button{flex:0 0 auto;padding:3px 9px;border:1px solid var(--line);
+border-radius:7px;background:var(--card);color:var(--muted);font:inherit;
+font-size:12px;cursor:pointer;text-decoration:none}
+.tpbar a:hover,.tpbar button:hover{border-color:var(--accent);color:var(--accent)}
+.tpwho{margin:0 0 10px;font-size:12px;color:var(--muted)}
 /* Two views of the same shelf: the list you pick a paper from, and the matrix
    of what you have connected. Same bar shape as the category filters below. */
 .vbar{display:flex;gap:8px;margin:0 0 18px}
@@ -217,7 +244,8 @@ JS = """
   // A paper in three topics is rendered three times, so every update has to
   // touch all of its copies -- querySelector would silently refresh only the
   // first section and leave the others showing yesterday.
-  fetch('/_pa/library').then(function(r){ return r.ok?r.json():null; }).then(function(d){
+  function refreshPills(){
+  return fetch('/_pa/library').then(function(r){ return r.ok?r.json():null; }).then(function(d){
     if(!d) return;
     d.papers.forEach(function(p){
       [].slice.call(document.querySelectorAll('.paper[data-slug="'+CSS.escape(p.slug)+'"]'))
@@ -245,6 +273,124 @@ JS = """
     var s=document.getElementById('stamp');
     if(s) s.textContent='數字為即時（server 在跑）';
   }).catch(function(){});
+  }
+  refreshPills();
+
+  // ---- 今天要複習 -------------------------------------------------------
+  // Every paper's due cards as one queue, so the day is one job rather than a
+  // round of opening papers to find out whether they want anything. The flow
+  // itself is review.js, the same one a paper's own page runs; what is local
+  // here is that the cards are not on this page at all -- a card is HTML only
+  // inside its own paper's build -- so each is fetched on the way into the
+  // reveal, one at a time.
+  (function(){
+    var sec=document.getElementById('today');
+    // No server means no schedule and no grading, and the page already says
+    // so at the top. A section that could only ever be empty is not shown.
+    if(!sec||!window.paReview||!live) return;
+    var esc=window.paReview.esc;
+    var panel=document.getElementById('tpanel');
+    var inner=document.getElementById('tpanel-in');
+    var jump=document.getElementById('tpjump');
+    var review=null;
+
+    function paint(state){
+      sec.hidden=false;
+      sec.classList.toggle('hot',!!state.due);
+      document.getElementById('tdue').textContent=state.due?'('+state.due+')':'';
+      document.getElementById('tsplit').innerHTML=(state.papers||[]).map(function(row){
+        var bits=[];
+        if(row.due) bits.push('到期 '+row.due);
+        if(row.half) bits.push('半懂 '+row.half);
+        return '<a href="/p/'+encodeURIComponent(row.slug)+'/">'+esc(row.title)+
+               ' · '+bits.join(' · ')+'</a>';
+      }).join('');
+    }
+    function load(cb){
+      return fetch('/_pa/today').then(function(r){ return r.ok?r.json():null; })
+        .then(function(d){
+          if(d&&!d.error) paint(d);
+          if(cb) cb(d&&!d.error?d:null);
+        }).catch(function(){ if(cb) cb(null); });
+    }
+    function said(text){
+      var box=document.getElementById('tsaid');
+      if(!box){
+        document.getElementById('srslist')
+          .insertAdjacentHTML('beforebegin','<div class="srshint said" id="tsaid"></div>');
+        box=document.getElementById('tsaid');
+      }
+      box.textContent=text;
+    }
+
+    review=window.paReview.mount({
+      list:document.getElementById('srslist'),
+      line:document.getElementById('dueline'),
+      panel:panel, body:inner,
+      show:function(key,item,ok){
+        if(!item){ ok(false); return; }
+        fetch('/_pa/card?p='+encodeURIComponent(item.paper)+
+              '&id='+encodeURIComponent(item.id))
+          .then(function(r){ return r.ok?r.json():null; })
+          .then(function(d){
+            if(!d||d.error){ ok(false); return; }
+            document.getElementById('tpq').textContent='Q'+d.id+' · '+d.question;
+            document.getElementById('tpwho').textContent=d.paper_title;
+            jump.href=d.url;
+            inner.innerHTML=d.html;
+            panel.dataset.status=d.status;
+            panel.dataset.stage='';
+            panel.hidden=false;
+            // The page rendered its own math at load; this card arrived after.
+            if(window.renderMathInElement){
+              try{
+                renderMathInElement(inner,{delimiters:[
+                  {left:'$$',right:'$$',display:true},
+                  {left:'$',right:'$',display:false}],
+                  ignoredClasses:['no-math'],throwOnError:false,strict:false});
+              }catch(e){}
+            }
+            ok(true);
+            panel.scrollIntoView({block:'nearest'});
+          }).catch(function(){ ok(false); });
+      },
+      close:function(){ panel.hidden=true; },
+      // review.js closes the card when the day is done; the ✕ is the reader
+      // deciding to stop earlier, and means the same thing to this page.
+      copy:function(text,ok,fail){
+        if(navigator.clipboard&&navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(function(){ ok&&ok(); },fail);
+        } else { fail&&fail(); }
+      },
+      // The grade endpoint answers with one paper's schedule; this page is
+      // showing every paper's, so it asks again rather than believing a slice.
+      refresh:function(cb){ load(function(s){ cb(s); }); },
+      after:function(text){
+        panel.hidden=true;
+        said(text);
+        // A card that changed status changes this page's counts too.
+        load(function(s){ if(s) review.setState(s); });
+        refreshPills();
+      },
+      scrollTop:function(where){
+        if(where==='end') panel.scrollIntoView({block:'end'});
+        else panel.scrollIntoView({block:'nearest'});
+      },
+      rowExtra:function(item){
+        return '<span class="qpaper">'+esc(item.paper)+'</span>';
+      }
+    });
+
+    document.getElementById('tpclose').addEventListener('click',function(){
+      panel.hidden=true;
+    });
+
+    fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(d){ if(d&&d.token) review.setToken(d.token); })
+      .catch(function(){})
+      .then(function(){ load(function(s){ if(s) review.setState(s); }); });
+  })();
 
   // ---- 分類篩選 ---------------------------------------------------------
   var filters=[].slice.call(document.querySelectorAll('.tfilter'));
@@ -691,6 +837,19 @@ def render(registry: Path) -> str:
 <b>開啟書房</b>，或執行：<br>
 <code>python &lt;scripts&gt;/serve.py --library</code>
 </div>
+<section id="today" hidden>
+<h2>今天要複習 <span id="tdue"></span></h2>
+<div id="dueline"></div>
+<div class="tsplit" id="tsplit"></div>
+<div id="srslist"></div>
+<div id="tpanel" hidden data-stage="">
+<div class="tpbar"><span class="tpq" id="tpq"></span>
+<a id="tpjump" href="#" title="在那篇論文裡打開這張卡">去原文 ⤴</a>
+<button id="tpclose" aria-label="關閉">✕</button></div>
+<div class="tpwho" id="tpwho"></div>
+<div id="tpanel-in"></div>
+</div>
+</section>
 <div class="vbar">
 <button id="v-list" class="on">論文清單</button>
 <button id="v-graph">連結圖</button>
@@ -717,6 +876,7 @@ def render(registry: Path) -> str:
 <script id="pa-topics" type="application/json">{vocab_json}</script>
 <script id="pa-actions" type="application/json">{action_json}</script>
 <script id="pa-graph" type="application/json">{graph_json}</script>
+<script>{(ASSETS / "review.js").read_text(encoding="utf-8")}</script>
 <script>{JS}</script>
 <script>{(ASSETS / "graph.js").read_text(encoding="utf-8")}</script>
 <script>{(ASSETS / "tools.js").read_text(encoding="utf-8")}</script>

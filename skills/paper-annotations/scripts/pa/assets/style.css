@@ -175,15 +175,18 @@ font-variant-numeric:tabular-nums}
 border:1px dashed var(--line);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
 .srsahead:hover{border-color:var(--accent);color:var(--accent)}
 /* Reveal by stage. The card's HTML is copied whole into the panel; what the
-   reader has not earned yet is hidden by the stage attribute, not removed. */
-#panel[data-stage=question] .csec,#panel[data-stage=question] .xlinks,
-#panel[data-stage=question] .qmeta{display:none}
-#panel[data-stage=intuition] .csec-stuck,#panel[data-stage=intuition] .csec-answer,
-#panel[data-stage=intuition] .csec-self,#panel[data-stage=intuition] .qmeta{display:none}
-#panel[data-stage=half-explain] .csec-answer,#panel[data-stage=half-explain] .csec-key,
-#panel[data-stage=half-explain] .csec-self,#panel[data-stage=half-explain] .xlinks,
-#panel[data-stage=half-explain] .qmeta{display:none}
-#panel[data-stage=half-compare] .qmeta{display:none}
+   reader has not earned yet is hidden by the stage attribute, not removed.
+   Keyed on the attribute rather than on #panel: the shelf runs the same flow
+   in a panel of its own, and a stage that reveals everything there would be a
+   silently easier exercise under the same name. */
+[data-stage=question] .csec,[data-stage=question] .xlinks,
+[data-stage=question] .qmeta{display:none}
+[data-stage=intuition] .csec-stuck,[data-stage=intuition] .csec-answer,
+[data-stage=intuition] .csec-self,[data-stage=intuition] .qmeta{display:none}
+[data-stage=half-explain] .csec-answer,[data-stage=half-explain] .csec-key,
+[data-stage=half-explain] .csec-self,[data-stage=half-explain] .xlinks,
+[data-stage=half-explain] .qmeta{display:none}
+[data-stage=half-compare] .qmeta{display:none}
 .stage{margin:18px 0 4px;padding:14px 0 0;border-top:1px solid var(--line)}
 .stage-t{display:block;margin-bottom:9px;font-size:.86em;color:var(--muted);font-weight:600}
 .hint{margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--muted)}

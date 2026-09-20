@@ -47,7 +47,10 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from datetime import date
 
-from . import actions, checks, cli, library, marks as marklib, notes, srs, workspace
+from . import (
+    actions, annotate, checks, cli, library, marks as marklib, notes, srs,
+    workspace,
+)
 
 cli.bootstrap()
 
@@ -208,6 +211,59 @@ class Handler(SimpleHTTPRequestHandler):
                  "tries": r["tries"], "card": r["card"]}
                 for r in rows
             ]})
+            return
+        if path == "/_pa/today":
+            if not self._same_origin():
+                self._json(403, {"error": "cross-origin"})
+                return
+            if self.registry is None:
+                # Serving one paper on its own: that page's own sidebar is the
+                # queue, and there is no shelf to gather anything onto.
+                self._json(404, {"error": "單篇模式沒有書房，今天到期的卡在這一篇自己的側欄"})
+                return
+            state = srs.today_across(self.registry, date.today().isoformat())
+            for group in ("queue", "scheduled", "parked"):
+                for item in state.get(group) or []:
+                    paper = self.papers.get(item.get("paper"))
+                    # A paper in the registry that this server did not mount
+                    # gets no link rather than a broken one -- same rule the
+                    # shelf card follows for a folder that moved.
+                    item["url"] = (
+                        f'{paper["index_url"]}#card-{quote(str(item["id"]))}'
+                        if paper else ""
+                    )
+            self._json(200, state)
+            return
+        if path == "/_pa/card":
+            # The body of one card, rendered here because the shelf has no
+            # copy of it: cards are HTML only inside their own paper's build.
+            # One at a time, on the way into the reveal, so a day with forty
+            # due does not ship forty answers the reader has not earned yet.
+            if not self._same_origin():
+                self._json(403, {"error": "cross-origin"})
+                return
+            paper = self._paper(want)
+            if paper is None:
+                self._json(404, {"error": f"沒有這篇論文：{want}"})
+                return
+            wanted = (query.get("id") or [""])[0]
+            card = next(
+                (c for c in notes.load_cards(paper["notes"])
+                 if str(c["meta"].get("id")) == wanted),
+                None,
+            )
+            if card is None:
+                self._json(404, {"error": f"找不到卡片 {wanted}"})
+                return
+            self._json(200, {
+                "id": wanted,
+                "paper": paper["slug"],
+                "paper_title": paper["title"],
+                "status": str(card["meta"].get("status", "open")),
+                "question": annotate.summary_text(card),
+                "html": annotate.card_content_html(card),
+                "url": f'{paper["index_url"]}#card-{quote(wanted)}',
+            })
             return
         if path == "/_pa/library":
             if not self._same_origin():
