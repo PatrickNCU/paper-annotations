@@ -74,8 +74,20 @@ a.ptitle{display:block;color:inherit;text-decoration:none}
 #today{margin:0 0 24px;padding:16px 18px;border:1px solid var(--line);
 border-radius:12px;background:var(--card)}
 #today.hot{border-color:var(--accent)}
-#today h2{margin:0 0 5px;font-size:1.1em;line-height:1.5}
+#today h2{margin:0;font-size:1.1em;line-height:1.5}
+/* The whole heading is the handle -- a caret small enough to be the only
+   target is a target you miss on a touch screen. */
+#ttoggle{display:flex;gap:7px;align-items:baseline;width:100%;margin:0 0 5px;
+padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;
+cursor:pointer}
+#ttoggle:hover{color:var(--accent)}
+.tcaret{flex:0 0 auto;font-size:.8em;color:var(--muted)}
+#ttoggle:hover .tcaret{color:var(--accent)}
 #dueline{font-size:12.5px;color:var(--muted)}
+/* Collapsed keeps the heading and the one line under it: the count is the
+   reason this section is at the top, and hiding it would collapse away the
+   feature rather than the clutter. */
+#tbody[hidden]{display:none}
 .tsplit{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
 .tsplit a{padding:2px 9px;border-radius:11px;background:var(--sec-answer);
 color:var(--muted);font-size:12px;line-height:1.7;text-decoration:none}
@@ -384,6 +396,25 @@ JS = """
     document.getElementById('tpclose').addEventListener('click',function(){
       panel.hidden=true;
     });
+
+    // Collapsed or not is his, and it stays his across reloads -- a section
+    // that springs back open every morning is one he has to close every
+    // morning. The count stays visible either way, so a closed section still
+    // answers the question it is there for.
+    (function(){
+      var btn=document.getElementById('ttoggle'), tbody=document.getElementById('tbody');
+      var open=true;
+      try{ open=localStorage.getItem('pa-today')!=='closed'; }catch(e){}
+      function set(v){
+        open=v;
+        tbody.hidden=!v;
+        btn.setAttribute('aria-expanded',v?'true':'false');
+        btn.querySelector('.tcaret').textContent=v?'▾':'▸';
+        try{ localStorage.setItem('pa-today',v?'open':'closed'); }catch(e){}
+      }
+      set(open);
+      btn.addEventListener('click',function(){ set(!open); });
+    })();
 
     fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
       .then(function(r){ return r.ok?r.json():null; })
@@ -838,8 +869,10 @@ def render(registry: Path) -> str:
 <code>python &lt;scripts&gt;/serve.py --library</code>
 </div>
 <section id="today" hidden>
-<h2>今天要複習 <span id="tdue"></span></h2>
+<h2><button id="ttoggle" aria-expanded="true"><span class="tcaret">▾</span>今天要複習
+<span id="tdue"></span></button></h2>
 <div id="dueline"></div>
+<div id="tbody">
 <div class="tsplit" id="tsplit"></div>
 <div id="srslist"></div>
 <div id="tpanel" hidden data-stage="">
@@ -848,6 +881,7 @@ def render(registry: Path) -> str:
 <button id="tpclose" aria-label="關閉">✕</button></div>
 <div class="tpwho" id="tpwho"></div>
 <div id="tpanel-in"></div>
+</div>
 </div>
 </section>
 <div class="vbar">
