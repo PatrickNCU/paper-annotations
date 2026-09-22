@@ -8,14 +8,19 @@ its highlights back, writing them into notes/marks/ and rebuilding the page.
     python serve.py <work> [--port 8975] [--no-open]
     python serve.py <work> --launcher        # 只放一個點兩下就能開的啟動器
     python serve.py --library [<起點>]        # 登記簿裡的每一篇，加上書房頁
+    python serve.py --library --host 100.x.y.z   # 手機也連得到（見下）
 
 Without it everything still works; highlights simply stay in the browser until
 they are copied out by hand, and grading is unavailable (docs/adr/0003).
 
 Safety, in the order it matters:
 
-  * Bound to 127.0.0.1 only. Never 0.0.0.0 -- that would let anyone on the
-    same network write files onto this machine.
+  * Bound to 127.0.0.1 unless --host says otherwise, and that is the whole
+    protection in the default case: nothing outside this machine can reach it.
+    Passing --host gives that protection up on purpose -- the reader wants his
+    phone in -- so every request then has to carry a key (see _gate). Prefer a
+    concrete address the tailnet owns over 0.0.0.0: 0.0.0.0 also answers the
+    café wifi, and then the key is the only thing between them and the notes.
   * Each paper is mounted under /p/<slug>/ and resolved inside ITS OWN root.
     There is deliberately no shared root: commonpath over papers scattered
     across a disk collapses to the drive letter, which would put everything on
@@ -41,9 +46,10 @@ import sys
 import threading
 import webbrowser
 from functools import partial
+from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
 from datetime import date
 
@@ -58,6 +64,53 @@ cli.bootstrap()
 # invoke -- pa/ is an implementation detail nothing outside may point at.
 SCRIPTS = Path(__file__).resolve().parent.parent
 MAX_BODY = 4 << 20  # a paper's worth of highlights is kilobytes; this is slack
+
+# Addresses that cannot be reached from another machine. Binding to one of
+# these is what makes the default setup safe without a key.
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
+# Addresses that mean "every interface" -- reachable, but not a name the
+# browser can be sent to.
+ANY = ("0.0.0.0", "::")
+KEY_COOKIE = "pa_key"
+# The key lives in the home directory, not beside papers.yml: the registry is
+# in git and follows the notes onto other machines, which is the last place a
+# shared secret should be. One key per person per machine, kept across
+# restarts so a phone's home-screen shortcut keeps working; --new-key throws
+# it away and mints another.
+KEY_FILE = Path.home() / ".paper-annotations" / "remote-key"
+KEY_TTL = 30 * 24 * 3600
+
+DENIED = """<!doctype html><meta charset="utf-8">
+<title>需要金鑰</title>
+<style>body{font:15px/1.8 system-ui,sans-serif;max-width:34em;margin:12vh auto;
+padding:0 20px;color:#222}code{background:#eee;padding:2px 6px;border-radius:4px}</style>
+<h1>需要金鑰</h1>
+<p>這個 server 開在本機以外的位址上，所以每個請求都要帶金鑰。</p>
+<p>請用啟動那個視窗印出來的網址（結尾有 <code>?k=…</code> 的那一條）重新打開一次；
+開過一次之後這個瀏覽器就會自己帶著，不必每次輸入。</p>
+"""
+
+
+def load_key(fresh: bool = False) -> str:
+    """The key this machine hands out, minted once and kept.
+
+    A key that changed at every start would invalidate the phone's saved
+    shortcut every time the server came back up, which in practice means
+    retyping a 32-character URL rather than tightening anything: the key is
+    only ever seen by devices that already reached this address.
+    """
+    if not fresh and KEY_FILE.is_file():
+        kept = KEY_FILE.read_text(encoding="utf-8").strip()
+        if kept:
+            return kept
+    key = secrets.token_urlsafe(24)
+    KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    KEY_FILE.write_text(key + "\n", encoding="utf-8", newline="\n")
+    try:  # no-op on Windows, which has no mode bits
+        KEY_FILE.chmod(0o600)
+    except OSError:
+        pass
+    return key
 MAX_PASTE = 400_000  # a whole paper's copied highlights, with room to spare
 # "2026-09-02 第 1 次：" -- how a line under ## 自己的話 is filed
 _SELF_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}\s+[^：:]{0,20}[：:]\s*")
@@ -72,6 +125,11 @@ class Handler(SimpleHTTPRequestHandler):
     default = ""
     shelf = None  # the one library.html file, served by name and never by folder
     registry = None  # papers.yml, only in --library mode
+    # Empty while bound to loopback, where being unreachable IS the gate.
+    # Non-empty the moment --host opens this up, and then every request needs
+    # it -- reads included. A reader's questions and what he has not understood
+    # are not less private than his ability to write a file.
+    key = ""
     lock = threading.Lock()
     # (action, slug) pairs that have run since this server started. Only
     # consulted for actions declaring `writes`: 套用 is offered after its dry
@@ -153,8 +211,53 @@ class Handler(SimpleHTTPRequestHandler):
         host = self.headers.get("Host", "")
         return origin in (f"http://{host}", f"https://{host}")
 
+    def _cookie_ok(self) -> bool:
+        try:
+            jar = SimpleCookie(self.headers.get("Cookie") or "")
+        except CookieError:
+            return False
+        got = jar[KEY_COOKIE].value if KEY_COOKIE in jar else ""
+        return bool(got) and secrets.compare_digest(got, self.key)
+
+    def _gate(self, parsed) -> bool:
+        """May this request go on? Everything on a non-loopback server passes
+        through here first, including the page itself and its images.
+
+        The key arrives once in the URL and is moved straight into a cookie:
+        relative links -- every image, every paper page -- cannot carry a query
+        of their own, and a key left in the address bar ends up in history and
+        in anything the reader pastes. The redirect that sets the cookie also
+        strips it back out of the URL.
+        """
+        if not self.key:
+            return True
+        query = parse_qs(parsed.query)
+        offered = (query.pop("k", None) or [""])[0]
+        if offered and secrets.compare_digest(offered, self.key):
+            rest = urlencode([(k, v) for k, values in query.items() for v in values])
+            self.send_response(302)
+            self.send_header("Location", parsed.path + (f"?{rest}" if rest else ""))
+            self.send_header(
+                "Set-Cookie",
+                f"{KEY_COOKIE}={self.key}; Path=/; Max-Age={KEY_TTL}; "
+                "SameSite=Strict; HttpOnly",
+            )
+            self.end_headers()
+            return False
+        if self._cookie_ok():
+            return True
+        body = DENIED.encode("utf-8")
+        self.send_response(403)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return False
+
     def do_GET(self):
         parsed = urlparse(self.path)
+        if not self._gate(parsed):
+            return
         path = parsed.path
         query = parse_qs(parsed.query)
         want = (query.get("p") or [""])[0]
@@ -335,6 +438,11 @@ class Handler(SimpleHTTPRequestHandler):
         if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/card",
                         "/_pa/topic", "/_pa/run", "/_pa/check"):
             self._json(404, {"error": "unknown endpoint"})
+            return
+        # No redirect dance here: a POST only ever comes from a page that was
+        # already let in, so it already holds the cookie.
+        if self.key and not self._cookie_ok():
+            self._json(403, {"error": "需要金鑰，請用啟動時印出的那條網址重開這一頁"})
             return
         if not self._same_origin():
             self._json(403, {"error": "cross-origin"})
@@ -1025,7 +1133,7 @@ def write_library_launcher(registry: Path, port: int) -> Path:
     return _launcher(registry.parent, "開啟書房", "paper library", "--library", port)
 
 
-def taken(port: int) -> bool:
+def taken(port: int, host: str = "127.0.0.1") -> bool:
     """Is anything already listening here?
 
     Asked before binding rather than after failing to, because HTTPServer sets
@@ -1035,17 +1143,24 @@ def taken(port: int) -> bool:
     """
     with socket.socket() as probe_socket:
         probe_socket.settimeout(0.4)
-        return probe_socket.connect_ex(("127.0.0.1", port)) == 0
+        return probe_socket.connect_ex((host, port)) == 0
 
 
-def probe(port: int):
-    """Which paper, if any, the thing already on this port is serving."""
+def probe(port: int, host: str = "127.0.0.1", key: str = ""):
+    """Which paper, if any, the thing already on this port is serving.
+
+    Carries the key as a cookie rather than in the URL: a keyed URL answers
+    with the redirect that sets the cookie, not with the JSON, and the whole
+    point here is to read the JSON.
+    """
     try:
         import urllib.request
 
-        with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/_pa/hello", timeout=2
-        ) as reply:
+        request = urllib.request.Request(
+            f"http://{host}:{port}/_pa/hello",
+            headers={"Cookie": f"{KEY_COOKIE}={key}"} if key else {},
+        )
+        with urllib.request.urlopen(request, timeout=2) as reply:
             return json.loads(reply.read().decode("utf-8")).get("paper") or ""
     except Exception:  # noqa: BLE001 - anything at all means "not one of ours"
         return ""
@@ -1112,8 +1227,12 @@ def collect(argv, args):
 
 def main(argv) -> int:
     # --port takes a value: skip it, or "--port 9000 <work>" reads 9000 as work
-    args = cli.positionals(argv, value_flags={"--port"})
+    args = cli.positionals(argv, value_flags={"--port", "--host"})
     port = int(cli.flag(argv, "port", "8975"))
+    host = cli.flag(argv, "host", "127.0.0.1") or "127.0.0.1"
+    # Loopback stays exactly as it was, key and all: the everyday case must not
+    # grow a step because a second, opt-in case exists.
+    remote = host not in LOOPBACK
 
     if "--launcher" in argv:
         if "--library" in argv:
@@ -1134,6 +1253,8 @@ def main(argv) -> int:
 
     papers, default, registry, skipped = collect(argv, args)
     Handler.token = secrets.token_urlsafe(24)
+    if remote:
+        Handler.key = load_key("--new-key" in argv)
     Handler.papers = papers
     Handler.default = default
     # One paper goes straight to its page; a shelf full of them lands on the
@@ -1149,12 +1270,16 @@ def main(argv) -> int:
         Handler.shelf = shelf
         Handler.registry = registry
 
-    url = f"http://127.0.0.1:{port}/"
+    # "Every interface" is a binding, not a destination -- a browser cannot be
+    # sent to 0.0.0.0, so the local way in is still loopback.
+    reach = "127.0.0.1" if host in ANY else host
+    url = f"http://{reach}:{port}/"
+    keyed = f"{url}?k={Handler.key}" if remote else url
     # Double-clicking the launcher twice is the common case, and "address
     # already in use" tells the reader nothing. Ask whoever holds the port who
     # they are before deciding what to say.
-    if taken(port):
-        holder = probe(port)
+    if taken(port, reach):
+        holder = probe(port, reach, Handler.key)
         if default and holder == papers[default]["work"].name:
             print(f"複習頁       {url}")
             print("             這篇已經在跑了，直接用這條網址就好")
@@ -1170,12 +1295,20 @@ def main(argv) -> int:
 
     # No shared directory= is passed: translate_path resolves every request
     # inside the one paper it names, and never against a root spanning them.
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    try:
+        server = ThreadingHTTPServer((host, port), Handler)
+    except OSError as why:
+        raise SystemExit(
+            f"綁不上 {host}:{port}（{why}）。\n"
+            "位址打錯，或那張網路介面還沒起來——Tailscale 沒連的時候，"
+            "它給的位址也還不存在。"
+        )
     if default:
         paper = papers[default]
         print(f"複習頁       {url}")
         print(f"             畫記會直接寫進 {paper['notes'] / 'marks'}，並重建複習頁")
-        print(f"             檔案根目錄 {paper['root']}（只有本機連得到）")
+        where = "（只有本機連得到）" if not remote else f"（開在 {host}）"
+        print(f"             檔案根目錄 {paper['root']}{where}")
     else:
         real = [s for s in papers if s != "_shelf"]
         print(f"書房         {url}")
@@ -1185,9 +1318,19 @@ def main(argv) -> int:
         for slug, why in skipped:
             print(f"             🟡 略過 {slug}：{why}")
     print("             評分與畫記存檔都需要這個視窗開著")
+    if remote:
+        print()
+        print(f"手機         {keyed}")
+        print("             手機瀏覽器開這一條，開過一次就記住了；建議加到主畫面")
+        print("             這條網址等於鑰匙，進得來的人看得到全部筆記，也改得了卡片")
+        print(f"             金鑰存在 {KEY_FILE}；要換一把就加 --new-key")
+        if host in ANY:
+            print("             🟡 綁的是所有介面，同一個 Wi-Fi 的人都連得到這個 port，"
+                  "只剩金鑰擋著")
+        print()
     print("             Ctrl+C 結束")
     if "--no-open" not in argv:
-        webbrowser.open(url)
+        webbrowser.open(keyed)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
