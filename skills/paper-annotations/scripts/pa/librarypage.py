@@ -108,6 +108,25 @@ border-radius:7px;background:var(--card);color:var(--muted);font:inherit;
 font-size:12px;cursor:pointer;text-decoration:none}
 .tpbar a:hover,.tpbar button:hover{border-color:var(--accent);color:var(--accent)}
 .tpwho{margin:0 0 10px;font-size:12px;color:var(--muted)}
+/* 手機。The queue and the open card are what has to work here; the category
+   bar and the matrix are for finding things, and finding things is what you
+   do at a desk. They get room to breathe, not 44px each. */
+@media(max-width:560px){
+#today{padding:14px 15px}
+#today h2{font-size:1.05em}
+#srslist a.qlink{min-height:44px;align-items:center;padding:8px 7px}
+.qtext{-webkit-line-clamp:3}
+.qpaper{display:none}
+.tsplit a{padding:5px 11px}
+#tpanel{padding:13px 14px}
+.tpbar{flex-wrap:wrap;gap:8px}
+.tpq{flex:1 1 100%;font-size:15px}
+.tpbar a,.tpbar button{min-height:40px;display:inline-flex;align-items:center;
+padding:0 12px}
+.paper{padding:13px 14px}
+.vbar button{min-height:40px}
+.tfilter{min-height:34px}
+}
 /* Two views of the same shelf: the list you pick a paper from, and the matrix
    of what you have connected. Same bar shape as the category filters below. */
 .vbar{display:flex;gap:8px;margin:0 0 18px}
@@ -318,12 +337,27 @@ JS = """
                ' · '+bits.join(' · ')+'</a>';
       }).join('');
     }
+    // Reachable or not is the one thing this section must never fake. An empty
+    // queue and an unreachable computer look identical if you only draw the
+    // successful case, and the phone meets the second one every time the
+    // computer is asleep.
+    function unreachable(){
+      sec.hidden=false;
+      sec.classList.remove('hot');
+      document.getElementById('tdue').textContent='';
+      document.getElementById('tsplit').innerHTML='';
+      document.getElementById('dueline').textContent='連不到電腦';
+      document.getElementById('srslist').innerHTML='<div class="qempty">'+
+        '複習紀錄只有跑 server 的那台電腦寫得進去，所以現在看不到今天的卡，也評不了分。'+
+        '<br>電腦開著、連得到它之後，重新整理就會回來。</div>';
+      panel.hidden=true;
+    }
     function load(cb){
       return fetch('/_pa/today').then(function(r){ return r.ok?r.json():null; })
         .then(function(d){
-          if(d&&!d.error) paint(d);
+          if(d&&!d.error) paint(d); else unreachable();
           if(cb) cb(d&&!d.error?d:null);
-        }).catch(function(){ if(cb) cb(null); });
+        }).catch(function(){ unreachable(); if(cb) cb(null); });
     }
     function said(text){
       var box=document.getElementById('tsaid');
@@ -415,6 +449,22 @@ JS = """
       set(open);
       btn.addEventListener('click',function(){ set(!open); });
     })();
+
+    // A phone app is left open for days: you come back at night to a queue
+    // drawn this morning, or to one drawn while the computer was still awake.
+    // Coming back into view is the moment to ask again.
+    document.addEventListener('visibilitychange',function(){
+      if(document.visibilityState==='visible') load(function(s){ if(s) review.setState(s); });
+    });
+
+    // The home-screen app. Only the shell is cached (see assets/sw.js), and
+    // only where a worker is allowed at all: plain http away from localhost is
+    // not a secure context, so on a bare tailnet address this simply does not
+    // run -- the page still works, it just cannot be installed. serve.py says
+    // so at startup, which is the only place saying it helps.
+    if(window.isSecureContext&&navigator.serviceWorker){
+      try{ navigator.serviceWorker.register('/_pa/sw.js',{scope:'/'}); }catch(e){}
+    }
 
     fetch('/_pa/hello',{headers:{'Accept':'application/json'}})
       .then(function(r){ return r.ok?r.json():null; })
@@ -846,8 +896,16 @@ def render(registry: Path) -> str:
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>書房 — {alive} 篇論文</title>
+<!-- use-credentials: the manifest sits behind the same key as everything else
+     when the server is reachable from the phone, and a manifest fetched
+     without the cookie comes back 403 and the app never installs. -->
+<link rel="manifest" href="/_pa/manifest.webmanifest" crossorigin="use-credentials">
+<link rel="apple-touch-icon" href="/_pa/icon-192.png">
+<meta name="theme-color" content="#8a4f24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="書房">
 {THEME_BOOT}
 <style>{(ASSETS / "style.css").read_text(encoding="utf-8")}</style>
 <style>{(ASSETS / "tools.css").read_text(encoding="utf-8")}</style>

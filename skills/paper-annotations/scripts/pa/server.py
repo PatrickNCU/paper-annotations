@@ -54,7 +54,7 @@ from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 from datetime import date
 
 from . import (
-    actions, annotate, checks, cli, library, marks as marklib, notes, srs,
+    actions, annotate, checks, cli, icon, library, marks as marklib, notes, srs,
     workspace,
 )
 
@@ -63,6 +63,7 @@ cli.bootstrap()
 # The CLI wrappers in scripts/ are what launchers and the rebuild subprocess
 # invoke -- pa/ is an implementation detail nothing outside may point at.
 SCRIPTS = Path(__file__).resolve().parent.parent
+ASSETS = Path(__file__).resolve().parent / "assets"
 MAX_BODY = 4 << 20  # a paper's worth of highlights is kilobytes; this is slack
 
 # Addresses that cannot be reached from another machine. Binding to one of
@@ -210,6 +211,15 @@ class Handler(SimpleHTTPRequestHandler):
             return True  # same-origin GETs do not send one
         host = self.headers.get("Host", "")
         return origin in (f"http://{host}", f"https://{host}")
+
+    def _send(self, body: bytes, kind: str, extra=()):
+        self.send_response(200)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(body)))
+        for name, value in extra:
+            self.send_header(name, value)
+        self.end_headers()
+        self.wfile.write(body)
 
     def _cookie_ok(self) -> bool:
         try:
@@ -373,6 +383,40 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(403, {"error": "cross-origin"})
                 return
             self._json(200, self._library())
+            return
+        if path == "/_pa/manifest.webmanifest":
+            # start_url carries the key when there is one: the home-screen
+            # shortcut has to keep working after the cookie expires, and the
+            # key was already on the phone the moment he opened the URL.
+            start = "/_pa/shelf" + (f"?k={quote(self.key)}" if self.key else "")
+            self._send(json.dumps({
+                "name": "書房 — 論文疑問註記",
+                "short_name": "書房",
+                "start_url": start,
+                "scope": "/",
+                "display": "standalone",
+                "background_color": "#fbfaf7",
+                "theme_color": "#8a4f24",
+                "lang": "zh-Hant",
+                "icons": [
+                    {"src": "/_pa/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                    {"src": "/_pa/icon-512.png", "sizes": "512x512", "type": "image/png"},
+                ],
+            }, ensure_ascii=False).encode("utf-8"),
+                "application/manifest+json; charset=utf-8")
+            return
+        if path == "/_pa/sw.js":
+            # Registered from the root so it can answer for /p/<slug>/ too;
+            # a worker served from a subpath may only claim that subpath
+            # unless it says otherwise, and this is that header.
+            self._send(
+                (ASSETS / "sw.js").read_bytes(),
+                "text/javascript; charset=utf-8",
+                (("Service-Worker-Allowed", "/"),),
+            )
+            return
+        if path in ("/_pa/icon-192.png", "/_pa/icon-512.png"):
+            self._send(icon.icon_png(192 if "192" in path else 512), "image/png")
             return
         if path == "/_pa/shelf":
             # One named file, read and returned here. Mounting its folder as a
@@ -1324,6 +1368,10 @@ def main(argv) -> int:
         print("             手機瀏覽器開這一條，開過一次就記住了；建議加到主畫面")
         print("             這條網址等於鑰匙，進得來的人看得到全部筆記，也改得了卡片")
         print(f"             金鑰存在 {KEY_FILE}；要換一把就加 --new-key")
+        # Every browser refuses to register a service worker on plain http
+        # away from localhost. Saying it here is the only place it helps: the
+        # phone just silently does not install.
+        print("             想裝成主畫面 app 要 https——tailscale serve 可以給你一個")
         if host in ANY:
             print("             🟡 綁的是所有介面，同一個 Wi-Fi 的人都連得到這個 port，"
                   "只剩金鑰擋著")
