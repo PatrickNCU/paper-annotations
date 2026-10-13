@@ -1120,21 +1120,31 @@ def _launcher(home: Path, stem: str, tag: str, target: str, port: int) -> Path:
     if os.name == "nt":
         path = home / f"{stem}.cmd"
         # backslashes throughout: cmd will not glob a mixed-separator path.
-        # "dir /o-d" rather than a bare wildcard, because cmd orders names as
-        # text -- 1.9.0 sorts after 1.14.1, and the loop keeps the last match,
-        # so a wildcard quietly ran a months-old server. Newest-written wins
-        # instead, which is what installing a version actually produces.
+        # The highest version number, compared as a version. Two ways of
+        # getting this wrong came first: a bare wildcard, where cmd orders
+        # names as text -- 1.9.0 after 1.14.1 -- and quietly ran a months-old
+        # server; then "dir /o-d", newest-written wins, until an update left
+        # 1.25.0 and 1.26.0 with the same timestamp to the second and the tie
+        # went to the old one. cmd has no version sort, so PowerShell, which
+        # every supported Windows ships, does the comparing.
         sep = chr(92)
         win = script.replace("/", sep)
         find = ""
         if versioned:
             root = versioned.replace("/", sep)
             tail = sep.join(("", "skills", "paper-annotations", "scripts", "serve.py"))
+            pick = (
+                "Get-ChildItem -Directory -LiteralPath $env:PAROOT | "
+                "Where-Object { $_.Name -match '^\\d+(\\.\\d+)+$' -and "
+                "(Test-Path (Join-Path $_.FullName 'skills\\paper-annotations\\scripts\\serve.py')) } | "
+                "Sort-Object { [version]$_.Name } -Descending | "
+                "Select-Object -First 1 -ExpandProperty Name"
+            )
             find = (
+                f'set "PAROOT={root}"\n'
                 'set "PA="\n'
-                f"""for /f "delims=" %%d in ('dir /b /ad /o-d "{root}" 2^>nul') do """
-                f'if not defined PA if exist "{root}{sep}%%d{tail}" '
-                f'set "PA={root}{sep}%%d{tail}"\n'
+                f'for /f "usebackq delims=" %%d in (`powershell -NoProfile -Command "{pick}"`) '
+                f'do set "PA=%PAROOT%{sep}%%d{tail}"\n'
                 f'if not exist "%PA%" set "PA={win}"\n'
             )
         run = "%PA%" if versioned else win
