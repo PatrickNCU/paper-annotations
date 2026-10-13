@@ -15,13 +15,24 @@
 --scroll:rgba(34,64,108,.22);--scroll-hover:rgba(34,64,108,.45);
 --hl1:rgba(244,201,63,.45);--hl2:rgba(96,190,136,.36);--hl3:rgba(114,164,235,.34);
 --hl4:rgba(240,124,120,.36);
-/* System faces only: the pages open offline, so nothing is fetched. Charter
-   on Apple devices, Cambria on Windows; Chinese falls through to the system's
-   own face either way. */
---serif:Charter,"Bitstream Charter",Cambria,"Noto Serif","Source Serif Pro",Georgia,
-"Microsoft JhengHei","PingFang TC","Noto Sans TC",serif;
---sans:-apple-system,"Segoe UI","Microsoft JhengHei UI","PingFang TC","Noto Sans TC",
-system-ui,sans-serif}
+/* Installed faces only: the pages open offline, so nothing is fetched. Each
+   stack is Latin first, then Chinese, so a line mixing the two takes each
+   script from the face made for it.
+   --serif is the paper's voice: Charter on Apple devices, Cambria on Windows,
+   and for Chinese -- the translation column, a Chinese phrase in the text --
+   a Song face that sits with them: 思源宋體 (Noto Serif TC) where installed,
+   the system's Songti on Apple, 正黑 only as the last resort.
+   --sans is the page's own voice, buttons and lists: 思源黑體 before 正黑,
+   which has fewer weights and blurs at small sizes.
+   --note is the reader's: the opened card. 霞鶩文楷 is a calm, legible kai
+   that reads as handwriting without being a scrawl; absent, it is --sans. */
+--serif:Charter,"Bitstream Charter",Cambria,"Source Serif Pro",Georgia,
+"Noto Serif TC","Source Han Serif TC","Noto Serif CJK TC","Songti TC",
+"Microsoft JhengHei","PingFang TC",serif;
+--sans:-apple-system,"Segoe UI","Noto Sans TC","Source Han Sans TC","Noto Sans CJK TC",
+"PingFang TC","Microsoft JhengHei UI","Microsoft JhengHei",system-ui,sans-serif;
+--note:"LXGW WenKai TC","LXGW WenKai",-apple-system,"Segoe UI","Noto Sans TC",
+"Source Han Sans TC","PingFang TC","Microsoft JhengHei UI",system-ui,sans-serif}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
 --bg:#1a1d21;--fg:#e7e5e0;--muted:#a0a5ad;--line:#30343a;--card:#22262b;
 --sidebar:#1e2125;--accent:#9cb8e4;--open:#f08a7e;--half:#e3b257;--done:#79c99b;
@@ -317,6 +328,8 @@ body[data-paper] .pnote,body[data-paper] .gutrow,body[data-paper] .cp,
 body[data-paper] #main button,body[data-paper] #main input,body[data-paper] #main textarea{
 font-family:var(--sans)}
 body[data-paper] .pnote{font-size:15.5px;line-height:1.75}
+/* An opened card -- your question and what was said back -- in the note voice. */
+#panel-in,#tpanel{font-family:var(--note)}
 /* The corner buttons float over the text; a strip of paper under them keeps
    the line they sit on from reading as if it ran under a sticker. Below every
    fixed control in the stack, above the page. */
@@ -576,6 +589,14 @@ line-height:1.45;font-size:13px;color:var(--muted);border-radius:4px}
 .banner{background:none;border:0;border-left:2px solid var(--accent);border-radius:0;
 padding:4px 0 4px 16px;margin-bottom:24px;font-size:14px;color:var(--muted)}
 .warn{border-color:var(--open);color:var(--fg)}
+/* The page's own explanation: one line saying what the page is, then one
+   bullet per thing on it, each starting with the name you will see. */
+.banner .ilead{margin:0 0 6px;color:var(--fg)}
+.banner .ilist{margin:0;padding-left:1.15em;line-height:1.75}
+.banner .ilist li{margin:3px 0}
+.banner .ilist ul{margin:2px 0 0;padding-left:1.1em;list-style:circle}
+.banner .ilist li::marker{color:var(--accent)}
+.banner .ilist strong{color:var(--fg)}
 .meta{color:var(--muted);font-size:14px;margin-bottom:20px}
 @media(max-width:900px){
 #side{width:min(310px,88vw)}
@@ -666,7 +687,7 @@ background:var(--card);color:var(--fg);cursor:pointer;box-shadow:0 2px 10px var(
 #trtoggle[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
 #trtoggle[data-ready="0"]{color:var(--muted)}
 #trmsg{position:fixed;right:16px;bottom:64px;z-index:28;max-width:min(360px,calc(100vw - 32px));
-padding:9px 12px;font-size:13px;line-height:1.6;background:var(--fg);color:var(--bg);
+padding:9px 12px;font-size:13px;line-height:1.6;white-space:pre-line;background:var(--fg);color:var(--bg);
 border-radius:8px;box-shadow:0 6px 20px var(--shadow)}
 @media(max-width:900px){#trmsg{right:10px;bottom:58px}}
 @media print{#brdock,#trsplit,#trmsg{display:none!important}}
@@ -703,6 +724,8 @@ background:var(--card);color:var(--fg);cursor:pointer}
 border:1px solid var(--line);border-radius:6px;padding:5px 8px;width:100%}
 .tsbody input:focus,.tsbody textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--pen-wash)}
 .tshint,.tspath,.tslock,.tsempty{margin:0;font-size:12.5px;color:var(--muted);line-height:1.6}
+ul.tshint{padding-left:1.1em}
+ul.tshint li::marker{color:var(--accent)}
 .tspath{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;overflow-wrap:anywhere}
 .tslock{color:var(--half)}
 .tssum{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px}
@@ -756,7 +779,7 @@ position:sticky;bottom:-18px;padding:10px 0 12px;background:var(--bg);border-top
 .tsdefault{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--card)}
 .tsdefault summary{cursor:pointer;font-size:13px;color:var(--muted)}
 .tsdeftext{white-space:pre-wrap;font-size:13px;line-height:1.7;margin-top:8px}
-#tslang{flex:1;min-height:180px;resize:none;line-height:1.7;font-family:ui-monospace,Consolas,"Microsoft JhengHei UI",monospace;font-size:13.5px}
+#tslang{flex:1;min-height:180px;resize:none;line-height:1.7;font-family:ui-monospace,Consolas,"Noto Sans TC","Microsoft JhengHei UI",monospace;font-size:13.5px}
 @media(max-width:560px){
 #trset{width:100vw;height:100dvh;border-radius:0;border-left:0;border-right:0}
 .tslist li{grid-template-columns:minmax(0,1fr) 70px 28px}

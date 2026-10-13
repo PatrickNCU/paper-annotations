@@ -54,9 +54,9 @@
 
   btn.addEventListener('click',function(){
     if(!ready){
-      say('這篇還沒有譯文。在對話裡說「翻譯這篇的 S130」之類的，'+
-          'agent 寫好譯文、重建這一頁之後，這顆就能用了。'+
-          '左下「工具 → 譯文設定」可以挑章節、整理術語表。');
+      say('這篇還沒有譯文。\n'+
+          '・在對話裡說「翻譯這篇的 S130」，翻好重建後這顆就能用\n'+
+          '・左下「工具 → 譯文設定」可以挑章節、整理術語表');
       return;
     }
     var on=!root.classList.contains('tr-on');
@@ -215,8 +215,7 @@
       bodyEl.innerHTML=html+'<p class="tsempty">這篇沒有可以翻譯的段落。</p>';
       return;
     }
-    html+='<div class="tsbar"><span class="tshint">勾選要翻的章節，複製請求貼到對話裡；'+
-      'agent 翻好會重建這一頁。參考文獻不翻。</span>'+
+    html+='<div class="tsbar"><span class="tshint">勾章節 → 複製請求 → 貼到對話裡。參考文獻不翻。</span>'+
       '<button data-act="gaps">選有缺的</button><button data-act="none">清除</button></div>'+
       '<ul class="tslist">';
     rows.forEach(function(r){
@@ -272,10 +271,10 @@
     var dis=live?'':' disabled';
     var html=scopeSwitch()+
       '<p class="tspath">'+esc(s.terms.path)+'</p>'+lockNote()+
-      '<p class="tshint">'+(scope==='paper'?
+      '<ul class="tshint"><li>'+(scope==='paper'?
         '只套用在這篇；和書房共用的表寫了同一個詞時，以這裡為準。':
         '書房裡每一篇都套用；某篇要不一樣，就在那篇的術語表另寫一條。')+
-      ' 改了不會讓既有譯文變成待更新，想套用請 agent 重翻用到的段落。</p>';
+      '</li><li>改了不會讓既有譯文變成待更新；要套用，請 agent 重翻用到的段落。</li></ul>';
     html+='<table class="tsterms"><thead><tr><th>原文</th><th>譯法</th><th>備註</th><th></th></tr></thead><tbody>';
     if(!rows.length)
       html+='<tr class="empty"><td colspan="4">還沒有術語。加一條，翻譯時就會照著寫。</td></tr>';
@@ -317,8 +316,8 @@
     var html='<details class="tsdefault"><summary>內建的預設規則（每篇都套用）</summary>'+
       '<div class="tsdeftext">'+esc(data['default']||'')+'</div></details>'+
       scopeSwitch()+'<p class="tspath">'+esc(s.languages.path)+'</p>'+lockNote()+
-      '<p class="tshint">預設 → 書房共用 → 這篇論文，越後面越優先，只覆寫寫到的部分。'+
-      '改了不會讓既有譯文變成待更新。</p>'+
+      '<ul class="tshint"><li>套用順序：預設 → 書房共用 → 這篇論文，越後面越優先，只覆寫寫到的部分。</li>'+
+      '<li>改了不會讓既有譯文變成待更新。</li></ul>'+
       '<textarea id="tslang" spellcheck="false"'+(live?'':' readonly')+
       ' placeholder="例：\n- 數學名詞一律用中文：梯度、步長、收斂\n- 語氣用書面語，不用「你」\n- bin 保留英文，不譯成「格子」">'+
       esc(text)+'</textarea>'+

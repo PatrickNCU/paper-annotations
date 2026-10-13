@@ -138,14 +138,13 @@ window.paGraph = (function(){
             list.map(function(b){ return '<td>'+cell(a,b)+'</td>'; }).join('')+'</tr>';
         }).join('')+
         '</tbody></table></div>';
-      html+='<div class="glegend">'+
-        '格子裡的大字是<b>廣度</b>：兩邊各有幾則不同的筆記真的參與，取比較窄的那一邊。'+
-        '小字是原始<b>線條數</b>。四條線可能是四個關係，也可能是同一則筆記發出四條——'+
-        '用條數看這兩種一模一樣，用廣度就分得出來。<br>'+
-        '<span class="gdot"></span> 這一格裡有<b>牴觸</b>。'+
-        '<span class="gdash"></span> <b>引用了卻還沒接線</b>：機械上有關係，你還沒寫下判斷。'+
-        '對角線是那一篇自己的<b>筆記總數</b>，所以「這一列本來就筆記多」看得見。'+
-        '</div>';
+      html+='<ul class="glegend">'+
+        '<li>大字＝<b>廣度</b>：兩篇各有幾則不同的筆記真的參與，取比較少的那一邊。</li>'+
+        '<li>小字＝<b>線條數</b>。四條線可能是四個關係，也可能是同一則筆記發出四條；廣度分得出這兩種。</li>'+
+        '<li><span class="gdot"></span> 這一格裡有<b>牴觸</b>。</li>'+
+        '<li><span class="gdash"></span> <b>引用了卻還沒接線</b>：原文有引用，你還沒寫下判斷。</li>'+
+        '<li>對角線＝那一篇自己的<b>筆記總數</b>，看得出哪一列本來就筆記多。</li>'+
+        '</ul>';
       html+=todo(list);
       html+='<div id="gpair" hidden></div></div>';
       host.innerHTML=html;

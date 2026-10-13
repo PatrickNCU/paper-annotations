@@ -183,7 +183,7 @@ background:var(--bg);color:var(--muted);font:inherit;font-size:12px;line-height:
 cursor:pointer}
 .treset:hover{border-color:var(--accent);color:var(--accent)}
 .tkill:hover{border-color:var(--open);color:var(--open)}
-#thelp{display:none;margin:-12px 0 18px;font-size:12.5px;color:var(--muted);line-height:1.8}
+#thelp{display:none;margin:-12px 0 18px;padding-left:1.15em;font-size:12.5px;color:var(--muted);line-height:1.8}
 body.tediting #thelp{display:block}
 #tform{display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap;align-items:center}
 #tname{flex:1 1 220px;padding:6px 11px;border:1px solid var(--line);border-radius:8px;
@@ -367,7 +367,7 @@ JS = """
       document.getElementById('tsplit').innerHTML='';
       document.getElementById('dueline').textContent='連不到電腦';
       document.getElementById('srslist').innerHTML='<div class="qempty">'+
-        '複習紀錄只有跑 server 的那台電腦寫得進去，所以現在看不到今天的卡，也評不了分。'+
+        '現在看不到今天的卡，也評不了分：複習紀錄只寫得進跑 server 的那台電腦。'+
         '<br>電腦開著、連得到它之後，重新整理就會回來。</div>';
       panel.hidden=true;
     }
@@ -967,8 +967,11 @@ def render(registry: Path) -> str:
 </div>
 <div id="view-list">
 <div class="tbar">{''.join(bar)}</div>
-<div id="thelp">每個分類旁邊的色塊可以換顏色，<b>↺</b> 回到預設，<b>✕</b> 刪掉分類——
-只有沒有任何論文的分類刪得掉。顏色深淺兩種主題共用，選中間調的最保險。</div>
+<ul id="thelp">
+<li>色塊：換這個分類的顏色。深淺兩種主題共用，選中間調最保險。</li>
+<li><b>↺</b>：回到預設顏色。</li>
+<li><b>✕</b>：刪掉分類。只有沒有任何論文的分類刪得掉。</li>
+</ul>
 <div id="tform" hidden><input id="tname" type="text" placeholder="分類名稱，例如「已讀過」" maxlength="40">
 <input id="thue" type="color" value="#8a4f24" title="這個分類的顏色（不改就用預設樣式）">
 <button id="tok">建立</button><button id="tcancel">取消</button></div>

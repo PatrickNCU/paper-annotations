@@ -51,7 +51,8 @@ background:var(--open)}
 .gcell.gap{outline:1px dashed var(--accent);outline-offset:-3px}
 .gcell.empty{cursor:default}
 .gcell.empty:hover{background:transparent}
-.glegend{font-size:12.5px;color:var(--muted);line-height:1.9}
+.glegend{font-size:12.5px;color:var(--muted);line-height:1.8;margin:8px 0;padding-left:1.15em}
+.glegend li::marker{color:var(--accent)}
 .glegend b{color:var(--fg);font-weight:600}
 .gdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--open);
 vertical-align:middle}

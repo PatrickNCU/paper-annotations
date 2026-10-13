@@ -295,15 +295,20 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 {warn}
 <div class="banner" id="intro">
 <button class="introx" id="introx" title="關閉說明" aria-label="關閉說明">×</button>
-本頁是<strong>衍生檔</strong>，由論文原文與 <code>notes/cards/</code> 合併產生，請勿直接編輯。
-摺疊區塊裡的內容是<strong>你的提問與 AI 的解說，不是論文內容</strong>。
-正文裡<strong>反白的句子</strong>就是你當初卡住的地方，點它會叫出當時的問題；
-好幾張卡引到同一處時顏色較深，點下去會列出這裡的卡讓你挑。
-段落左邊的<strong>卡片標籤</strong>列出掛在這一段的卡，沒有反白的卡也在那裡。
-先自己想過再看解答。滑鼠移到左上角的 <strong>☰</strong> 會滑出目錄與疑問清單，點一下可以釘住；
-右上角有提問草稿區。
-選取正文會浮出<strong>螢光筆</strong>，畫記存在這台瀏覽器裡，要留下來請用側欄的「複製畫記」貼回對話。
-左下角的<strong>工具</strong>可以重建這一篇、匯出、打包。
+<p class="ilead"><strong>這一頁怎麼用</strong>　本頁是衍生檔，由論文原文與 <code>notes/cards/</code>
+合併產生，請勿直接編輯。</p>
+<ul class="ilist">
+<li><strong>反白的句子</strong>：你當初卡住的地方，點它叫出當時的問題。顏色較深表示好幾張卡引到這裡，點了會列出來讓你挑。</li>
+<li><strong>摺疊區塊</strong>：你的提問與 AI 的解說，不是論文內容。先自己想過再打開。</li>
+<li><strong>段落左邊的卡片標籤</strong>：掛在這一段的每一張卡，沒有反白的也在。</li>
+<li><strong>螢光筆</strong>：選取正文就會浮出。開著 server 按側欄「存檔」；沒開時用「複製畫記」貼回對話。</li>
+<li><strong>譯文對照</strong>：右下角的開關，每段譯文排在原文旁邊同一列。進度與術語表在「工具 → 譯文設定」。</li>
+<li><strong>四個角落</strong>
+<ul><li>左上 ☰：目錄與疑問，點一下釘住</li>
+<li>右上：提問草稿</li>
+<li>左下：回書房、工具（重建、匯出、打包）</li>
+<li>右下：譯文對照、配色</li></ul></li>
+</ul>
 </div>
 <div id="introgone" hidden>說明關起來了，之後不會再出現。想再看一次就從左下角的工具 →
 「這一頁怎麼用」。</div>
