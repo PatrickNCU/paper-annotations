@@ -17,9 +17,9 @@ import zlib
 # The light palette's --accent and --bg, copied rather than parsed: the icon
 # has to look the same on a phone whose owner runs the dark theme, so it does
 # not follow the theme at all -- it follows the tool's identity.
-ACCENT = (138, 79, 36)
-PAPER = (251, 250, 247)
-SHADE = (240, 236, 226)
+ACCENT = (34, 64, 108)
+PAPER = (252, 252, 250)
+SHADE = (232, 236, 242)
 
 _CACHE: dict[int, bytes] = {}
 

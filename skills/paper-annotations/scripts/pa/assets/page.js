@@ -1297,6 +1297,27 @@
       .then(fromHash);
   }
 
+  // 複習 and 疑問 fold. Remembered across papers: wanting the drawer short is
+  // a habit of the reader, not a property of one paper.
+  [].slice.call(document.querySelectorAll('.sfold')).forEach(function(btn){
+    var box=document.getElementById(btn.getAttribute('aria-controls'));
+    var key='pa-side-'+btn.dataset.fold;
+    if(!box) return;
+    function set(open,keep){
+      btn.setAttribute('aria-expanded',String(open));
+      box.hidden=!open;
+      if(keep){ try{ localStorage.setItem(key,open?'open':'closed'); }catch(e){} }
+    }
+    var kept='';
+    try{ kept=localStorage.getItem(key)||''; }catch(e){}
+    if(kept==='closed') set(false,false);
+    btn.addEventListener('click',function(){ set(box.hidden,true); });
+    // Searching is asking to see the list; a folded one would answer with
+    // nothing. Opened for the search only, not remembered.
+    if(btn.dataset.fold==='q') search.addEventListener('input',function(){
+      if(search.value&&box.hidden) set(true,false);
+    });
+  });
 
   apply();
 })();

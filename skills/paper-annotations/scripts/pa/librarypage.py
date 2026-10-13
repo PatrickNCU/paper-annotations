@@ -33,26 +33,33 @@ CSS = """
    its own colour gets this worked out arithmetically (--tc-ink below); the
    default accent only needs it stated once per theme. */
 :root{--accent-ink:#fff}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--accent-ink:#20170e}}
-:root[data-theme="dark"]{--accent-ink:#20170e}
-#main{max-width:900px}
-.lhead{margin:0 0 24px;padding-bottom:14px;border-bottom:1px solid var(--line)}
-.lhead h1{margin:0 0 6px;font-size:1.6em}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--accent-ink:#141d2b}}
+:root[data-theme="dark"]{--accent-ink:#141d2b}
+/* A reading list, not a stack of cards: papers are separated by space and a
+   hairline, their titles set in the same serif as the papers themselves, and
+   the one thing to do today is marked off with the pen rule down its side. */
+#main{max-width:800px}
+.lhead{margin:0 0 26px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.lhead h1{margin:0 0 6px;font-size:2em;letter-spacing:.06em;line-height:1.25}
 .lmeta{font-size:13px;color:var(--muted)}
-.paper{display:block;margin:0 0 14px;padding:15px 18px;border:1px solid var(--line);
-border-radius:10px;background:var(--card);color:inherit;text-decoration:none;
+.paper{display:block;margin:0;padding:18px 2px 18px;border:0;border-top:1px solid var(--line);
+border-radius:0;background:none;color:inherit;text-decoration:none;
 scroll-margin-top:22px}
-.paper:hover{border-color:var(--accent)}
-body.offline .paper:hover{border-color:var(--line)}
-.paper h2{margin:0 0 4px;font-size:1.04em;line-height:1.5}
+.paper h2{margin:0 0 4px;font-family:var(--serif);font-size:1.3em;font-weight:700;
+line-height:1.35;text-wrap:balance;border:0;padding:0}
+.paper:hover h2{color:var(--accent)}
+body.offline .paper:hover h2{color:inherit}
 .pfacts{font-size:12.5px;color:var(--muted)}
-.pill{display:inline-block;margin:6px 6px 0 0;padding:2px 9px;border-radius:11px;
-font-size:12px;line-height:1.7}
-.pill.open{background:var(--sec-stuck);color:var(--open)}
-.pill.half{background:var(--sec-stuck);color:var(--half)}
-.pill.done{background:var(--sec-key);color:var(--done)}
-.pill.due{background:var(--accent);color:var(--accent-ink);font-weight:600}
-.pill.quiet{background:var(--sec-answer);color:var(--muted)}
+/* Counts are words in the colour of their state, not lozenges: only what is
+   due today is filled, because it is the only one asking for something. */
+.pill{display:inline-block;margin:6px 14px 0 0;padding:0;border-radius:0;
+font-size:12.5px;line-height:1.7;color:var(--muted)}
+.pill.open{color:var(--open);font-weight:600}
+.pill.half{color:var(--half);font-weight:600}
+.pill.done{color:var(--done)}
+.pill.due{background:var(--accent);color:var(--accent-ink);font-weight:600;
+padding:0 9px;border-radius:11px}
+.pill.quiet{color:var(--muted)}
 .dead{border-style:dashed;opacity:.72}
 .note{margin-top:26px;font-size:12.5px;color:var(--muted);line-height:1.75}
 /* Above the list, not under it: this is the thing to read before clicking. */
@@ -62,8 +69,11 @@ border:1px solid var(--half);background:var(--sec-stuck);font-size:14px}
 #offline code{display:inline-block;margin-top:6px;padding:3px 9px;border-radius:6px;
 background:var(--plate);color:#22201d;font-size:13px}
 .paper.dead{cursor:default}
-.paper.dead:hover{border-color:var(--line)}
-a.ptitle{display:block;color:inherit;text-decoration:none}
+.paper.dead:hover h2{color:inherit}
+/* style.css's .ptitle is the open card's question line, dashed rule and all;
+   the name was taken first, so this one undoes it. */
+a.ptitle{display:block;color:inherit;text-decoration:none;border:0;margin:0;padding:0;
+font-size:inherit;font-weight:inherit;line-height:inherit}
 /* Every colour below reads through --tc with the old value as its fallback, so
    a category that was never given one renders byte-for-byte as it did before
    colours existed. --tc-ink is the readable text colour on top of --tc and
@@ -71,16 +81,17 @@ a.ptitle{display:block;color:inherit;text-decoration:none}
    because CSS cannot work out a contrasting colour by itself. */
 /* 今天要複習：每篇論文各自到期的卡，收成一件事。放在最上面是因為這是進到這
    一頁最常想做的事；論文清單與連結圖是找東西用的，找東西可以往下捲。 */
-#today{margin:0 0 24px;padding:16px 18px;border:1px solid var(--line);
-border-radius:12px;background:var(--card)}
-#today.hot{border-color:var(--accent)}
-#today h2{margin:0;font-size:1.1em;line-height:1.5}
+#today{margin:0 0 30px;padding:2px 0 4px 18px;border:0;border-left:2px solid var(--accent);
+border-radius:0;background:none}
+#today.hot{border-left-width:4px;padding-left:16px}
+#today h2{margin:0;font-size:1.1em;line-height:1.5;border:0;padding:0}
 /* The whole heading is the handle -- a caret small enough to be the only
    target is a target you miss on a touch screen. */
 #ttoggle{display:flex;gap:7px;align-items:baseline;width:100%;margin:0 0 5px;
 padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;
 cursor:pointer}
-#ttoggle:hover{color:var(--accent)}
+#ttoggle{color:var(--accent)}
+#ttoggle:hover{color:var(--fg)}
 .tcaret{flex:0 0 auto;font-size:.8em;color:var(--muted)}
 #ttoggle:hover .tcaret{color:var(--accent)}
 #dueline{font-size:12.5px;color:var(--muted)}
@@ -93,12 +104,22 @@ cursor:pointer}
 color:var(--muted);font-size:12px;line-height:1.7;text-decoration:none}
 .tsplit a:hover{color:var(--accent)}
 #srslist{margin:12px 0 0}
-#srslist a.qlink{display:flex;gap:7px;align-items:flex-start;padding:6px 7px;
-border-radius:7px;color:inherit;text-decoration:none;font-size:13.5px;line-height:1.7}
-#srslist a.qlink:hover{background:var(--line)}
+#srslist a.qlink{display:flex;gap:10px;align-items:flex-start;padding:9px 6px;
+border-radius:4px;color:inherit;text-decoration:none;font-size:14px;line-height:1.65}
+#srslist a.qlink+a.qlink{border-top:1px solid var(--line);border-radius:0}
+#srslist a.qlink:hover{background:var(--pen-wash)}
+/* One width for every tag, so the questions start on one edge however many
+   days each has been waiting. */
+#srslist .srstag{min-width:5.8em;text-align:center}
 .qpaper{flex:0 0 auto;font-size:11.5px;color:var(--muted)}
 #tpanel{margin:14px 0 0;padding:14px 16px;border:1px solid var(--line);
-border-radius:10px;background:var(--bg)}
+border-left:3px solid var(--muted);border-radius:2px 8px 8px 2px;background:var(--plate);
+box-shadow:0 4px 18px var(--shadow)}
+#tpanel[data-status=open]{border-left-color:var(--open)}
+#tpanel[data-status=half]{border-left-color:var(--half)}
+#tpanel[data-status=resolved]{border-left-color:var(--done)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) #tpanel{background:var(--card)}}
+:root[data-theme="dark"] #tpanel{background:var(--card)}
 #tpanel[hidden]{display:none}
 .tpbar{display:flex;gap:10px;align-items:baseline;margin:0 0 10px;
 padding-bottom:9px;border-bottom:1px solid var(--line)}
@@ -130,7 +151,7 @@ padding:0 12px}
 /* Two views of the same shelf: the list you pick a paper from, and the matrix
    of what you have connected. Same bar shape as the category filters below. */
 .vbar{display:flex;gap:8px;margin:0 0 18px}
-.vbar button{padding:6px 14px;border:1px solid var(--line);border-radius:8px;
+.vbar button{padding:6px 14px;border:1px solid var(--line);border-radius:999px;
 background:var(--card);color:var(--muted);font:inherit;font-size:13.5px;cursor:pointer}
 .vbar button:hover{color:var(--fg)}
 .vbar button.on{border-color:var(--accent);color:var(--accent);background:var(--bg)}
@@ -174,8 +195,7 @@ border-radius:8px;background:none;cursor:pointer}
 #tok{border-color:var(--accent);color:var(--accent)}
 .tmk{border-style:dashed !important}
 /* A topic the reader chose and one we guessed must not look the same. */
-.topics{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;padding-top:10px;
-border-top:1px dashed var(--line)}
+.topics{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .tchip{padding:3px 10px;border:1px solid var(--tc,var(--line));border-radius:12px;
 background:var(--tc-dim,var(--sec-answer));color:var(--tc,var(--fg));font:inherit;
 font-size:12px;cursor:pointer}
@@ -197,8 +217,7 @@ background:var(--bg);color:var(--accent);font:inherit;font-size:12px;cursor:poin
 #tsay{margin-left:8px;font-size:12px;color:var(--muted)}
 /* Citations sit on the card that makes the claim, not in a table at the foot of
    the page: "who does this one talk to" is a question about this paper. */
-.cxs{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;padding-top:9px;
-border-top:1px dashed var(--line)}
+.cxs{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
 .cx{max-width:100%;padding:3px 10px;border:1px solid var(--line);border-radius:8px;
 background:var(--bg);color:var(--muted);font:inherit;font-size:12.5px;line-height:1.65;
 text-align:left;cursor:pointer}
@@ -903,7 +922,7 @@ def render(registry: Path) -> str:
      without the cookie comes back 403 and the app never installs. -->
 <link rel="manifest" href="/_pa/manifest.webmanifest" crossorigin="use-credentials">
 <link rel="apple-touch-icon" href="/_pa/icon-192.png">
-<meta name="theme-color" content="#8a4f24">
+<meta name="theme-color" content="#22406c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="書房">
 {THEME_BOOT}

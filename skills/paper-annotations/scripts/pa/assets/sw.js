@@ -68,7 +68,7 @@ self.addEventListener('fetch', function (event) {
           '<!doctype html><meta charset="utf-8">' +
           '<title>連不到電腦</title>' +
           '<style>body{font:15px/1.8 system-ui,sans-serif;margin:14vh auto;' +
-          'max-width:30em;padding:0 22px;color:#22201d;background:#fbfaf7}</style>' +
+          'max-width:30em;padding:0 22px;color:#1c1f24;background:#fcfcfa}</style>' +
           '<h1>連不到電腦</h1>' +
           '<p>複習紀錄只有跑 server 的那台電腦寫得進去，所以離線時看不到今天的卡，' +
           '也評不了分。</p><p>電腦開著、Tailscale 連著，重新整理就會回來。</p>',

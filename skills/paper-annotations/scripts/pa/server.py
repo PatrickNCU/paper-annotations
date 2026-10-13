@@ -137,6 +137,18 @@ class Handler(SimpleHTTPRequestHandler):
     # run and not before, because seeing the difference first is the point.
     ran = set()
 
+    def end_headers(self):
+        # Every page here is rebuilt in place under the same name. With no
+        # Cache-Control the browser guesses a freshness window from
+        # Last-Modified and kept showing the page from before a rebuild --
+        # the change was on disk and the reader could not see it. no-cache
+        # still lets the browser keep the copy; it just asks first, and an
+        # unchanged file answers 304 with no body.
+        sent = getattr(self, "_headers_buffer", [])
+        if not any(h.lower().startswith(b"cache-control:") for h in sent):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     # ---- routing ---------------------------------------------------------
 
     def _route(self, path: str):
@@ -395,8 +407,8 @@ class Handler(SimpleHTTPRequestHandler):
                 "start_url": start,
                 "scope": "/",
                 "display": "standalone",
-                "background_color": "#fbfaf7",
-                "theme_color": "#8a4f24",
+                "background_color": "#fcfcfa",
+                "theme_color": "#22406c",
                 "lang": "zh-Hant",
                 "icons": [
                     {"src": "/_pa/icon-192.png", "sizes": "192x192", "type": "image/png"},

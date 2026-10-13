@@ -119,6 +119,16 @@ window.paReview = (function(){
           '複習紀錄要寫成檔案，這頁自己寫不了。</div>';
       }
       list.innerHTML=html;
+      // The page rendered its math once, at load; on the shelf this list
+      // arrives later from the server, and a question quoting $r<1$ showed
+      // the dollar signs.
+      if(window.renderMathInElement){
+        try{
+          renderMathInElement(list,{delimiters:[
+            {left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+            ignoredClasses:['no-math'],throwOnError:false,strict:false});
+        }catch(e){}
+      }
       [].slice.call(list.querySelectorAll('.srsitem')).forEach(function(a){
         a.addEventListener('click',function(e){
           e.preventDefault();

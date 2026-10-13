@@ -169,7 +169,8 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     # once there is something in it is a feature the reader never learns exists.
     # The script fills in one of three empty states instead.
     srs_block = (
-        '\n  <h2>複習 <span id="srscount"></span></h2>'
+        '\n  <h2><button class="sfold" data-fold="srs" aria-expanded="true" aria-controls="srslist">'
+        '<span class="scaret">▾</span>複習 <span id="srscount"></span></button></h2>'
         '\n  <div id="dueline" class="dueline"></div>'
         '\n  <div id="srslist"></div>'
     )
@@ -256,7 +257,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     <button id="hlclear">清空</button>
   </div>
   <div id="hlstat"></div>{srs_block}
-  <h2>疑問（{len(questions)}）</h2>
+  <h2><button class="sfold" data-fold="q" aria-expanded="true" aria-controls="qlist"><span class="scaret">▾</span>疑問（{len(questions)}）</button></h2>
   <div id="qlist">{qlist}</div>
   <h2>目錄</h2>
   {nav}
