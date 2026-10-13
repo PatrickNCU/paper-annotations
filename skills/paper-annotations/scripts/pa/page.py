@@ -30,7 +30,7 @@ from pathlib import Path
 
 from . import (
     actions, checks, cli, graph, katex, library, links, minimd, notes,
-    page_transforms as transforms, srs, workspace,
+    page_transforms as transforms, srs, translation, workspace,
 )
 
 cli.bootstrap()
@@ -68,6 +68,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     graph_js = (ASSETS / "graph.js").read_text(encoding="utf-8")
     checks_css = (ASSETS / "checks.css").read_text(encoding="utf-8")
     checks_js = (ASSETS / "checks.js").read_text(encoding="utf-8")
+    trans_js = (ASSETS / "trans.js").read_text(encoding="utf-8")
 
     # Where every checkpoint stands, replayed from its log. Only the state
     # travels: the question is already in the text, and the section's points
@@ -108,6 +109,12 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     }, ensure_ascii=False).replace("</", "<\\/")
 
     source_list = [Path(p) for p in (config.get("sources") or [])]
+    # The translation column: cells are decided per block while rendering and
+    # dropped into place once the page's own transforms are done.
+    layer = translation.PageLayer(work_root)
+    # The 譯文設定 panel's first view, so it opens even with no server behind
+    # the page; the server's copy replaces it when there is one.
+    trset_json = json.dumps(translation.settings(work_root), ensure_ascii=False).replace("</", "<\\/")
     body_parts, toc, used = [], [], {}
     missing = []
     # A section's own heading is the first one its file produces, which is what
@@ -132,7 +139,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
             toc.append((level, title, anchor))
             return anchor
 
-        rendered, _ = minimd.render(text, heading_hook=hook)
+        rendered, _ = minimd.render(text, heading_hook=hook, block_hook=layer.hook(rel))
         if len(toc) > first_heading:
             section_head[rel.stem] = toc[first_heading][2]
         elif toc:
@@ -141,9 +148,12 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
             # the contents then carries two marks on that one line.
             section_head[rel.stem] = toc[-1][2]
         # data-src so a highlight drawn in the browser can name the file it
-        # belongs to, in the form a mark file has to write down
+        # belongs to, in the form a mark file has to write down; data-tr is the
+        # same for a highlight drawn on the translation beside it
+        tr_attr = (f' data-tr="{html.escape(layer.file_for(rel))}"'
+                   if layer.active else "")
         body_parts.append(
-            f'<section class="chunk" id="{rel.stem}" data-src="{rel.as_posix()}">'
+            f'<section class="chunk" id="{rel.stem}" data-src="{rel.as_posix()}"{tr_attr}>'
             f"{rendered}</section>"
         )
 
@@ -184,6 +194,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
     whole, targets = transforms.label_ids(whole)
     targets.update(algos)
     whole, xrefs, xref_missing = transforms.linkify_xrefs(whole, targets)
+    whole = layer.place(whole)
     body_parts = [whole]
     counts = {"open": 0, "half": 0, "resolved": 0}
     for card in cards:
@@ -220,13 +231,25 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
             "請重新執行 build_annotated.py：" + html.escape("、".join(missing)) + "</div>"
         )
 
+    # Same reason as THEME_BOOT: a reader who left the translation on should
+    # not watch the page lay itself out twice.
+    tr_boot = ""
+    if layer.active:
+        name = json.dumps("pa-tr:" + paper_root.name).replace("</", "<\\/")
+        tr_boot = (
+            "\n<script>(function(){try{var r=document.documentElement;"
+            f'if(localStorage.getItem({name})==="on")r.classList.add("tr-on");'
+            'var f=parseFloat(localStorage.getItem("pa-tr-split"));'
+            'if(f>=.3&&f<=.7)r.style.setProperty("--trf",String(f));}catch(e){}})();</script>'
+        )
+
     page = f"""<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} — 疑問註記</title>
-{THEME_BOOT}
+{THEME_BOOT}{tr_boot}
 <style>{style}</style>
 <style>{tools_css}</style>
 <style>{graph_css}</style>
@@ -287,7 +310,12 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 {''.join(body_parts)}
 </main>
 </div>
+<div id="brdock">
+<button id="trtoggle" aria-pressed="false" data-ready="{1 if layer.active else 0}"
+ title="{html.escape(layer.summary() or '這篇還沒有譯文')}">譯文對照</button>
 <button id="theme">🌗 跟隨系統</button>
+</div>
+<div id="trsplit" hidden aria-hidden="true"></div>
 <div id="notewrap">
 <button id="notetab">✎ 提問草稿</button>
 <section id="note">
@@ -324,11 +352,13 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <script id="pa-actions" type="application/json">{action_json}</script>
 <script id="pa-graph" type="application/json">{ego_json}</script>
 <script id="pa-checks" type="application/json">{check_json}</script>
+<script id="pa-trset" type="application/json">{trset_json}</script>
 <script>{graph_js}</script>
 <script>{review_js}</script>
 <script>{script}</script>
 <script>{checks_js}</script>
 <script>{tools_js}</script>
+<script>{trans_js}</script>
 </body>
 </html>
 """
@@ -361,6 +391,10 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
         print("                 評分需要 serve.py 在跑，複習紀錄才寫得進 notes/reviews/")
     for name in plan["orphans"]:
         print(f"  🟡 複習紀錄 {name} 找不到對應的卡片（卡片被刪了？紀錄保留著）")
+    if layer.active:
+        print(f"            譯文 {layer.summary()}")
+        if layer.total["orphans"]:
+            print(f"  🟡 {layer.total['orphans']} 段譯文對不到原文段落（translate.py 看是哪幾段）")
     if marks:
         noted = sum(1 for mark in marks if mark["note"])
         print(f"            畫記 {len(marks)} 條：已定位 {len(placed)}、有註解 {noted}")

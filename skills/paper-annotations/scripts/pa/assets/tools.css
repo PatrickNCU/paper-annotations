@@ -34,6 +34,8 @@ border:1px solid transparent;background:transparent;color:var(--fg);cursor:point
 /* 這一頁怎麼用 is not one of the actions: it runs nothing, it is never greyed
    out by a missing server, and it sits below a rule so it reads as separate. */
 .patool.pdoc{border-top:1px solid var(--line);border-radius:0 0 7px 7px;margin-top:4px}
+.patool.ptr{border-top:1px solid var(--line);border-radius:0;margin-top:4px}
+.patool.ptr+.pdoc{border-top:0;margin-top:0}
 
 /* The output floats out of the same corner rather than living in the sidebar:
    at 296px a build log wraps into noise, and pushing the text sideways while

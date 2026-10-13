@@ -1,0 +1,10 @@
+"""命令列入口。邏輯在 pa/translation.py。"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from pa import translation
+
+if __name__ == "__main__":
+    sys.exit(translation.main(sys.argv))

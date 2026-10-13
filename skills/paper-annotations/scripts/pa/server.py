@@ -55,7 +55,7 @@ from datetime import date
 
 from . import (
     actions, annotate, checks, cli, icon, library, marks as marklib, notes, srs,
-    workspace,
+    translation, workspace,
 )
 
 cli.bootstrap()
@@ -291,6 +291,19 @@ class Handler(SimpleHTTPRequestHandler):
         query = parse_qs(parsed.query)
         want = (query.get("p") or [""])[0]
 
+        if path == "/_pa/translation":
+            # what the 譯文設定 panel shows: both glossary levels, both
+            # preference levels, and how far the translation has got
+            if not self._same_origin():
+                self._json(403, {"error": "cross-origin"})
+                return
+            paper = self._paper(want)
+            if paper is None:
+                self._json(404, {"error": "沒有這篇論文"})
+                return
+            self._json(200, translation.settings(paper["work"]))
+            return
+
         if path == "/_pa/hello":
             if not self._same_origin():
                 self._json(403, {"error": "cross-origin"})
@@ -499,7 +512,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?")[0]
         if path not in ("/_pa/marks", "/_pa/mark", "/_pa/review", "/_pa/card",
-                        "/_pa/topic", "/_pa/run", "/_pa/check"):
+                        "/_pa/topic", "/_pa/run", "/_pa/check", "/_pa/translation"):
             self._json(404, {"error": "unknown endpoint"})
             return
         # No redirect dance here: a POST only ever comes from a page that was
@@ -512,6 +525,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.headers.get("X-PA-Token") != self.token:
             self._json(403, {"error": "bad token"})
+            return
+        if path == "/_pa/translation":
+            self._translation()
             return
         if path == "/_pa/mark":
             self._one_mark()
@@ -565,6 +581,37 @@ class Handler(SimpleHTTPRequestHandler):
             "rebuilt": rebuilt,
             "log": log,
         })
+
+    def _translation(self):
+        """Save one level of the glossary or the language preferences.
+
+        The page names a scope and a file kind, never a path: both resolve to
+        the paper's folder or the shelf's, worked out here. Nothing is rebuilt
+        -- neither file is part of the page; they are read by the agent that
+        translates.
+        """
+        payload = self._body()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "bad payload"})
+            return
+        paper = self._paper(payload.get("paper"))
+        if paper is None:
+            self._json(404, {"error": "沒有這篇論文"})
+            return
+        try:
+            with self.lock:
+                if payload.get("kind") == "terms":
+                    result = translation.save_terms(paper["work"], payload.get("scope"),
+                                                    payload.get("rows"), payload.get("rev"))
+                elif payload.get("kind") == "languages":
+                    result = translation.save_languages(paper["work"], payload.get("scope"),
+                                                        payload.get("text"), payload.get("rev"))
+                else:
+                    raise ValueError("未知的設定")
+        except (ValueError, OSError) as exc:
+            self._json(400, {"error": str(exc)})
+            return
+        self._json(200, result)
 
     def _body(self):
         try:
@@ -1260,7 +1307,10 @@ def mount(work: Path, slug: str):
         "annotated": annotated,
         "root": root,
         "title": library.paper_title(paper_root)[0],
-        "sources": {Path(p).as_posix() for p in (config.get("sources") or [])},
+        # a highlight may sit on the paper or on its translation, and either
+        # file is one this paper already declares -- never a path from a request
+        "sources": {Path(p).as_posix() for p in (config.get("sources") or [])}
+        | {translation.mark_file(paper_root, notes_dir, p) for p in (config.get("sources") or [])},
         "index_url": f"/p/{quote(slug)}/{quote(inside)}",
     }
 

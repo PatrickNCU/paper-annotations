@@ -73,6 +73,7 @@ python <scripts>/build_library.py [<start>]      # the shelf page library.html
 python <scripts>/reanchor.py <work>              # source reconverted/re-split: reattach notes
 python <scripts>/export_cards.py <work> [--format anki|csv|json] [--status resolved]
 python <scripts>/import_marks.py <work> --from <file>   # output of the 「複製畫記」 button
+python <scripts>/translate.py <work> [--todo S130 …] [--put <file>]   # the translation column
 python <scripts>/serve.py <work> [--port 8975]   # lets the page save highlights and grade
 python <scripts>/serve.py --library [<start>]    # every paper at once; home is the shelf
 python <scripts>/build_html.py <work> --embed-assets --to <file>   # one file to send
@@ -99,7 +100,7 @@ papers.yml              ← registry, at the git repo root
   paper_md/             ← conversion package (source, read-only)
     sections/ INDEX.md images/
     notes/              ← the only source of truth
-      cards/ marks/ points/
+      cards/ marks/ points/ translations/
       catalog.json references.json   ← generated, for cross-paper use
   annotated/index.html  ← review page, beside the package
 ```
@@ -343,6 +344,66 @@ disappears, so nothing is highlighted twice. The build re-checks the quote.
 **A highlight is not a card**: no status, not in the question list, not counted in
 「疑問 N 則」. He marked a passage and added a sentence → highlight. He raised a
 question needing an answer → card.
+
+## Translations
+
+The review page can show a translation beside the paper: the bottom-right
+「譯文對照」 switch puts each translated block in the same row as its source, so
+the two columns scroll as one; on a narrow screen each translation follows its
+block instead. You write the translations; the tool never calls a model.
+
+The unit is a **block** of a source section — a paragraph, a whole list, a
+blockquote. Headings, display formulas, tables and figures are not translated.
+Reference sections (`content_type: [reference]`) are skipped. Each block is named
+by a fingerprint of its own text (`<!-- p:3f9a1c2b4d -->`); when the source
+changes, the old translation shows as 待更新 in place until it is redone. A change
+to a glossary does **not** make anything stale (docs/adr/0008).
+
+When he asks for a translation (「翻譯 S130」「把第三節翻成中文」, or the
+request the 譯文設定 panel copies: 「請翻譯「…」的 S130、S200（缺的和待更新的都要）。
+論文資料夾：…」, which names the `<work>` for you):
+
+1. `translate.py <work> --todo <section prefixes>` — only what he named; the
+   whole paper only when he says so. It prints every missing or stale block with
+   its source in an `<!-- 原文 … -->` comment (and the old wording for a stale
+   one), plus `# 先讀：` lines for the glossary files that apply.
+2. Read those files, in that order: the built-in defaults
+   (`pa/LANGUAGES.default.md`), then `TERMS.md` / `LANGUAGES.md` beside
+   `papers.yml` (shared), then the same names in the paper's folder (override
+   the shared ones, term by term). He maintains them from the page —
+   `⚙ 工具 → 譯文設定` — so never edit them yourself; a contradiction between
+   them, or with the convention below, is a question for him, not a choice for
+   you.
+3. Save the `--todo` output to a temp file and write each translation under its
+   `p:` line. The `原文` comments may stay; `--put` drops them.
+4. `translate.py <work> --put <file>`. 🔴 blocks are refused (formula or
+   citation numbers differ from the source, or HTML) — fix those and put them
+   again; the others were already filed. 🟡 is a number that did not come
+   through; check it, it is often fine.
+5. `build_html.py <work>` (not build_annotated: translations only live in the
+   page). Report how many blocks went in and that the switch is bottom right.
+
+How a block is translated:
+
+- Natural Traditional Chinese, terms in the form the **Language** section above
+  sets: English where the field says English, settled Chinese otherwise, never
+  paired. The paper's own abbreviation expansions stay as the paper wrote them.
+- One block in, one block out, same order. Never merge, split or reorder. A list
+  stays a list with the same items.
+- Every `$…$` / `$$…$$`, citation `[12]`, footnote mark `[^1]`, number and unit
+  exactly as in the source. Figure, table and section references keep the
+  paper's form (`Fig. 1(a)`, `Table II`, `Section IV`) so he can find them.
+- A translation, not a gloss: no explanation, no added claim, no softening or
+  hardening of the paper's hedges, nothing of yours in parentheses. What he does
+  not understand becomes a card, as always.
+- A stale block: keep the old wording where the source did not change.
+
+Files: `notes/translations/<section>.md`, one per section. They are **source of
+truth** like cards — not regenerable, not overwritten by any build. If he asks to
+fix a wording, edit the text under the marker and never the marker line.
+
+Highlights on the translation work exactly like highlights on the paper, through
+the same palette, notes and 「存檔」; their `anchor.file` is the translation file.
 
 ## Points
 
@@ -705,6 +766,8 @@ re-render.
   `notes/cards/`, `notes/marks/` or `notes/points/` and rebuild.
 - **`notes/reviews/` is not generated and cannot be regenerated.** Only the
   server's grading endpoint writes it. Never modify or delete it in code.
+- `notes/translations/` is yours to write, through `translate.py --put`, and
+  nobody else's to regenerate: no build touches it.
 - His review interface is `annotated/index.html`; the Markdown version is for you
   and for git.
 

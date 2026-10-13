@@ -316,7 +316,7 @@
     });
     el=el||cardEl(id);
     while(el&&(el=el.previousElementSibling)){
-      if(!el.matches('.qcard,.pnote,.gutrow,.qanchor')) return el;
+      if(!el.matches('.qcard,.pnote,.gutrow,.qanchor,.trc')) return el;
     }
     return null;
   }
@@ -599,9 +599,29 @@
   })();
 
   function hlNorm(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+  // A section has two zones a highlight can live in: the paper, and its
+  // translation beside it (pa/translation.py). The translation is anchored to
+  // its own file, so it gets its own text index under its own id -- the
+  // section's id plus ~tr -- and a quote on one side is never searched for on
+  // the other. Everything downstream only ever sees "a zone".
+  var hlTrZones={};
+  function hlTrZone(chunk){
+    return hlTrZones[chunk.id]||(hlTrZones[chunk.id]=
+      {id:chunk.id+'~tr',tr:true,el:chunk,dataset:{src:chunk.dataset.tr||''}});
+  }
   function hlSec(node){
     var el=node&&node.nodeType===3?node.parentElement:node;
-    return el&&el.closest?el.closest('#main .chunk'):null;
+    var chunk=el&&el.closest?el.closest('#main .chunk'):null;
+    if(!chunk) return null;
+    if(!el.closest('.trc')) return chunk;
+    return chunk.dataset.tr?hlTrZone(chunk):null;
+  }
+  function hlById(id){
+    if(id&&id.slice(-3)==='~tr'){
+      var c=document.getElementById(id.slice(0,-3));
+      return c&&c.dataset.tr?hlTrZone(c):null;
+    }
+    return document.getElementById(id);
   }
   // Our own writing on the page: question cards and points. Excluding them from
   // the index is not enough on its own -- a selection inside one collapses to a
@@ -619,12 +639,17 @@
   // inline between paragraphs, counting them would not merely allow a dead
   // highlight on our own prose, it would leak that prose into the 48-character
   // prefix/suffix of a perfectly good highlight on the source beside it.
+  // The translation follows the same rule from the other side: it is not in
+  // sections/*.md, so the paper's index skips it, and its own index takes
+  // nothing else (its 待更新 tag is the tool talking, not the translation).
   function hlMap(sec){
     if(hlMaps[sec.id]) return hlMaps[sec.id];
-    var walk=document.createTreeWalker(sec,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
+    var tr=!!sec.tr;
+    var walk=document.createTreeWalker(sec.el||sec,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
       var p=n.parentElement;
       if(!p||!n.nodeValue) return NodeFilter.FILTER_REJECT;
-      return p.closest('.katex-mathml,.qcard,.pnote,.gutrow')
+      if(!p.closest('.trc')!==!tr) return NodeFilter.FILTER_REJECT;
+      return p.closest('.katex-mathml,.qcard,.pnote,.gutrow,.trtag')
         ?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
     }});
     var m={txt:'',nodes:[],offs:[],at:new Map()},n;
@@ -688,7 +713,7 @@
   // Python side: the rendered text wraps differently from the Markdown. When
   // the sentence occurs more than once the neighbours decide which one.
   function hlLocate(it){
-    var sec=document.getElementById(it.sec);
+    var sec=hlById(it.sec);
     if(!sec||!it.exact) return null;
     var map=hlMap(sec), re;
     try{ re=new RegExp(hlPattern(hlPlain(it.exact),map.zw),'g'); }
@@ -803,7 +828,11 @@
     if(!sel||sel.isCollapsed||!sel.rangeCount) return -1;
     var r=sel.getRangeAt(0), sec=hlSec(r.startContainer);
     if(!sec){ hlSay('只能在正文裡畫記'); return -1; }
-    if(hlSec(r.endContainer)!==sec){ hlSay('畫記不能跨章節，請分兩次'); return -1; }
+    var end=hlSec(r.endContainer);
+    if(end!==sec){
+      hlSay(end&&(end.el||end)===(sec.el||sec)?'原文和譯文要分開畫':'畫記不能跨章節，請分兩次');
+      return -1;
+    }
     if(hlOurs(r.startContainer)||hlOurs(r.endContainer)){
       hlSay('這是筆記不是原文，畫記只能畫在論文內容上'); return -1; }
     var map=hlMap(sec);
@@ -1003,7 +1032,7 @@
       // And a click on the page furniture is not a reading gesture -- it does
       // not always clear the selection, which would put the palette straight
       // back over the paper the moment the reader reached for a button.
-      var chrome=e.target.closest&&e.target.closest('#sidewrap,#notewrap,#panel,#ov,#hlnote,#qchooser,.gutrow');
+      var chrome=e.target.closest&&e.target.closest('#sidewrap,#notewrap,#panel,#ov,#hlnote,#qchooser,.gutrow,#brdock,#trsplit');
       if(!hlOn||chrome){ hlHide(); return; }
       setTimeout(function(){
         if(!panel.hidden){ hlHide(); return; }

@@ -145,6 +145,10 @@
       html+='<button class="patool" data-id="'+esc(a.name)+'">'+esc(a.label)+
             '<span class="phint">'+esc(a.hint)+'</span></button>';
     });
+    // Runs nothing either: it opens the translation's own panel (trans.js).
+    if(document.getElementById('pa-trset'))
+      html+='<button class="patool ptr" data-tr="1">譯文設定'+
+            '<span class="phint">翻譯進度、術語表、語言偏好</span></button>';
     if(intro) html+='<button class="patool pdoc" data-doc="1">這一頁怎麼用</button>';
     menu.innerHTML=html;
     paint();
@@ -166,6 +170,7 @@
     var b=ev.target.closest?ev.target.closest('.patool'):null;
     if(!b) return;
     if(b.dataset.doc){ introShow(); menuOpen(false); return; }
+    if(b.dataset.tr){ menuOpen(false); if(window.paTrSettings) window.paTrSettings.open(); return; }
     if(b.disabled) return;
     menuOpen(false);
     var a=byName[b.dataset.id];

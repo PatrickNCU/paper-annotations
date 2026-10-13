@@ -26,14 +26,19 @@ class _Vault:
 
     def __init__(self):
         self.items = []
+        # what each span was in the Markdown, for handing a block back as written
+        self.raw = []
 
-    def stash(self, text: str) -> str:
+    def stash(self, text: str, raw: str = "") -> str:
         self.items.append(text)
+        self.raw.append(raw or text)
         return f"{NUL}{len(self.items) - 1}{NUL}"
 
-    def restore(self, text: str) -> str:
+    def restore(self, text: str, raw: bool = False) -> str:
+        table = self.raw if raw else self.items
+
         def sub(match):
-            return self.items[int(match.group(1))]
+            return table[int(match.group(1))]
 
         for _ in range(3):  # placeholders may nest one level (math inside a table)
             new = re.sub(NUL + r"(\d+)" + NUL, sub, text)
@@ -49,7 +54,7 @@ def _extract(md: str, vault: _Vault):
         lang = (match.group(1) or "").strip()
         body = esc(match.group(2))
         cls = f' class="lang-{lang}"' if lang else ""
-        return vault.stash(f"<pre><code{cls}>{body}</code></pre>")
+        return vault.stash(f"<pre><code{cls}>{body}</code></pre>", match.group(0))
 
     md = re.sub(r"```([^\n]*)\n(.*?)```", code_block, md, flags=re.DOTALL)
 
@@ -57,16 +62,16 @@ def _extract(md: str, vault: _Vault):
     # "<" inside a formula is never parsed as a tag
     md = re.sub(
         r"\$\$(.+?)\$\$",
-        lambda m: vault.stash(f'<div class="math-display">$${esc(m.group(1))}$$</div>'),
+        lambda m: vault.stash(f'<div class="math-display">$${esc(m.group(1))}$$</div>', m.group(0)),
         md,
         flags=re.DOTALL,
     )
     md = re.sub(
         r"(?<!\$)\$([^\$\n]+?)\$(?!\$)",
-        lambda m: vault.stash(f"<span class=\"math\">${esc(m.group(1))}$</span>"),
+        lambda m: vault.stash(f"<span class=\"math\">${esc(m.group(1))}$</span>", m.group(0)),
         md,
     )
-    md = re.sub(r"`([^`\n]+)`", lambda m: vault.stash(f"<code>{esc(m.group(1))}</code>"), md)
+    md = re.sub(r"`([^`\n]+)`", lambda m: vault.stash(f"<code>{esc(m.group(1))}</code>", m.group(0)), md)
     return md
 
 
@@ -157,8 +162,14 @@ def _cells(row: str):
     return [c.strip() for c in row.split("|")]
 
 
-def render(md: str, heading_hook=None) -> tuple:
-    """Return (html, headings). headings is [(level, text, anchor_id)]."""
+def render(md: str, heading_hook=None, block_hook=None) -> tuple:
+    """Return (html, headings). headings is [(level, text, anchor_id)].
+
+    block_hook(raw, html) -> html sees every paragraph, list and blockquote
+    together with the Markdown it came from, and may change what is emitted
+    for it. Those three are the units a translation lines up with
+    (pa/translation.py).
+    """
     vault = _Vault()
     md = _extract(md, vault)
     lines = md.split("\n")
@@ -166,9 +177,14 @@ def render(md: str, heading_hook=None) -> tuple:
     out, headings, footnotes = [], [], []
     para, i = [], 0
 
+    def emit(raw_lines, html):
+        if block_hook:
+            html = block_hook(vault.restore("\n".join(raw_lines), raw=True), html)
+        out.append(html)
+
     def flush():
         if para:
-            out.append(f"<p>{_inline(' '.join(para))}</p>")
+            emit(para, f"<p>{_inline(' '.join(para))}</p>")
             para.clear()
 
     while i < len(lines):
@@ -217,7 +233,7 @@ def render(md: str, heading_hook=None) -> tuple:
             while i < len(lines) and lines[i].strip().startswith(">"):
                 quote.append(lines[i].strip().lstrip(">").strip())
                 i += 1
-            out.append(f"<blockquote>{_inline(' '.join(quote))}</blockquote>")
+            emit(quote, f"<blockquote>{_inline(' '.join(quote))}</blockquote>")
             continue
 
         if "|" in stripped and i + 1 < len(lines) and _TABLE_SEP.match(lines[i + 1]):
@@ -241,7 +257,7 @@ def render(md: str, heading_hook=None) -> tuple:
         match = _OLI.match(line)
         if match:
             flush()
-            start = match.group(1)
+            start, first = match.group(1), i
             items = []
             while i < len(lines):
                 m2 = _OLI.match(lines[i])
@@ -251,12 +267,13 @@ def render(md: str, heading_hook=None) -> tuple:
                 tail, nested, i = _indented_under(lines, i)
                 items.append(f"<li>{_inline(m2.group(2))}{tail}{nested}</li>")
             attr = f' start="{start}"' if start != "1" else ""
-            out.append(f"<ol{attr}>" + "".join(items) + "</ol>")
+            emit(lines[first:i], f"<ol{attr}>" + "".join(items) + "</ol>")
             continue
 
         match = _ULI.match(line)
         if match:
             flush()
+            first = i
             items = []
             while i < len(lines):
                 m2 = _ULI.match(lines[i])
@@ -265,7 +282,7 @@ def render(md: str, heading_hook=None) -> tuple:
                 i += 1
                 tail, nested, i = _indented_under(lines, i)
                 items.append(f"<li>{_inline(m2.group(1))}{tail}{nested}</li>")
-            out.append("<ul>" + "".join(items) + "</ul>")
+            emit(lines[first:i], "<ul>" + "".join(items) + "</ul>")
             continue
 
         para.append(stripped)

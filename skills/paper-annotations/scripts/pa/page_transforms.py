@@ -13,7 +13,7 @@ import mimetypes
 import re
 from pathlib import Path
 
-from . import anchors, notes
+from . import anchors, notes, translation
 
 # An algorithm is a title paragraph followed by its numbered steps. Both
 # conversions agree on that shape; only the title's emphasis differs.
@@ -232,7 +232,8 @@ def collect_marks(notes_dir, paper_root):
         data.append(
             {
                 "id": str(mark["meta"].get("id")),
-                "s": Path(rel).stem,
+                # the translation of a section is a highlight zone of its own
+                "s": Path(rel).stem + (translation.LAYER if translation.is_tr_file(rel) else ""),
                 "f": rel,
                 "e": exact,
                 "p": anchors.normalize(str(quote.get("prefix") or "")),

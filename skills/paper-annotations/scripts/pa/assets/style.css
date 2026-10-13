@@ -12,6 +12,7 @@
 --sec-stuck:#fbf1df;--sec-answer:#f5f6f7;--sec-key:#e9f2ec;--algo:#f0f3f7;
 --sec-again:#fbe9e6;--pen-wash:rgba(34,64,108,.06);
 --sel:rgba(34,64,108,.16);
+--scroll:rgba(34,64,108,.22);--scroll-hover:rgba(34,64,108,.45);
 --hl1:rgba(244,201,63,.45);--hl2:rgba(96,190,136,.36);--hl3:rgba(114,164,235,.34);
 --hl4:rgba(240,124,120,.36);
 /* System faces only: the pages open offline, so nothing is fetched. Charter
@@ -28,6 +29,7 @@ system-ui,sans-serif}
 --sec-stuck:#2a2318;--sec-answer:#202327;--sec-key:#18241f;--algo:#1f232b;
 --sec-again:#2c1c1b;--pen-wash:rgba(156,184,228,.09);
 --sel:rgba(156,184,228,.24);
+--scroll:rgba(156,184,228,.20);--scroll-hover:rgba(156,184,228,.42);
 --hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34);
 --hl4:rgba(206,96,92,.34)}}
 :root[data-theme="dark"]{
@@ -37,9 +39,25 @@ system-ui,sans-serif}
 --sec-stuck:#2a2318;--sec-answer:#202327;--sec-key:#18241f;--algo:#1f232b;
 --sec-again:#2c1c1b;--pen-wash:rgba(156,184,228,.09);
 --sel:rgba(156,184,228,.24);
+--scroll:rgba(156,184,228,.20);--scroll-hover:rgba(156,184,228,.42);
 --hl1:rgba(212,166,44,.34);--hl2:rgba(70,168,118,.30);--hl3:rgba(96,144,212,.34);
 --hl4:rgba(206,96,92,.34)}
 *{box-sizing:border-box}
+/* Scrollbars: a thin stroke of the pen colour floating on the paper, not the
+   system's grey slab with arrow buttons -- that slab was the loudest thing on
+   every drawer and dialog. No track, so a short list does not look boxed in;
+   the thumb sits inset from the edge and darkens under the pointer. Blink and
+   WebKit take the ::-webkit form (setting scrollbar-color would switch it
+   off); everything else gets the standard thin one in the same colour. */
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--scroll);background-clip:padding-box;
+border:3px solid transparent;border-radius:11px;min-height:36px}
+::-webkit-scrollbar-thumb:hover{background-color:var(--scroll-hover)}
+::-webkit-scrollbar-thumb:active{background-color:var(--accent)}
+::-webkit-scrollbar-button{display:none;width:0;height:0}
+@supports not selector(::-webkit-scrollbar){
+*{scrollbar-width:thin;scrollbar-color:var(--scroll) transparent}}
 /* The hidden attribute has to actually hide. It comes from the UA stylesheet,
    and any author rule setting display beats it on cascade origin alone -- so
    #hlbar{display:flex} and .pbar button{display:grid} were quietly keeping
@@ -587,3 +605,163 @@ textarea.self{font-size:16px;min-height:118px}
 width:auto}
 #hlnotepad{height:140px}
 }
+
+/* ---- 譯文對照 -----------------------------------------------------------
+   The translation is in the page from the build, one cell after each block it
+   translates, and hidden until :root.tr-on. Wide, a section becomes a two-
+   column grid: every block of the paper sits in column 1, every cell in
+   column 2, and the grid's own placement puts a cell in the row of the block
+   just before it -- so the two sides stay level with no script and scroll as
+   one. Narrow, there is no grid: each cell simply follows its block, which is
+   the phone's top-and-bottom reading for free. */
+.trc{display:none}
+:root.tr-on .trc{display:block}
+.trc{font-size:16.5px;line-height:1.9;overflow-wrap:anywhere}
+.trc>:first-child{margin-top:0}
+.trc>:last-child{margin-bottom:0}
+.trc p{margin:0 0 .5em}
+/* What is not there yet. Drawn by CSS, so neither text index ever sees it. */
+.trc.none{user-select:none;-webkit-user-select:none}
+.trc.none::before{content:"未翻譯";font-family:var(--sans);font-size:12px;color:var(--muted);opacity:.75}
+.trc.none.first::before{content:"這一節還沒有譯文"}
+.trc.none.quiet::before{content:none}
+.trtag{display:inline-block;font-family:var(--sans);font-size:11.5px;line-height:1.6;
+color:var(--half);border:1px solid currentColor;border-radius:4px;padding:0 6px;margin:0 0 4px;
+user-select:none;-webkit-user-select:none}
+.trc.stale>:not(.trtag){opacity:.72}
+/* Narrow, or the cell landed inside a box (an algorithm, a figure): it reads
+   under its block, set off by a pen rule. */
+:root.tr-on .trc{margin:-.35em 0 1.2em;padding-left:12px;border-left:2px solid var(--line)}
+:root.tr-on .trc.none{border-left-style:dashed}
+:root.tr-on .trc.none.quiet{display:none}
+@media(min-width:900px){
+:root.tr-on body[data-paper] #main{max-width:min(1640px,100%)}
+:root.tr-on .chunk{--trf-col:calc((100% - 56px) * var(--trf,.5));position:relative;
+display:grid;grid-template-columns:minmax(0,var(--trf-col)) minmax(0,1fr);column-gap:56px}
+:root.tr-on .chunk::before{content:"";position:absolute;top:0;bottom:0;
+left:calc((100% - 56px) * var(--trf,.5) + 28px);border-left:1px solid var(--line);pointer-events:none}
+:root.tr-on .chunk>*{grid-column:1;min-width:0}
+/* No collapsing in a grid: two 1em margins would make 2em between rows. */
+:root.tr-on .chunk>:not(h1,h2,h3,h4,h5,h6){margin-top:0}
+:root.tr-on .chunk>:is(h1,h2,h3,h4,h5,h6){grid-column:1/-1;position:relative;background:var(--bg)}
+:root.tr-on .chunk>.trc{grid-column:2;margin:0 0 1em;padding-left:0;border-left:0}
+:root.tr-on .chunk>.trc.none.quiet{display:block}
+:root.tr-on .chunk>.trc.none{border:0}
+/* The card goes over the translation rather than pushing two columns into
+   one: stepping the page aside is for when there is a margin to step into. */
+:root.tr-on body[data-paper]:has(#panel:not([hidden])) #layout{padding-right:0}
+}
+/* The split, dragged from the gap between the columns. */
+#trsplit{position:fixed;top:0;bottom:0;width:14px;z-index:26;cursor:col-resize;touch-action:none}
+#trsplit::after{content:"";position:absolute;top:0;bottom:0;left:6px;width:2px;background:transparent}
+#trsplit:hover::after,#trsplit.drag::after{background:var(--accent)}
+@media(prefers-reduced-motion:no-preference){#trsplit::after{transition:background-color .15s ease}}
+/* The corner: the switch beside the colour scheme, the same kind of button. */
+#brdock{position:fixed;right:16px;bottom:16px;z-index:28;display:flex;gap:8px;align-items:center}
+#brdock #theme{position:static}
+@media(max-width:900px){#brdock{right:10px;bottom:10px}}
+#trtoggle{font:inherit;font-size:13px;padding:7px 12px;border:1px solid var(--line);border-radius:8px;
+background:var(--card);color:var(--fg);cursor:pointer;box-shadow:0 2px 10px var(--shadow)}
+#trtoggle:hover{background:var(--line)}
+#trtoggle[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+#trtoggle[data-ready="0"]{color:var(--muted)}
+#trmsg{position:fixed;right:16px;bottom:64px;z-index:28;max-width:min(360px,calc(100vw - 32px));
+padding:9px 12px;font-size:13px;line-height:1.6;background:var(--fg);color:var(--bg);
+border-radius:8px;box-shadow:0 6px 20px var(--shadow)}
+@media(max-width:900px){#trmsg{right:10px;bottom:58px}}
+@media print{#brdock,#trsplit,#trmsg{display:none!important}}
+@media(max-width:899px){#trsplit{display:none!important}}
+
+/* ---- 譯文設定 ------------------------------------------------------------
+   One dialog, three tabs, in the page's own voice: paper card, pen-blue rule
+   under the tab you are on, hairlines between rows. */
+#trsetov{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.32)}
+#trset{position:fixed;z-index:41;left:50%;top:50%;transform:translate(-50%,-50%);
+width:min(820px,94vw);height:min(720px,88vh);height:min(720px,88dvh);display:flex;flex-direction:column;
+background:var(--bg);color:var(--fg);border:1px solid var(--line);border-top:3px solid var(--accent);
+border-radius:4px 4px 10px 10px;box-shadow:0 18px 50px var(--shadow);font-family:var(--sans);font-size:14px;outline:none}
+.tshead{display:flex;align-items:baseline;gap:12px;padding:18px 22px 6px}
+.tshead h2{margin:0;padding:0;border:0;font-size:19px;font-family:var(--serif);font-weight:600}
+.tsstat{flex:1;font-size:12.5px;color:var(--done)}
+.tsstat.bad{color:var(--open)}
+.tsx{font:inherit;font-size:14px;width:30px;height:30px;border:1px solid var(--line);border-radius:6px;
+background:var(--bg);color:var(--fg);cursor:pointer}
+.tsx:hover{background:var(--line)}
+.tstabs{display:flex;gap:22px;padding:0 22px;border-bottom:1px solid var(--line)}
+.tstabs button{all:unset;cursor:pointer;padding:9px 0 8px;font-size:14px;color:var(--muted);
+border-bottom:2px solid transparent;margin-bottom:-1px}
+.tstabs button:hover{color:var(--fg)}
+.tstabs button[aria-selected=true]{color:var(--fg);font-weight:600;border-bottom-color:var(--accent)}
+.tstabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tsbody{flex:1;min-height:0;overflow:auto;padding:16px 22px 18px;display:flex;flex-direction:column;gap:10px}
+.tsbody button{font:inherit;font-size:13px;padding:4px 11px;border:1px solid var(--line);border-radius:6px;
+background:var(--card);color:var(--fg);cursor:pointer}
+.tsbody button:hover:not(:disabled){border-color:var(--accent)}
+.tsbody button:disabled{color:var(--muted);cursor:not-allowed;opacity:.6}
+.tsbody button.go{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.tsbody input,.tsbody textarea{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);
+border:1px solid var(--line);border-radius:6px;padding:5px 8px;width:100%}
+.tsbody input:focus,.tsbody textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--pen-wash)}
+.tshint,.tspath,.tslock,.tsempty{margin:0;font-size:12.5px;color:var(--muted);line-height:1.6}
+.tspath{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;overflow-wrap:anywhere}
+.tslock{color:var(--half)}
+.tssum{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px}
+.tssum>div{padding:12px 16px;display:flex;align-items:baseline;gap:8px}
+.tssum>div+div{border-left:1px solid var(--line)}
+.tssum b{font-size:24px;font-family:var(--serif);font-weight:600}
+.tssum b.ok{color:var(--done)}
+.tssum b.stale{color:var(--half)}
+.tssum span{color:var(--muted);font-size:13px}
+.tsbar{display:flex;align-items:center;gap:8px}
+.tsbar .tshint{flex:1}
+.tslist{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.tslist li{display:grid;grid-template-columns:minmax(0,1fr) 90px 92px 30px;align-items:center;gap:12px;
+padding:7px 2px;border-bottom:1px solid var(--line)}
+.tslist label{display:flex;align-items:center;gap:9px;min-width:0;cursor:pointer}
+.tslist input[type=checkbox]{width:auto;accent-color:var(--accent);flex:none}
+.tsid{flex:none;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;width:3.2em}
+.tsname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tsmeter{height:4px;border-radius:4px;background:var(--line);overflow:hidden}
+.tsmeter i{display:block;height:100%;background:var(--done)}
+.tslist li.stale .tsmeter i{background:var(--half)}
+.tsstate{font-size:12.5px;color:var(--muted);text-align:right}
+.tslist li.stale .tsstate{color:var(--half)}
+.tslist li.ok .tsstate{color:var(--done)}
+.tsbody .tsjump{padding:0;width:28px;height:26px;background:transparent;border-color:transparent;color:var(--muted)}
+.tsbody .tsjump:hover{color:var(--accent)}
+/* Pinned to the bottom of the scrolling body: the button a list ends in has
+   to be on screen while the list is being ticked. */
+.tsfoot{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:auto;
+position:sticky;bottom:-18px;padding:10px 0 12px;background:var(--bg);border-top:1px solid var(--line)}
+.tsfoot>span{flex:1;font-size:12.5px;color:var(--muted)}
+.tsscope{display:inline-flex;align-self:flex-start;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.tsbody .tsscope button{border:0;border-radius:0;background:transparent;padding:5px 14px;color:var(--muted)}
+.tsbody .tsscope button+button{border-left:1px solid var(--line)}
+.tsbody .tsscope button[aria-checked=true]{background:var(--pen-wash);color:var(--accent);font-weight:600}
+.tsscope .one{padding:5px 14px;font-size:13px;color:var(--accent);font-weight:600}
+.tsterms{width:100%;border-collapse:collapse;font-size:14px;min-width:0}
+/* the paper's tables are boxed and shaded; this one is a list with hairlines */
+.tsterms th,.tsterms td{border:0;background:none;text-align:left}
+.tsterms th{text-align:left;font-weight:600;font-size:12px;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+.tsterms td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tsterms th:nth-child(1),.tsterms td:nth-child(1){width:30%}
+.tsterms th:nth-child(2),.tsterms td:nth-child(2){width:28%}
+.tsterms td.note{color:var(--muted);font-size:13px}
+.tsterms td.act{width:1%;white-space:nowrap;text-align:right}
+.tsterms td.act button+button{margin-left:6px}
+.tsterms tr.empty td{color:var(--muted);text-align:center;padding:18px 8px}
+.tsterms tr.edit td,.tsterms tfoot td{padding:6px 4px}
+.tsterms tfoot td{border-bottom:0;padding-top:10px}
+.tsclash{display:block;font-size:11.5px;color:var(--half)}
+.tsdefault{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--card)}
+.tsdefault summary{cursor:pointer;font-size:13px;color:var(--muted)}
+.tsdeftext{white-space:pre-wrap;font-size:13px;line-height:1.7;margin-top:8px}
+#tslang{flex:1;min-height:180px;resize:none;line-height:1.7;font-family:ui-monospace,Consolas,"Microsoft JhengHei UI",monospace;font-size:13.5px}
+@media(max-width:560px){
+#trset{width:100vw;height:100dvh;border-radius:0;border-left:0;border-right:0}
+.tslist li{grid-template-columns:minmax(0,1fr) 70px 28px}
+.tsstate{display:none}
+.tsterms th:nth-child(3),.tsterms td:nth-child(3){display:none}
+.tsbar .tshint{display:none}
+}
+@media print{#trset,#trsetov{display:none!important}}
