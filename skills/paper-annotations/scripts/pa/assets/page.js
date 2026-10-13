@@ -172,6 +172,50 @@
     pinned=true; openSide();
   });
 
+  // ---- 手機：角落的按鈕收起來，點一下才出現 -------------------------------
+  // On a phone the four corners cover a fifth of the text. They start out
+  // shown, go away as soon as the reader scrolls, and come back on a tap on
+  // the paper that does nothing else -- not a link, a mark, a card, a
+  // formula or a selection, each of which already means something.
+  var root=document.documentElement;
+  var smallMQ=window.matchMedia?window.matchMedia('(max-width:900px),(pointer:coarse)'):null;
+  function small(){ return !!(smallMQ&&smallMQ.matches); }
+  function chromeMode(){ root.classList.toggle('chrome-auto',small()); }
+  chromeMode();
+  if(smallMQ&&smallMQ.addEventListener) smallMQ.addEventListener('change',chromeMode);
+  root.classList.add('chrome-shown');
+  var lastY=window.scrollY;
+  window.addEventListener('scroll',function(){
+    var y=window.scrollY;
+    if(Math.abs(y-lastY)<24) return;
+    lastY=y;
+    if(root.classList.contains('chrome-auto')) root.classList.remove('chrome-shown');
+  },{passive:true});
+  var CHROME_TAP='a,button,input,textarea,select,label,summary,details,mark,.katex,.gutrow,.pnote,'+
+    '#sidewrap,#sidescrim,#notewrap,#panel,#ov,#hlbar,#hlnote,#qchooser,#patools,#brdock,#trset,#trsetov';
+  document.addEventListener('click',function(e){
+    if(!root.classList.contains('chrome-auto')) return;
+    if(e.target.closest&&e.target.closest(CHROME_TAP)) return;
+    // after the page's own handlers: a tap that opened a card or raised the
+    // palette was for that, not for the corners
+    setTimeout(function(){
+      var sel=window.getSelection();
+      if(sel&&!sel.isCollapsed) return;
+      if(!document.getElementById('panel').hidden) return;
+      var bar=document.getElementById('hlbar');
+      if(bar&&!bar.hidden) return;
+      if(body.classList.contains('note-on')||body.classList.contains('side-open')) return;
+      root.classList.toggle('chrome-shown');
+    },60);
+  });
+  // The drawer closes on a tap anywhere outside it. A scrim takes that tap, so
+  // it closes the drawer and does nothing else -- not follow the link or open
+  // the card that happened to be under the finger.
+  var scrim=document.createElement('div');
+  scrim.id='sidescrim';
+  wrap.parentNode.insertBefore(scrim,wrap);
+  scrim.addEventListener('click',function(){ closeSide(); });
+
   // Draft area. Nothing leaves the page from here -- the copy button is the
   // whole point: read the paragraph, write the question, paste it into chat.
   var pad=document.getElementById('notepad');
@@ -316,7 +360,7 @@
     });
     el=el||cardEl(id);
     while(el&&(el=el.previousElementSibling)){
-      if(!el.matches('.qcard,.pnote,.gutrow,.qanchor,.trc')) return el;
+      if(!el.matches('.qcard,.pnote,.gutrow,.qanchor,.trc,.trdup')) return el;
     }
     return null;
   }
@@ -649,7 +693,7 @@
       var p=n.parentElement;
       if(!p||!n.nodeValue) return NodeFilter.FILTER_REJECT;
       if(!p.closest('.trc')!==!tr) return NodeFilter.FILTER_REJECT;
-      return p.closest('.katex-mathml,.qcard,.pnote,.gutrow,.trtag')
+      return p.closest('.katex-mathml,.qcard,.pnote,.gutrow,.trtag,.trdup')
         ?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
     }});
     var m={txt:'',nodes:[],offs:[],at:new Map()},n;

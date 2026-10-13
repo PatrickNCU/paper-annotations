@@ -19,6 +19,39 @@
 
   function store(k,v){ try{ if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){} }
 
+  // What is not translated still belongs to the translation column: a heading,
+  // a figure, a table, a display formula. Without a copy beside it, the
+  // Chinese side reads as though the section ended, and a figure leaves a
+  // hole the height of the figure. The copy is furniture: no id (links and
+  // the contents keep landing on the original), no card marks, not
+  // selectable, and the highlight index skips it (.trdup in page.js).
+  // After KaTeX, which renders on DOMContentLoaded from a listener added
+  // earlier in <head>, so the formulas are copied rendered.
+  function figure(el){ return el.tagName==='P'&&el.querySelector('img')&&!el.textContent.trim(); }
+  function dupBlocks(){
+    [].forEach.call(document.querySelectorAll('#main .chunk'),function(ch){
+      [].slice.call(ch.children).forEach(function(el){
+        if(!el.matches('h1,h2,h3,h4,h5,h6,.table-wrap,.math-display,pre')&&!figure(el)) return;
+        var nx=el.nextElementSibling;
+        if(nx&&nx.classList.contains('trc')) return;
+        var c=el.cloneNode(true);
+        c.removeAttribute('id');
+        [].forEach.call(c.querySelectorAll('[id]'),function(n){ n.removeAttribute('id'); });
+        [].forEach.call(c.querySelectorAll('mark,.qanchor'),function(m){
+          while(m.firstChild) m.parentNode.insertBefore(m.firstChild,m);
+          m.parentNode.removeChild(m);
+        });
+        c.classList.add('trdup');
+        c.setAttribute('aria-hidden','true');
+        el.parentNode.insertBefore(c,nx);
+      });
+    });
+  }
+  if(ready){
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',dupBlocks);
+    else dupBlocks();
+  }
+
   // A word next to the button when there is nothing to show yet: pressing it
   // and getting an empty column would teach the reader the button is broken.
   var msg=null, msgTimer=0;

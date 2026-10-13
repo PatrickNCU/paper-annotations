@@ -664,7 +664,10 @@ left:calc((100% - 56px) * var(--trf,.5) + 28px);border-left:1px solid var(--line
 :root.tr-on .chunk>*{grid-column:1;min-width:0}
 /* No collapsing in a grid: two 1em margins would make 2em between rows. */
 :root.tr-on .chunk>:not(h1,h2,h3,h4,h5,h6){margin-top:0}
-:root.tr-on .chunk>:is(h1,h2,h3,h4,h5,h6){grid-column:1/-1;position:relative;background:var(--bg)}
+:root.tr-on .chunk>:is(h1,h2,h3,h4,h5,h6){grid-column:1}
+/* A heading, figure, table or formula has its copy beside it (trans.js), so
+   the translation side keeps its sections and has no hole where a figure is. */
+:root.tr-on .chunk>.trdup{display:block;grid-column:2;user-select:none;-webkit-user-select:none}
 :root.tr-on .chunk>.trc{grid-column:2;margin:0 0 1em;padding-left:0;border-left:0}
 :root.tr-on .chunk>.trc.none.quiet{display:block}
 :root.tr-on .chunk>.trc.none{border:0}
@@ -692,6 +695,27 @@ border-radius:8px;box-shadow:0 6px 20px var(--shadow)}
 @media(max-width:900px){#trmsg{right:10px;bottom:58px}}
 @media print{#brdock,#trsplit,#trmsg{display:none!important}}
 @media(max-width:899px){#trsplit{display:none!important}}
+.trdup{display:none}
+/* Narrow, the translation is a block of its own colour under its paragraph,
+   in the sans face against the paper's serif: two voices you can tell apart
+   at a glance, instead of a hairline between two paragraphs of text. */
+@media(max-width:899px){
+:root.tr-on .trc{margin:-.15em 0 1.7em;padding:10px 14px;border-left:3px solid var(--accent);
+border-radius:0 8px 8px 0;background:var(--card);background:color-mix(in srgb,var(--accent) 7%,var(--bg));
+font-family:var(--sans);font-size:16px;line-height:1.85}
+:root.tr-on .trc.stale{border-left-color:var(--half)}
+:root.tr-on .trc.none{background:none;border-left:2px dashed var(--line);border-radius:0;padding:2px 12px}
+}
+
+/* ---- 手機：角落的按鈕 ------------------------------------------------------
+   :root.chrome-auto is a narrow or touch screen (page.js). The corners fade
+   out when the reader scrolls and come back on a tap on the paper. */
+:root.chrome-auto:not(.chrome-shown) :is(#sidetoggle,#notetab,#patools,#brdock){opacity:0;pointer-events:none}
+@media(prefers-reduced-motion:no-preference){#sidetoggle,#notetab,#patools,#brdock{transition:opacity .18s ease}}
+/* The drawer, open on a phone, dims the page; a tap there closes it. */
+#sidescrim{display:none}
+:root.chrome-auto body.side-open #sidescrim{display:block;position:fixed;inset:0;z-index:30;
+background:rgba(0,0,0,.28)}
 
 /* ---- 譯文設定 ------------------------------------------------------------
    One dialog, three tabs, in the page's own voice: paper card, pen-blue rule

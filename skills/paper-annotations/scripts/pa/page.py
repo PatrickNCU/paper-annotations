@@ -307,7 +307,8 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <ul><li>左上 ☰：目錄與疑問，點一下釘住</li>
 <li>右上：提問草稿</li>
 <li>左下：回書房、工具（重建、匯出、打包）</li>
-<li>右下：譯文對照、配色</li></ul></li>
+<li>右下：譯文對照、配色</li>
+<li>手機上捲動時會收起來，點一下正文就回來</li></ul></li>
 </ul>
 </div>
 <div id="introgone" hidden>說明關起來了，之後不會再出現。想再看一次就從左下角的工具 →
