@@ -59,6 +59,36 @@ window.paReview = (function(){
       return null;
     }
     function modeFor(it){ return it&&it.kind==='half'?'half':'review'; }
+
+    // The count where a tab is seen without being looked at: the title and
+    // the tab's icon. Only what is due -- the same rule as the desktop
+    // balloon. Half cards are standing work, not a reminder, and a number
+    // that never leaves the tab stops being read. Nothing at all on a day
+    // with nothing due: the tab looks exactly as it did before this existed.
+    var baseTitle=document.title;
+    function badge(n){
+      document.title=(n?'('+n+') ':'')+baseTitle;
+      var link=document.getElementById('pa-badge');
+      if(!n){ if(link) link.parentNode.removeChild(link); return; }
+      var c=document.createElement('canvas'); c.width=c.height=64;
+      var g=c.getContext&&c.getContext('2d');
+      if(!g) return;
+      var ink=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#22406c';
+      g.fillStyle=ink;
+      g.beginPath();
+      if(g.roundRect) g.roundRect(2,2,60,60,14); else g.rect(2,2,60,60);
+      g.fill();
+      g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#fff';
+      g.font='bold '+(n>99?26:n>9?34:42)+'px system-ui,sans-serif';
+      g.textAlign='center'; g.textBaseline='middle';
+      g.fillText(n>99?'99+':String(n),32,35);
+      if(!link){
+        link=document.createElement('link'); link.id='pa-badge'; link.rel='icon';
+        document.head.appendChild(link);
+      }
+      link.href=c.toDataURL('image/png');
+    }
+
     function say(text){
       var s=document.getElementById('srssay');
       if(s) s.textContent=text;
@@ -68,9 +98,10 @@ window.paReview = (function(){
     // what is stuck, and when the next one comes if nothing is.
     function draw(){
       if(!list) return;
-      if(!state){ list.innerHTML=''; if(cfg.line) cfg.line.textContent=''; return; }
+      if(!state){ list.innerHTML=''; if(cfg.line) cfg.line.textContent=''; badge(0); return; }
       var q=state.queue||[], due=state.due||0, half=state.half||0;
       if(cfg.count) cfg.count.textContent=due?'('+due+')':'';
+      badge(due);
       if(cfg.line){
         cfg.line.textContent='今天到期 '+due+' 張 · 半懂 '+half+' 張'+
           (state.next?' · 下一張 '+mmdd(state.next):'');
