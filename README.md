@@ -280,6 +280,18 @@ python serve.py --library --host 100.x.y.z     # Tailscale 給這台電腦的位
 起來，這不是工具修得了的事。`tailscale serve` 可以給你一個 `https://<機器>.<tailnet>.ts.net`，
 從那條網址開就裝得起來；用純 http 的位址一切照常，只是裝不成 app。`serve.py` 啟動時會提醒。
 
+走 https 時 server 留在 `127.0.0.1`，由前面的 proxy 轉進來，所以要告訴它外面的網址：
+
+```bash
+tailscale serve --bg http://127.0.0.1:8975          # 一次性：tailnet 後台要先開 HTTPS Certificates
+python serve.py --library --public-url https://<機器>.<tailnet>.ts.net
+```
+
+`--public-url` 做兩件事：把金鑰打開（經過 proxy，每個請求在 server 看來都是本機來的，
+「外面連不到」已經不算一道門），以及認得從那個網址送回來的評分。啟動訊息的「手機」那條
+就是 https 網址加金鑰，手機開過一次再「加到主畫面」。工具只收這個網址，不會去啟動或設定
+proxy；換成 caddy 或別的 proxy，同一個參數照用。
+
 手機上的版面：佇列、卡片、評分鍵都照 375px 排過，可點的東西至少 44px。閱讀頁的螢光筆與
 選取還沒針對觸控做（roadmap 第 6 項），那一頁在手機上是能讀但不好畫的狀態。
 

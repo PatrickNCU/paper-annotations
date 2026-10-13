@@ -49,7 +49,7 @@ from functools import partial
 from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse, urlsplit
 
 from datetime import date
 
@@ -131,6 +131,11 @@ class Handler(SimpleHTTPRequestHandler):
     # it -- reads included. A reader's questions and what he has not understood
     # are not less private than his ability to write a file.
     key = ""
+    # Set by --public-url: the scheme://host a proxy in front of this server
+    # answers on (tailscale serve, caddy, ...). Its pages post back from that
+    # origin, and whether the proxy passes the Host header through unchanged
+    # is the proxy's business, so the origin is accepted by name.
+    public_origin = ""
     lock = threading.Lock()
     # (action, slug) pairs that have run since this server started. Only
     # consulted for actions declaring `writes`: 套用 is offered after its dry
@@ -222,6 +227,8 @@ class Handler(SimpleHTTPRequestHandler):
         if origin is None:
             return True  # same-origin GETs do not send one
         host = self.headers.get("Host", "")
+        if self.public_origin and origin == self.public_origin:
+            return True
         return origin in (f"http://{host}", f"https://{host}")
 
     def _send(self, body: bytes, kind: str, extra=()):
@@ -1283,12 +1290,23 @@ def collect(argv, args):
 
 def main(argv) -> int:
     # --port takes a value: skip it, or "--port 9000 <work>" reads 9000 as work
-    args = cli.positionals(argv, value_flags={"--port", "--host"})
+    args = cli.positionals(argv, value_flags={"--port", "--host", "--public-url"})
     port = int(cli.flag(argv, "port", "8975"))
     host = cli.flag(argv, "host", "127.0.0.1") or "127.0.0.1"
+    # Behind a proxy the server stays on loopback, and every request it sees
+    # comes from 127.0.0.1 -- including the phone's. Loopback being the gate
+    # is then no gate at all, so a public URL turns the key on exactly as
+    # --host does. The URL is only ever printed and compared; nothing here
+    # starts, configures or knows which proxy it is (docs/adr/0006).
+    public = (cli.flag(argv, "public-url", "") or "").rstrip("/")
+    if public:
+        bits = urlsplit(public)
+        if bits.scheme not in ("http", "https") or not bits.netloc:
+            raise SystemExit(f"--public-url 要是完整網址，例如 https://機器.網域：{public}")
+        public = f"{bits.scheme}://{bits.netloc}"
     # Loopback stays exactly as it was, key and all: the everyday case must not
     # grow a step because a second, opt-in case exists.
-    remote = host not in LOOPBACK
+    remote = host not in LOOPBACK or bool(public)
 
     if "--launcher" in argv:
         if "--library" in argv:
@@ -1311,6 +1329,7 @@ def main(argv) -> int:
     Handler.token = secrets.token_urlsafe(24)
     if remote:
         Handler.key = load_key("--new-key" in argv)
+    Handler.public_origin = public
     Handler.papers = papers
     Handler.default = default
     # One paper goes straight to its page; a shelf full of them lands on the
@@ -1376,14 +1395,18 @@ def main(argv) -> int:
     print("             評分與畫記存檔都需要這個視窗開著")
     if remote:
         print()
-        print(f"手機         {keyed}")
+        phone = f"{public}/?k={Handler.key}" if public else keyed
+        print(f"手機         {phone}")
         print("             手機瀏覽器開這一條，開過一次就記住了；建議加到主畫面")
         print("             這條網址等於鑰匙，進得來的人看得到全部筆記，也改得了卡片")
         print(f"             金鑰存在 {KEY_FILE}；要換一把就加 --new-key")
         # Every browser refuses to register a service worker on plain http
         # away from localhost. Saying it here is the only place it helps: the
         # phone just silently does not install.
-        print("             想裝成主畫面 app 要 https——tailscale serve 可以給你一個")
+        if not public.startswith("https://"):
+            print("             想裝成主畫面 app 要 https——tailscale serve 可以給你一個")
+        else:
+            print("             是 https，可以裝成 app：開過之後從瀏覽器選單「加到主畫面」")
         if host in ANY:
             print("             🟡 綁的是所有介面，同一個 Wi-Fi 的人都連得到這個 port，"
                   "只剩金鑰擋著")

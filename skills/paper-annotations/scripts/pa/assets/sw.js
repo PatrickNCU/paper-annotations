@@ -52,6 +52,13 @@ self.addEventListener('fetch', function (event) {
     // Network first: the computer's copy is always the right one, and the
     // cache exists for the case where there is no answer at all.
     fetch(request).then(function (response) {
+      // A proxy in front of the server (tailscale serve) is still up when the
+      // server behind it is not, and it answers with its own 502. That is the
+      // computer being off as far as the reader is concerned -- the same
+      // case as no answer at all, so it takes the same way out.
+      if (response && response.status >= 502 && response.status <= 504) {
+        throw new Error('upstream ' + response.status);
+      }
       // 200 only -- the "needs a key" page is a 403 and must never be kept,
       // or a cookie that expired once would be remembered as the shelf.
       if (response && response.status === 200 && response.type === 'basic') {
