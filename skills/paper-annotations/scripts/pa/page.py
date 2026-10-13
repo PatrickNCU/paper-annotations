@@ -238,7 +238,8 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
         name = json.dumps("pa-tr:" + paper_root.name).replace("</", "<\\/")
         tr_boot = (
             "\n<script>(function(){try{var r=document.documentElement;"
-            f'if(localStorage.getItem({name})==="on")r.classList.add("tr-on");'
+            f'var m=localStorage.getItem({name});'
+            'if(m==="on")r.classList.add("tr-on");if(m==="only")r.classList.add("tr-only");'
             'var f=parseFloat(localStorage.getItem("pa-tr-split"));'
             'if(f>=.3&&f<=.7)r.style.setProperty("--trf",String(f));}catch(e){}})();</script>'
         )
@@ -302,12 +303,12 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 <li><strong>摺疊區塊</strong>：你的提問與 AI 的解說，不是論文內容。先自己想過再打開。</li>
 <li><strong>段落左邊的卡片標籤</strong>：掛在這一段的每一張卡，沒有反白的也在。</li>
 <li><strong>螢光筆</strong>：選取正文就會浮出。開著 server 按側欄「存檔」；沒開時用「複製畫記」貼回對話。</li>
-<li><strong>譯文對照</strong>：右下角的開關，每段譯文排在原文旁邊同一列。進度與術語表在「工具 → 譯文設定」。</li>
+<li><strong>譯文</strong>：右下角的按鈕，關 → 對照（譯文排在原文旁邊）→ 只看譯文（點一段看原文）。進度與術語表在「工具 → 譯文設定」。</li>
 <li><strong>四個角落</strong>
 <ul><li>左上 ☰：目錄與疑問，點一下釘住</li>
 <li>右上：提問草稿</li>
 <li>左下：回書房、工具（重建、匯出、打包）</li>
-<li>右下：譯文對照、配色</li>
+<li>右下：譯文（關 → 對照 → 只看譯文）、配色</li>
 <li>手機上捲動時會收起來，點一下正文就回來</li></ul></li>
 </ul>
 </div>
@@ -318,7 +319,7 @@ def build(work_root: Path, embed: bool = False, to: str = "") -> int:
 </div>
 <div id="brdock">
 <button id="trtoggle" aria-pressed="false" data-ready="{1 if layer.active else 0}"
- title="{html.escape(layer.summary() or '這篇還沒有譯文')}">譯文對照</button>
+ title="{html.escape(layer.summary() or '這篇還沒有譯文')}">譯文：關</button>
 <button id="theme">🌗 跟隨系統</button>
 </div>
 <div id="trsplit" hidden aria-hidden="true"></div>

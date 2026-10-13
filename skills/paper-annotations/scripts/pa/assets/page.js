@@ -53,10 +53,20 @@
     for(var i=0;i<modes.length;i++){ if(modes[i][0]===m) themeBtn.textContent=modes[i][1]; }
   }
   setMode(mode);
+  // The page changes colour in one step and the screen cross-fades over it:
+  // a view transition fades two pictures of the viewport, so the cost is the
+  // same however long the paper is. Easing every element's colour instead
+  // (what this used to do) restyled thousands of nodes on every frame, which
+  // a long page on a wide screen could not keep up with. No view transitions
+  // in this browser, or less motion asked for: the colours simply change.
+  var calm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)');
   themeBtn.addEventListener('click',function(){
     var i=0;
     for(var j=0;j<modes.length;j++){ if(modes[j][0]===mode) i=j; }
-    setMode(modes[(i+1)%modes.length][0]);
+    var next=modes[(i+1)%modes.length][0];
+    if(document.startViewTransition&&!(calm&&calm.matches)){
+      document.startViewTransition(function(){ setMode(next); });
+    }else setMode(next);
   });
 
   // file:// often refuses the async clipboard, so the old way stays as backup.
@@ -184,18 +194,23 @@
   chromeMode();
   if(smallMQ&&smallMQ.addEventListener) smallMQ.addEventListener('change',chromeMode);
   root.classList.add('chrome-shown');
+  // Reading on hides them; scrolling back up a good way, the way a reader
+  // goes looking for something, brings them back.
   var lastY=window.scrollY;
   window.addEventListener('scroll',function(){
-    var y=window.scrollY;
-    if(Math.abs(y-lastY)<24) return;
+    var y=window.scrollY, d=y-lastY;
+    if(d>-120&&d<24) return;
     lastY=y;
-    if(root.classList.contains('chrome-auto')) root.classList.remove('chrome-shown');
+    if(!root.classList.contains('chrome-auto')) return;
+    root.classList.toggle('chrome-shown',d<0);
   },{passive:true});
   var CHROME_TAP='a,button,input,textarea,select,label,summary,details,mark,.katex,.gutrow,.pnote,'+
     '#sidewrap,#sidescrim,#notewrap,#panel,#ov,#hlbar,#hlnote,#qchooser,#patools,#brdock,#trset,#trsetov';
   document.addEventListener('click',function(e){
     if(!root.classList.contains('chrome-auto')) return;
     if(e.target.closest&&e.target.closest(CHROME_TAP)) return;
+    // 只看譯文: a tap on a translated block shows its source (trans.js)
+    if(root.classList.contains('tr-only')&&e.target.closest('.trc:not(.none),.trsrc.peek')) return;
     // after the page's own handlers: a tap that opened a card or raised the
     // palette was for that, not for the corners
     setTimeout(function(){
@@ -527,7 +542,11 @@
     body.classList.toggle('gut-inline',inline);
     ROWS.forEach(function(r){
       if(r.row.hidden) return;
-      r.gut.style.top=inline?'':(r.block.offsetTop-r.row.offsetTop+3)+'px';
+      // 只看譯文 hides a translated block; its labels go beside the
+      // translation standing in for it
+      var b=r.block;
+      if(!b.offsetParent&&b.nextElementSibling&&b.nextElementSibling.classList.contains('trc')) b=b.nextElementSibling;
+      r.gut.style.top=inline?'':(b.offsetTop-r.row.offsetTop+3)+'px';
     });
   }
   function pickFor(m){

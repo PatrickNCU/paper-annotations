@@ -285,7 +285,11 @@ JS = """
   b.addEventListener('click',function(){
     var i=0;
     for(var j=0;j<modes.length;j++){ if(modes[j][0]===mode) i=j; }
-    set(modes[(i+1)%modes.length][0]);
+    var next=modes[(i+1)%modes.length][0];
+    // one cross-fade of the screen, as on the paper's page (page.js)
+    var calm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if(document.startViewTransition&&!calm) document.startViewTransition(function(){ set(next); });
+    else set(next);
   });
 
   // Counts baked in at build time are a snapshot; with serve.py behind the

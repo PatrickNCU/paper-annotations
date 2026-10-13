@@ -19,6 +19,6 @@ $ARGUMENTS
    write the translations into a copy of that output, `--put` it.
 3. Fix and re-put any 🔴 block, then run `build_html.py <work>`.
 4. Report how many blocks went in, any 🟡 worth a look, and that the page's
-   bottom-right 「譯文對照」 shows them.
+   bottom-right 「譯文」 button (對照 / 只看譯文) shows them.
 
 Done when every block he asked for is filed or explained, and the page is rebuilt.

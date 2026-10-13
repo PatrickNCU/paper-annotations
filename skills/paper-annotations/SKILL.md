@@ -347,10 +347,13 @@ question needing an answer → card.
 
 ## Translations
 
-The review page can show a translation beside the paper: the bottom-right
-「譯文對照」 switch puts each translated block in the same row as its source, so
-the two columns scroll as one; on a narrow screen each translation follows its
-block instead. You write the translations; the tool never calls a model.
+The review page can show a translation beside the paper. The bottom-right
+button cycles 「譯文：關」 → 「譯文：對照」 → 「譯文：只看譯文」: 對照 puts each
+translated block in the same row as its source, so the two columns scroll as
+one (on a narrow screen each translation follows its block instead); 只看譯文
+shows the translation in place of each translated block, and a tap on one
+brings its source back above it. You write the translations; the tool never
+calls a model.
 
 The unit is a **block** of a source section — a paragraph, a whole list, a
 blockquote. Headings, display formulas, tables and figures are not translated.

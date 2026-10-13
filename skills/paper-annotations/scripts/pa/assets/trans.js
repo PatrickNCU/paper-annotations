@@ -77,9 +77,25 @@
     if(block) window.scrollBy(0,block.getBoundingClientRect().top-before);
   }
 
+  // Three modes, one button, cycled like the colour scheme beside it and
+  // labelled like it with the mode you are in: the paper alone (off), the
+  // two side by side (tr-on), the translation alone (tr-only). In the last,
+  // every translated block stands in for its source, and a tap on it brings
+  // the source back above it -- for the sentence you want to check, without
+  // reading the whole page in two languages.
+  var MODES=[['off','譯文：關'],['on','譯文：對照'],['only','譯文：只看譯文']];
+  function modeNow(){
+    return root.classList.contains('tr-only')?'only':root.classList.contains('tr-on')?'on':'off';
+  }
+  function setMode(m){
+    root.classList.toggle('tr-on',m==='on');
+    root.classList.toggle('tr-only',m==='only');
+    if(m!=='only') [].forEach.call(document.querySelectorAll('.trsrc.peek'),function(b){ b.classList.remove('peek'); });
+  }
   function paint(){
-    var on=root.classList.contains('tr-on');
-    btn.setAttribute('aria-pressed',on?'true':'false');
+    var m=modeNow();
+    btn.setAttribute('aria-pressed',m==='off'?'false':'true');
+    MODES.forEach(function(x){ if(x[0]===m) btn.textContent=x[1]; });
     placeSplit();
     // the card labels in the margin measure their paragraph; it just moved
     window.dispatchEvent(new Event('resize'));
@@ -92,10 +108,39 @@
           '・左下「工具 → 譯文設定」可以挑章節、整理術語表');
       return;
     }
-    var on=!root.classList.contains('tr-on');
-    holdPlace(function(){ root.classList.toggle('tr-on',on); paint(); });
-    store(KEY,on?'on':null);
-    if(on&&btn.title) say(btn.title);
+    var i=0, m=modeNow();
+    MODES.forEach(function(x,j){ if(x[0]===m) i=j; });
+    var next=MODES[(i+1)%MODES.length][0];
+    holdPlace(function(){ setMode(next); paint(); });
+    store(KEY,next==='off'?null:next);
+    if(next==='on'&&btn.title) say(btn.title);
+    if(next==='only') say('只看譯文：點一段譯文，它的原文會出現在上面，再點一次收起。\n還沒翻的段落照樣顯示原文。');
+  });
+
+  // Each translated block's source, named once, so 只看譯文 hides exactly
+  // those and nothing else: the build puts a cell straight after its block.
+  [].forEach.call(document.querySelectorAll('.trc:not(.none)'),function(c){
+    var src=c.previousElementSibling;
+    if(src) src.classList.add('trsrc');
+  });
+  // Peeking. After the page's own click handlers, so a tap that selected
+  // text, opened a card or raised the highlighter is left to that.
+  document.addEventListener('click',function(e){
+    if(!root.classList.contains('tr-only')) return;
+    var t=e.target.closest&&e.target.closest('.trc:not(.none),.trsrc.peek');
+    if(!t||e.target.closest('a,button,mark,input,textarea')) return;
+    var src=t.classList.contains('trc')?t.previousElementSibling:t;
+    if(!src||!src.classList.contains('trsrc')) return;
+    setTimeout(function(){
+      var sel=window.getSelection();
+      if(sel&&!sel.isCollapsed) return;
+      var bar=document.getElementById('hlbar');
+      if(bar&&!bar.hidden) return;
+      var panel=document.getElementById('panel');
+      if(panel&&!panel.hidden) return;
+      src.classList.toggle('peek');
+      window.dispatchEvent(new Event('resize'));
+    },60);
   });
 
   // ---- the split ---------------------------------------------------------
@@ -147,7 +192,7 @@
     });
   }
 
-  if(!ready) root.classList.remove('tr-on');
+  if(!ready) setMode('off');
   paint();
 })();
 

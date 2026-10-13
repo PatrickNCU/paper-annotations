@@ -304,16 +304,10 @@ color:var(--muted);font-size:.93em}
 .pk{font-size:.82em;letter-spacing:.06em;color:var(--accent);
 font-weight:700;text-decoration:none}
 a.pk:hover{text-decoration:underline}
-/* Colour changes ease across; layout and motion are left alone. Scoped to the
-   surfaces that actually carry a palette colour rather than "*", so a 30000px
-   page does not repaint every node. Nested text inherits the animating value,
-   so rendered formulas fade with their container. */
-@media(prefers-reduced-motion:no-preference){
-body,#side,#main,#side a,.controls button,.controls select,.controls input,
-.qcard,.qcard>summary,.banner,.meta,blockquote,pre,code,table,th,td,img,
-.footnotes,.fn-key,.dot,.qtext,a.qlink,mark,.csec,.csec-t,.algo,.algo-t,.pnote,.pk{
-transition:background-color .3s ease,color .3s ease,border-color .3s ease,
-box-shadow .3s ease,outline-color .3s ease}}
+/* A change of colour scheme cross-fades the whole screen at once (page.js,
+   view transition) rather than easing each element: per-element transitions
+   restyled every node of a long paper on every frame. */
+::view-transition-old(root),::view-transition-new(root){animation-duration:.28s}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);
 line-height:1.75;font-size:16.5px}
 /* The paper itself, on a paper's page (body[data-paper]; the shelf and the
@@ -636,7 +630,7 @@ width:auto}
    one. Narrow, there is no grid: each cell simply follows its block, which is
    the phone's top-and-bottom reading for free. */
 .trc{display:none}
-:root.tr-on .trc{display:block}
+:root.tr-on .trc,:root.tr-only .trc{display:block}
 .trc{font-size:16.5px;line-height:1.9;overflow-wrap:anywhere}
 .trc>:first-child{margin-top:0}
 .trc>:last-child{margin-bottom:0}
@@ -707,11 +701,30 @@ font-family:var(--sans);font-size:16px;line-height:1.85}
 :root.tr-on .trc.none{background:none;border-left:2px dashed var(--line);border-radius:0;padding:2px 12px}
 }
 
+/* ---- 只看譯文 ---------------------------------------------------------------
+   One column, as with the paper alone, but each translated block stands in
+   for its source (.trsrc, named by trans.js). What has no translation -- a
+   heading, a figure, a paragraph not done yet -- shows as the paper has it.
+   The translation reads as the text itself: no box, no rule. A tap on it
+   brings its source back above it, set off as a quotation of the paper. */
+:root.tr-only .chunk>.trsrc:not(.peek){display:none}
+:root.tr-only .trc.none{display:none}
+:root.tr-only .trc{margin:0 0 1em;cursor:pointer}
+:root.tr-only .trsrc.peek{margin:0 0 .5em;padding:6px 0 6px 12px;border-left:2px solid var(--accent);
+font-size:.92em;color:var(--muted);cursor:pointer}
+@media(max-width:899px){:root.tr-only .trc{font-size:17px}}
+
 /* ---- 手機：角落的按鈕 ------------------------------------------------------
    :root.chrome-auto is a narrow or touch screen (page.js). The corners fade
    out when the reader scrolls and come back on a tap on the paper. */
 :root.chrome-auto:not(.chrome-shown) :is(#sidetoggle,#notetab,#patools,#brdock){opacity:0;pointer-events:none}
-@media(prefers-reduced-motion:no-preference){#sidetoggle,#notetab,#patools,#brdock{transition:opacity .18s ease}}
+/* With them hidden, so is the strip of paper under the bottom ones: nothing
+   floats there to keep the text clear of. */
+:root.chrome-auto:not(.chrome-shown) body::after{opacity:0}
+/* The top two sit a little lower on a phone, clear of the band the browser
+   blurs under its status bar. */
+@media(max-width:900px){#sidetoggle,#notetab{top:calc(20px + env(safe-area-inset-top,0px))}}
+@media(prefers-reduced-motion:no-preference){#sidetoggle,#notetab,#patools,#brdock,body::after{transition:opacity .18s ease}}
 /* The drawer, open on a phone, dims the page; a tap there closes it. */
 #sidescrim{display:none}
 :root.chrome-auto body.side-open #sidescrim{display:block;position:fixed;inset:0;z-index:30;
