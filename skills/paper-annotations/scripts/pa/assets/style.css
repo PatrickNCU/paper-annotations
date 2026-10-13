@@ -134,6 +134,18 @@ background:var(--bg);color:var(--fg);cursor:pointer}
 #hlbar [data-c="3"]{background:var(--hl3)}
 #hlbar [data-c="4"]{background:var(--hl4)}
 #hlstat{font-size:12.5px;color:var(--muted);padding:2px 6px;line-height:1.55}
+/* On a touch screen the palette docks at the bottom (page.js, COARSE): the
+   system's own selection menu sits over the text, and a bar placed there
+   would fight it for the same few pixels. Finger-sized, centred, above the
+   home indicator. */
+#hlbar.dock{left:12px!important;right:12px;top:auto!important;
+bottom:calc(14px + env(safe-area-inset-bottom,0px));justify-content:center;gap:12px;
+padding:9px 12px;border-radius:14px;box-shadow:0 6px 24px var(--shadow)}
+#hlbar.dock button{width:44px;height:44px;font-size:18px;border-radius:50%}
+#hltoast{position:fixed;z-index:46;left:12px;right:12px;
+bottom:calc(84px + env(safe-area-inset-bottom,0px));max-height:32vh;overflow:auto;
+padding:10px 13px;font-size:14px;line-height:1.6;white-space:pre-wrap;
+background:var(--fg);color:var(--bg);border-radius:10px;box-shadow:0 6px 20px var(--shadow)}
 /* A Custom Highlight is paint, not an element, so there is no title attribute
    and no :hover to hang a tooltip on -- it is hit-tested by hand. Never takes
    the pointer, or moving onto it would count as leaving the text underneath. */
@@ -306,13 +318,13 @@ pointer-events:none;background:linear-gradient(rgba(0,0,0,0),var(--bg) 72%)}
    underneath it (side-settled), and comes back only once it has left
    (side-closing). Both are driven off the measured transition duration, so
    reduced-motion collapses them to zero rather than drifting. */
-#sidewrap{position:fixed;top:0;left:0;height:100vh;z-index:30;
+#sidewrap{position:fixed;top:0;left:0;height:100vh;height:100dvh;z-index:30;
 transform:translateX(-310px)}
 body.side-open #sidewrap{transform:none}
 /* Retracting, the handle sweeps back across the page; deaf to the pointer for
    that moment so it cannot catch one on the way past and reopen. */
 body.side-closing #sidewrap{pointer-events:none}
-#side{position:absolute;top:0;left:0;height:100vh;width:310px;overflow-y:auto;
+#side{position:absolute;top:0;left:0;height:100vh;height:100dvh;width:310px;overflow-y:auto;
 background:var(--sidebar);border-right:1px solid var(--line);padding:18px 16px;font-size:14px;
 box-shadow:0 0 24px var(--shadow)}
 #main{max-width:900px;margin:0 auto;padding:28px 34px 120px}
@@ -430,7 +442,7 @@ body.gut-inline .gut{position:static;width:auto;flex-direction:row;flex-wrap:wra
 @media print{.gutrow,#qchooser,#qtip{display:none!important}}
 #ov{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:40}
 #panel{position:fixed;z-index:41;left:50%;top:50%;transform:translate(-50%,-50%);
-width:min(760px,92vw);max-height:82vh;overflow:auto;background:var(--card);
+width:min(760px,92vw);max-height:82vh;max-height:82dvh;overflow:auto;background:var(--card);
 border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:12px;
 box-shadow:0 18px 50px var(--shadow);padding:20px 26px 24px}
 #panel[data-status=open]{border-left-color:var(--open)}
@@ -501,7 +513,7 @@ color:var(--fg);cursor:pointer;box-shadow:0 2px 10px var(--shadow)}
 
 /* Somewhere to draft a question while reading, instead of interrupting the
    paragraph to ask. Nothing is sent from here -- copy it into the chat. */
-#notewrap{position:fixed;top:0;right:0;height:100vh;z-index:29;pointer-events:none}
+#notewrap{position:fixed;top:0;right:0;height:100vh;height:100dvh;z-index:29;pointer-events:none}
 #notewrap>*{pointer-events:auto}
 /* nowrap for the same reason as #sidetoggle: positioned against a zero-width
    wrapper, the label otherwise collapses to one character per line. */
@@ -510,7 +522,7 @@ padding:6px 11px;border:1px solid var(--line);border-radius:8px;background:var(-
 color:var(--fg);cursor:pointer;box-shadow:0 2px 8px var(--shadow)}
 #notetab:hover{background:var(--line)}
 body.note-on #notetab{opacity:0;pointer-events:none}
-#note{position:absolute;top:0;right:0;width:min(360px,90vw);height:100vh;
+#note{position:absolute;top:0;right:0;width:min(360px,90vw);height:100vh;height:100dvh;
 display:flex;flex-direction:column;gap:8px;padding:16px 14px;
 background:var(--sidebar);border-left:1px solid var(--line);box-shadow:0 0 24px var(--shadow);
 transform:translateX(100%)}
@@ -561,4 +573,17 @@ padding:4px 0 4px 16px;margin-bottom:24px;font-size:14px;color:var(--muted)}
 /* 16px is the threshold below which iOS zooms the page in on focus, which
    then leaves the reader zoomed in on a textarea with no way back. */
 textarea.self{font-size:16px;min-height:118px}
+#notepad,#hlnotepad{font-size:16px}
+/* The draft drawer's buttons go above the text box: with the keyboard up,
+   the bottom of the drawer is under it, and 收起 / 複製 are exactly what
+   you reach for then. The home indicator gets its own room. */
+#note{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+#note .nhead{order:-2}
+#note .nbar{order:-1;flex-wrap:wrap}
+.nbar button{min-height:40px;padding:6px 13px;font-size:14px}
+/* The note editor opens at the top of the screen, where the keyboard does
+   not reach, full width instead of beside a mark it would cover. */
+#hlnote{left:12px!important;right:12px;top:calc(12px + env(safe-area-inset-top,0px))!important;
+width:auto}
+#hlnotepad{height:140px}
 }

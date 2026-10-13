@@ -562,6 +562,26 @@
   var hlBar=document.getElementById('hlbar');
   var hlStat=document.getElementById('hlstat');
   var hlDel=document.getElementById('hldel');
+  // A finger, not a mouse. Everything below was built on mouseup after a
+  // drag, and a phone has neither: iOS selects by long-press and handles,
+  // which sends no mouseup at all, and a tap on a button clears the
+  // selection before the button hears about it. So on a coarse pointer the
+  // palette follows the selection itself, docks at the bottom of the screen
+  // -- clear of the system's own Copy / Look Up menu, which sits over the
+  // text -- and its buttons act on touch without letting go of the text.
+  var COARSE=!!(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches);
+  var hlLast=null;
+  // The sidebar's status line is off screen on a phone; messages that need
+  // to be seen there go to a strip just above the docked palette instead.
+  var hlToast=document.createElement('div');
+  hlToast.id='hltoast'; hlToast.hidden=true;
+  document.body.appendChild(hlToast);
+  var hlToastTimer=0;
+  function hlToastShow(text,ms){
+    hlToast.textContent=text; hlToast.hidden=false;
+    clearTimeout(hlToastTimer);
+    if(ms) hlToastTimer=setTimeout(function(){ hlToast.hidden=true; },ms);
+  }
   // Keyed by the paper, not by the file's path or a digest of its text: the
   // page moves and gets rebuilt constantly, and either of those would drop
   // every mark the next time a card was added.
@@ -746,10 +766,21 @@
     hlStat.textContent=msg;
     clearTimeout(hlTimer);
     hlTimer=setTimeout(hlStatus,2200);
+    if(COARSE) hlToastShow(msg,2600);
   }
-  function hlHide(){ hlBar.hidden=true; hlPick=-1; hlZone=null; }
+  function hlHide(){
+    hlBar.hidden=true; hlPick=-1; hlZone=null;
+    if(COARSE) hlToast.hidden=true;
+  }
   function hlPlace(rect){
     hlBar.hidden=false;
+    if(COARSE){
+      // Docked: no position to compute, nothing to chase while scrolling.
+      hlBar.classList.add('dock');
+      hlBar.style.left=''; hlBar.style.top='';
+      hlZone=null;
+      return;
+    }
     var w=hlBar.offsetWidth, h=hlBar.offsetHeight;
     var x=Math.min(Math.max(6,rect.left+rect.width/2-w/2),window.innerWidth-w-6);
     var y=rect.top-h-8;
@@ -764,6 +795,11 @@
   }
   function hlAdd(color){
     var sel=window.getSelection();
+    // Belt and braces for touch: if the selection did get dropped on the way
+    // to the button, the one the palette was raised for is put back.
+    if(COARSE&&hlLast&&sel&&(sel.isCollapsed||!sel.rangeCount)){
+      try{ sel.removeAllRanges(); sel.addRange(hlLast); }catch(e){}
+    }
     if(!sel||sel.isCollapsed||!sel.rangeCount) return -1;
     var r=sel.getRangeAt(0), sec=hlSec(r.startContainer);
     if(!sec){ hlSay('只能在正文裡畫記'); return -1; }
@@ -785,6 +821,7 @@
     it.range=hlRange(map,a,b);
     if(!it.range){ hlSay('這段定位不到，請換個選取範圍'); return -1; }
     hlItems.push(it);
+    hlLast=null;
     if(!hlOn){ hlOn=true; hlBtn.classList.add('on'); }
     hlSave(); hlPaint(); hlStatus();
     sel.removeAllRanges();
@@ -980,6 +1017,9 @@
           }
           hlPick=i; hlDel.hidden=false;
           hlPlace(it.range.getBoundingClientRect());
+          // No hover on a phone, so the note a mark carries is shown when
+          // the mark is tapped -- above the palette, until it goes away.
+          if(COARSE&&it.note) hlToastShow(it.note,0);
         }
         // clicking a mark opens its card -- that gesture stays as it was
         var onCard=e.target.closest&&e.target.closest('mark[data-ids]');
@@ -1005,6 +1045,35 @@
       var sel=window.getSelection();
       if(hlPick<0&&(!sel||sel.isCollapsed)) hlHide();
     });
+    if(COARSE){
+      // The palette follows the selection, once the handles have stopped
+      // moving: raised when text in the paper is selected, nothing else.
+      var hlSelTimer=0;
+      document.addEventListener('selectionchange',function(){
+        clearTimeout(hlSelTimer);
+        hlSelTimer=setTimeout(function(){
+          if(!hlOn||!panel.hidden||!hlNote.hidden) return;
+          var sel=window.getSelection();
+          if(!sel||sel.isCollapsed||!sel.rangeCount) return;
+          var r=sel.getRangeAt(0);
+          if(!hlSec(r.startContainer)) return;
+          hlLast=r.cloneRange();
+          hlPick=-1; hlDel.hidden=true;
+          hlToast.hidden=true;
+          hlPlace(null);
+        },260);
+      });
+      // A touch on a palette button must not reach the page: that touch is
+      // what clears the selection, and the click would arrive too late to
+      // find any. Swallow it and press the button ourselves on lift.
+      [].slice.call(hlBar.querySelectorAll('button')).forEach(function(b){
+        b.addEventListener('touchstart',function(e){ e.preventDefault(); },{passive:false});
+        b.addEventListener('touchend',function(e){
+          e.preventDefault();
+          if(!b.hidden) b.click();
+        },{passive:false});
+      });
+    }
     // Raised from a click on a mark, or straight after drawing one, there is no
     // selection to collapse and nothing above would ever take it down again --
     // it just sat over the paper. Walking away dismisses it. While text is
@@ -1017,6 +1086,8 @@
          e.clientY<hlZone.t||e.clientY>hlZone.b) hlHide();
     });
     document.addEventListener('mousemove',function(e){
+      // a tap sends a stray mousemove too; on touch the note shows on tap
+      if(COARSE) return;
       // anything the reader has deliberately opened outranks a tooltip
       if(!hlOn||!panel.hidden||!hlNote.hidden||!hlBar.hidden||!chooser.hidden){ tipHide(); return; }
       var now=Date.now();
@@ -1037,7 +1108,17 @@
     // scrolled it is pointing at nothing. Three listeners rather than one:
     // scroll alone is fired during the rendering steps and does not always
     // arrive, so the input that caused the scroll is watched as well.
-    function hlDrop(){ hlHide(); tipHide(); }
+    function hlDrop(){
+      tipHide();
+      // Docked, the palette is not pointing at anything that scrolling could
+      // move away from; it stays while text is still selected.
+      if(COARSE){
+        var sel=window.getSelection();
+        if(hlPick>=0||!sel||sel.isCollapsed) hlHide();
+        return;
+      }
+      hlHide();
+    }
     window.addEventListener('scroll',hlDrop,true);
     document.addEventListener('wheel',hlDrop,{passive:true});
     document.addEventListener('touchmove',hlDrop,{passive:true});
