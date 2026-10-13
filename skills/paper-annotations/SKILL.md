@@ -371,9 +371,10 @@ request the 譯文設定 panel copies: 「請翻譯「…」的 S130、S200（�
    (`pa/LANGUAGES.default.md`), then `TERMS.md` / `LANGUAGES.md` beside
    `papers.yml` (shared), then the same names in the paper's folder (override
    the shared ones, term by term). He maintains them from the page —
-   `⚙ 工具 → 譯文設定` — so never edit them yourself; a contradiction between
-   them, or with the convention below, is a question for him, not a choice for
-   you.
+   `⚙ 工具 → 譯文設定`. A term in the table is written exactly as the table
+   says, even where you would choose otherwise; if you think an entry is wrong,
+   say so instead of deviating. A contradiction between the files, or with the
+   convention below, is a question for him, not a choice for you.
 3. Save the `--todo` output to a temp file and write each translation under its
    `p:` line. The `原文` comments may stay; `--put` drops them.
 4. `translate.py <work> --put <file>`. 🔴 blocks are refused (formula or
@@ -382,6 +383,25 @@ request the 譯文設定 panel copies: 「請翻譯「…」的 S130、S200（�
    through; check it, it is often fine.
 5. `build_html.py <work>` (not build_annotated: translations only live in the
    page). Report how many blocks went in and that the switch is bottom right.
+6. **Propose the terms you decided; write none of them.** Every term this round
+   that no table covers and whose form you chose (kept English, picked a
+   Chinese word) goes in a short table at the end of the report: term, your
+   form, where it belongs, one-line reason.
+   - **書房共用** for a term the field uses the same way everywhere
+     (wirelength, density); **這篇論文** for this paper's own coinage or a sense
+     particular to it (RePlAce-ld, a "bin" that means something else here);
+     **不收** for one-off wording no later translation will meet.
+   - Write the accepted ones into the named `TERMS.md` only after he answers
+     (「都收」, or the ones he picks), in the format the panel writes
+     (`| 原文 | 譯法 | 備註 |`, one row per term). Then say which file changed.
+   - Why ask rather than write: the shared table binds every paper on the
+     shelf, and a choice made inside one paper's context can be wrong for the
+     next. Why propose at all: unrecorded, the same term drifts from paper to
+     paper, which is the inconsistency the table exists to stop.
+7. **When he changes a term that is already in use**, nothing goes stale
+   (docs/adr/0008), so list the translated blocks still carrying the old form
+   (search `notes/translations/` in every paper the changed table applies to)
+   and ask whether to re-translate them.
 
 How a block is translated:
 
