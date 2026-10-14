@@ -9,6 +9,7 @@ underscores and asterisks inside formulas survive untouched.
 
 from __future__ import annotations
 
+import html
 import re
 
 NUL = "\x00"
@@ -19,6 +20,28 @@ _AMP = re.compile(r"&(?!#?\w+;)")
 
 def esc(text: str) -> str:
     return _AMP.sub("&amp;", text).replace("<", "&lt;").replace(">", "&gt;")
+
+
+# A link or image address goes into an attribute, so two things are checked
+# that esc() leaves alone. Quotes: an address may not close its attribute and
+# open another (onerror=, onmouseover=). Scheme: the page holds the token that
+# saves notes, so a javascript: link anywhere in a paper -- the source is an
+# LLM's conversion of someone else's PDF -- would be a way to write them. The
+# scheme is judged after entities are decoded and blanks removed, the way the
+# browser reads it: "jav&#97;script:" and "java script:" are still javascript.
+_SCHEME = re.compile(r"^([a-z][a-z0-9+.\-]*):", re.I)
+LINK_SCHEMES = ("http", "https", "mailto")
+IMAGE_SCHEMES = ("http", "https", "data")
+
+
+def safe_url(url: str, allowed=LINK_SCHEMES) -> str:
+    """An address fit for href/src: relative, #anchor or an allowed scheme;
+    anything else becomes "#". Returned attribute-escaped."""
+    raw = html.unescape(url)
+    found = _SCHEME.match(re.sub(r"[\x00-\x20\x7f]", "", raw))
+    if found and found.group(1).lower() not in allowed:
+        return "#"
+    return html.escape(raw, quote=True)
 
 
 class _Vault:
@@ -101,8 +124,11 @@ def _join_marks(match) -> str:
 
 def _inline(text: str) -> str:
     text = esc(text)
-    text = _IMG.sub(lambda m: f'<img src="{m.group(2)}" alt="{m.group(1)}">', text)
-    text = _LINK.sub(lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>', text)
+    text = _IMG.sub(
+        lambda m: f'<img src="{safe_url(m.group(2), IMAGE_SCHEMES)}" alt="{m.group(1).replace(chr(34), "&quot;")}">',
+        text,
+    )
+    text = _LINK.sub(lambda m: f'<a href="{safe_url(m.group(2))}">{m.group(1)}</a>', text)
     text = _FOOTREF.sub(
         lambda m: f'<sup class="fn"><a href="#fn-{m.group(1)}" id="fnref-{m.group(1)}">{m.group(1)}</a></sup>',
         text,

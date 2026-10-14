@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import miniyaml
+from . import atomic, miniyaml
 from .anchors import normalize
 
 VALID_STATUS = ("open", "half", "resolved")
@@ -69,7 +69,7 @@ def read_doc(path: Path):
 def write_doc(path: Path, meta: dict, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = "---\n" + miniyaml.dump(meta) + "\n---\n" + body
-    path.write_text(text, encoding="utf-8", newline="\n")
+    atomic.write_text(path, text, encoding="utf-8", newline="\n")
 
 
 def load_cards(notes_dir: Path, problems=None):
@@ -281,7 +281,7 @@ def set_card_status(path: Path, status: str, today: str) -> None:
         head = _UPDATED_LINE.sub(f"updated: {today}", head, count=1)
     else:
         head = _STATUS_LINE.sub(f"status: {status}\nupdated: {today}", head, count=1)
-    path.write_text(head + rest, encoding="utf-8", newline="\n")
+    atomic.write_text(path, head + rest, encoding="utf-8", newline="\n")
 
 
 def append_self_line(path: Path, today: str, kind: str, text: str) -> None:
@@ -297,15 +297,15 @@ def append_self_line(path: Path, today: str, kind: str, text: str) -> None:
     heading = re.compile(rf"^## {re.escape(SELF_HEADING)}[ \t]*$", re.M)
     found = heading.search(body)
     if not found:
-        path.write_text(body + f"\n## {SELF_HEADING}\n{line}\n", encoding="utf-8", newline="\n")
+        atomic.write_text(path, body + f"\n## {SELF_HEADING}\n{line}\n", encoding="utf-8", newline="\n")
         return
     following = re.compile(r"^## ", re.M).search(body, found.end())
     if following is None:
-        path.write_text(body.rstrip("\n") + "\n" + line + "\n", encoding="utf-8", newline="\n")
+        atomic.write_text(path, body.rstrip("\n") + "\n" + line + "\n", encoding="utf-8", newline="\n")
         return
     cut = following.start()
     before = body[:cut].rstrip("\n") + "\n" + line + "\n\n"
-    path.write_text(before + body[cut:], encoding="utf-8", newline="\n")
+    atomic.write_text(path, before + body[cut:], encoding="utf-8", newline="\n")
 
 
 def card_sections(body: str):

@@ -37,7 +37,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import miniyaml, notes
+from . import atomic, miniyaml, notes
 
 # Attempts before a checkpoint gives up and becomes a card. Two, not three:
 # see the module docstring.
@@ -136,14 +136,14 @@ def append(notes_dir: Path, check_id: str, verdict: str, today: str, card: str =
     path = log_path(notes_dir, check_id)
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        atomic.write_text(path, 
             f'---\ncheck: "{check_id}"\n---\n\n{line}\n', encoding="utf-8", newline="\n"
         )
         return path
     text = path.read_text(encoding="utf-8")
     if not text.endswith("\n"):
         text += "\n"
-    path.write_text(text + line + "\n", encoding="utf-8", newline="\n")
+    atomic.write_text(path, text + line + "\n", encoding="utf-8", newline="\n")
     return path
 
 
@@ -259,7 +259,7 @@ def make_card(notes_dir: Path, check, point, answers, today: str):
             body.append(f"{today} 第 {index} 次：{flat}")
     path = notes_dir / "cards" / f"{cid}-{marklib.slug(check['question'])}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    atomic.write_text(path, 
         "---\n" + miniyaml.dump(meta) + "\n---\n\n" + "\n".join(body) + "\n",
         encoding="utf-8",
         newline="\n",

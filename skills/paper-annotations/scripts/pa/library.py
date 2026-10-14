@@ -34,7 +34,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import cli, miniyaml, notes
+from . import atomic, cli, miniyaml, notes
 
 cli.bootstrap()
 
@@ -170,8 +170,8 @@ def _header(path: Path) -> str:
 def save_registry(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     header = _header(path)
-    path.write_text(
-        header + miniyaml.dump(data) + "\n", encoding="utf-8", newline="\n"
+    atomic.write_text(
+        path, header + miniyaml.dump(data) + "\n", encoding="utf-8", newline="\n"
     )
 
 

@@ -36,7 +36,7 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import notes
+from . import atomic, notes
 
 GRADES = ("again", "hard", "good", "easy")
 # How sure he said he was before the reveal. Not a grade: it changes nothing
@@ -98,7 +98,7 @@ def append(notes_dir: Path, card_id: str, grade: str, today: str, jol: str = "")
     path = log_path(notes_dir, card_id)
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
+        atomic.write_text(path, 
             f'---\ncard: "{card_id}"\n---\n\n{line}\n',
             encoding="utf-8",
             newline="\n",
@@ -107,7 +107,7 @@ def append(notes_dir: Path, card_id: str, grade: str, today: str, jol: str = "")
     text = path.read_text(encoding="utf-8")
     if not text.endswith("\n"):
         text += "\n"
-    path.write_text(text + line + "\n", encoding="utf-8", newline="\n")
+    atomic.write_text(path, text + line + "\n", encoding="utf-8", newline="\n")
     return path
 
 

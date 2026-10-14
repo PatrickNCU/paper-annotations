@@ -15,7 +15,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import anchors, cli, miniyaml, notes, sources, workspace
+from . import anchors, atomic, cli, miniyaml, notes, sources, workspace
 
 cli.bootstrap()
 
@@ -148,7 +148,8 @@ def main(argv):
             "companions": (config.get("fingerprint") or {}).get("companions") or {},
         }
         config["generated"] = date.today().isoformat()
-        config_path.write_text(
+        atomic.write_text(
+            config_path,
             "# 由 probe.py 產生；可手改，但 build 仍會對實際內容重新驗證。\n"
             + miniyaml.dump(config)
             + "\n",

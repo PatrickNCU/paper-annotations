@@ -38,7 +38,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from . import cli, library, links, miniyaml, minimd, notes, workspace
+from . import atomic, cli, library, links, minimd, miniyaml, notes, workspace
 
 DIRNAME = "translations"
 # A section's translation is its own highlight zone. The page names it by the
@@ -164,12 +164,9 @@ def write_entries(notes_dir: Path, rel, entries) -> Path:
     path = tr_path(notes_dir, rel)
     path.parent.mkdir(parents=True, exist_ok=True)
     body = "".join(f"\n<!-- p:{k} -->\n{t.strip()}\n" for k, t in entries)
-    data = (HEADER.format(source=Path(rel).as_posix()) + body).encode("utf-8")
-    # Encoded before anything is opened, and swapped in whole: a write that
-    # fails halfway must not leave the reader's translation truncated.
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, path)
+    # swapped in whole: a write that fails halfway must not leave the reader's
+    # translation truncated
+    atomic.write_text(path, HEADER.format(source=Path(rel).as_posix()) + body)
     return path
 
 
@@ -415,10 +412,7 @@ def render_terms(rows, intro: str) -> str:
 
 
 def _write(path: Path, text: str) -> None:
-    data = text.encode("utf-8")
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, path)
+    atomic.write_text(path, text)
 
 
 def settings(work: Path) -> dict:

@@ -17,7 +17,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import cli, library, links, miniyaml, notes, sources, workspace
+from . import atomic, cli, library, links, miniyaml, notes, sources, workspace
 
 cli.bootstrap()
 
@@ -184,7 +184,8 @@ def main(argv):
     (notes_dir / "cards").mkdir(exist_ok=True)
     (notes_dir / "points").mkdir(exist_ok=True)
     out_path = notes_dir / "paper.yml"
-    out_path.write_text(
+    atomic.write_text(
+        out_path,
         "# 由 probe.py 產生；可手改，但 build 仍會對實際內容重新驗證。\n"
         + miniyaml.dump(config)
         + "\n",

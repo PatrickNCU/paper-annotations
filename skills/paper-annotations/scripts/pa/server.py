@@ -32,6 +32,12 @@ Safety, in the order it matters:
     on another origin cannot send a custom header without a CORS preflight,
     and the preflight is refused; it cannot read the token either, because no
     CORS headers are sent anywhere.
+  * On loopback, a request has to be addressed to this machine by name
+    (Host: 127.0.0.1 / localhost / [::1]). Without that, any web page the
+    reader visits can point a domain of its own at 127.0.0.1 (DNS rebinding):
+    its requests then arrive with its own name as Host and Origin, pass the
+    same-origin check, and read the token like the real page does. Off
+    loopback the key is the gate instead -- that page never holds the cookie.
 """
 
 from __future__ import annotations
@@ -72,6 +78,14 @@ LOOPBACK = ("127.0.0.1", "localhost", "::1")
 # Addresses that mean "every interface" -- reachable, but not a name the
 # browser can be sent to.
 ANY = ("0.0.0.0", "::")
+
+
+def host_name(header: str) -> str:
+    """The name in a Host header, without its port: "[::1]:8975" -> "::1"."""
+    header = (header or "").strip().lower()
+    if header.startswith("["):
+        return header[1:header.find("]")] if "]" in header else header[1:]
+    return header.rsplit(":", 1)[0] if header.count(":") == 1 else header
 KEY_COOKIE = "pa_key"
 # The key lives in the home directory, not beside papers.yml: the registry is
 # in git and follows the notes onto other machines, which is the last place a
@@ -136,11 +150,30 @@ class Handler(SimpleHTTPRequestHandler):
     # origin, and whether the proxy passes the Host header through unchanged
     # is the proxy's business, so the origin is accepted by name.
     public_origin = ""
+    # The names a request may be addressed to; None when the key is the gate.
+    # See the module docstring on DNS rebinding.
+    hosts = None
     lock = threading.Lock()
     # (action, slug) pairs that have run since this server started. Only
     # consulted for actions declaring `writes`: 套用 is offered after its dry
     # run and not before, because seeing the difference first is the point.
     ran = set()
+
+    def parse_request(self):
+        # Every method, before anything else runs: the page, its images, HEAD,
+        # the JSON endpoints and every write.
+        if not super().parse_request():
+            return False
+        if self.hosts is None or host_name(self.headers.get("Host", "")) in self.hosts:
+            return True
+        self.send_error(403, "Unknown Host header; open this page at 127.0.0.1")
+        return False
+
+    def do_HEAD(self):
+        # The stdlib serves HEAD straight from disk; off loopback it has to
+        # pass the same key as GET, or it says which files exist.
+        if self._gate(urlparse(self.path)):
+            super().do_HEAD()
 
     def end_headers(self):
         # Every page here is rebuilt in place under the same name. With no
@@ -1390,6 +1423,7 @@ def main(argv) -> int:
     if remote:
         Handler.key = load_key("--new-key" in argv)
     Handler.public_origin = public
+    Handler.hosts = None if remote else {"127.0.0.1", "localhost", "::1"}
     Handler.papers = papers
     Handler.default = default
     # One paper goes straight to its page; a shelf full of them lands on the

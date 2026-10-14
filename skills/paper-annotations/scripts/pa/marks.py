@@ -21,7 +21,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import anchors, cli, miniyaml, notes, workspace
+from . import anchors, atomic, cli, miniyaml, notes, workspace
 
 cli.bootstrap()
 
@@ -130,7 +130,7 @@ def write_marks(paper_root: Path, notes_dir: Path, records):
         }
         marks_dir.mkdir(parents=True, exist_ok=True)
         path = marks_dir / f"{mid}-{slug(rec['exact'])}.md"
-        path.write_text(
+        atomic.write_text(path, 
             "---\n" + miniyaml.dump(meta) + "\n---\n\n"
             + (rec["note"] + "\n" if rec["note"] else ""),
             encoding="utf-8",
@@ -152,7 +152,7 @@ def save_mark(mark, color: str, note: str) -> None:
     if color in notes.VALID_COLOR:
         meta["color"] = color
     meta["updated"] = date.today().isoformat()
-    mark["path"].write_text(
+    atomic.write_text(mark["path"], 
         "---\n" + miniyaml.dump(meta) + "\n---\n\n" + (note + "\n" if note else ""),
         encoding="utf-8",
         newline="\n",
