@@ -752,6 +752,9 @@ border-bottom:2px solid transparent;margin-bottom:-1px}
 .tstabs button[aria-selected=true]{color:var(--fg);font-weight:600;border-bottom-color:var(--accent)}
 .tstabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tsbody{flex:1;min-height:0;overflow:auto;padding:16px 22px 18px;display:flex;flex-direction:column;gap:10px}
+/* The body scrolls, so nothing in it gives up height to a long list: the
+   scope switch has overflow:hidden and would otherwise shrink to a hairline. */
+.tsbody>*{flex-shrink:0}
 .tsbody button{font:inherit;font-size:13px;padding:4px 11px;border:1px solid var(--line);border-radius:6px;
 background:var(--card);color:var(--fg);cursor:pointer}
 .tsbody button:hover:not(:disabled){border-color:var(--accent)}
